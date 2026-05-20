@@ -1,0 +1,7 @@
+{
+  "targets": [
+    {"type": "cloudflare-kv", "name": "production", "url": "https://your-dashboard.example.com"},
+    {"type": "http", "name": "local", "url": "http://localhost:31337"}
+  ],
+  "server": {"port": 31337, "enabled": true}
+}

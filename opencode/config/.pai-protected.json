@@ -1,0 +1,90 @@
+{
+  "description": "PAI Protected Paths - Security containment for sensitive files",
+  "version": "5.0.0",
+  "zones": {
+    "public": {
+      "description": "Safe to share and commit",
+      "paths": [
+        "DOCUMENTATION/**",
+        "README.md",
+        "LICENSE",
+        "PAI_SYSTEM_PROMPT.md",
+        "ALGORITHM/**",
+        "skills/**/SKILL.md",
+        "skills/**/README.md",
+        "TEMPLATES/**",
+        "Packs/**"
+      ]
+    },
+    "private": {
+      "description": "User personal data - never share",
+      "paths": [
+        "USER/**",
+        "MEMORY/WORK/**",
+        "MEMORY/KNOWLEDGE/People/**",
+        "MEMORY/STATE/**",
+        "MEMORY/RELATIONSHIP/**",
+        "MEMORY/OBSERVABILITY/**"
+      ]
+    },
+    "sensitive": {
+      "description": "Credentials and secrets - highest protection",
+      "paths": [
+        "USER/Config/**",
+        "USER/CREDENTIALS/**",
+        "USER/CONTACTS.md",
+        "USER/FINANCES/**",
+        "USER/HEALTH/**",
+        ".env",
+        ".env.*",
+        "**/.credentials.json",
+        "**/credentials.json",
+        "**/*secret*",
+        "**/*token*",
+        "**/*key*",
+        "**/*password*",
+        "**/*private*"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "name": "No sensitive in public",
+      "description": "Never include sensitive zone files in public releases",
+      "from": "sensitive",
+      "to": "public",
+      "action": "block"
+    },
+    {
+      "name": "No private in public",
+      "description": "Never include private zone files in public releases",
+      "from": "private",
+      "to": "public",
+      "action": "block"
+    },
+    {
+      "name": "Audit sensitive access",
+      "description": "Log all access to sensitive files",
+      "zone": "sensitive",
+      "action": "log"
+    }
+  ],
+  "inspectors": {
+    "enabled": true,
+    "checkPaths": true,
+    "checkContent": true,
+    "blockedPatterns": [
+      "-----BEGIN (RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----",
+      "AKIA[0-9A-Z]{16}",
+      "ghp_[a-zA-Z0-9]{36}",
+      "glpat-[a-zA-Z0-9\\-]{20}",
+      "sk-[a-zA-Z0-9]{48}",
+      "sk-ant-[a-zA-Z0-9]{32}",
+      "bearer [a-zA-Z0-9\\-\\_]{20,}",
+      "api[_-]?key[_-]?[=:]\\s*[a-zA-Z0-9]{20,}",
+      "password[_-]?[=:]\\s*\\S+",
+      "secret[_-]?[=:]\\s*\\S+",
+      "token[_-]?[=:]\\s*\\S+"
+    ]
+  }
+}

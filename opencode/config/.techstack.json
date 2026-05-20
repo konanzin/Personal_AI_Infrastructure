@@ -1,0 +1,8 @@
+{
+  "packageManager": "bun",
+  "language": "TypeScript",
+  "devServerPort": 5173,
+  "browser": "Dia",
+  "terminal": "Kitty",
+  "pythonPackageManager": "uv"
+}

@@ -1,0 +1,13 @@
+{
+  "ntfy": {"enabled": true, "topic": "${NTFY_TOPIC}", "server": "ntfy.sh"},
+  "discord": {"enabled": true, "webhook": "${DISCORD_WEBHOOK}"},
+  "twilio": {"enabled": true, "toNumber": "${TWILIO_TO_NUMBER}"},
+  "thresholds": {"longTaskMinutes": 5},
+  "routing": {
+    "taskComplete": [],
+    "longTask": ["ntfy"],
+    "backgroundAgent": ["ntfy"],
+    "error": ["ntfy", "discord"],
+    "security": ["ntfy", "discord"]
+  }
+}
