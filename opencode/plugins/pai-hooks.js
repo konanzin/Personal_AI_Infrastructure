@@ -1,21 +1,26 @@
 /**
  * PAI Hooks Plugin for OpenCode
  *
- * Implements 9 event handlers using OpenCode's native plugin system.
+ * Implements 11 event handlers using OpenCode's native plugin system.
  * Ported from PAI v5.0.0 (Claude Code hooks) to native OpenCode events.
  *
  * Handlers:
- * - F1: SecurityPipeline (tool.execute.before) — Validate bash commands and writes
- * - F2: LoadContext (session.created) — Load PAI context, check Pulse, init registry
- * - F3: SessionIdle (session.idle) — Non-destructive: update lastIdleAt only
- * - F4: ToolActivityTracker (tool.execute.after) — Log tool usage to JSONL
- * - F5: ContentScanner (tool.execute.after for web tools) — Validate web content
- * - F6: PromptGuard (message.updated) — Post-detection + tool quarantine
- * - F7: SatisfactionCapture (message.updated) — Capture ratings and praise
- * - F8: WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
- * - F9: SessionEnd (session.deleted) — Destructive cleanup, archive, counts
+ * - F0:  SystemContext (experimental.chat.system.transform) — Inject PAI context into system prompt
+ * - F0.5: CompactionContext (experimental.session.compacting) — Preserve PAI context across compaction
+ * - F0.75: PrePromptGuard (chat.message) — Block dangerous prompts before model processing
+ * - F1:   SecurityPipeline (tool.execute.before) — Validate bash commands and writes
+ * - F1.5: PermissionGuard (permission.asked) — Block dangerous commands at permission level
+ * - F1.75: CommandGuard (command.executed) — Capture /rate and other PAI slash commands
+ * - F2:   LoadContext (session.created) — Load PAI context, check Pulse, init registry
+ * - F3:   SessionIdle (session.idle) — Non-destructive: update lastIdleAt only
+ * - F4:   ToolActivityTracker (tool.execute.after) — Log tool usage to JSONL
+ * - F5:   ContentScanner (tool.execute.after for web tools) — Validate web content
+ * - F6:   PromptGuard (message.updated) — Post-detection + tool quarantine
+ * - F7:   SatisfactionCapture (message.updated) — Capture ratings and praise
+ * - F8:   WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
+ * - F9:   SessionEnd (session.deleted) — Destructive cleanup, archive, counts
  *
- * @version 2.3.0
+ * @version 2.4.0
  * @license MIT
  */
 
@@ -45,7 +50,7 @@ import {
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.3.0';
+const PLUGIN_VERSION = '2.4.0';
 const MIN_PROMPT_LENGTH = 3;
 
 function readText(path, maxChars = 3000) {
@@ -156,7 +161,26 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   const lastResponseCache = join(STATE_DIR, 'last-response.txt');
   const getCurrentWorkPath = (sid) => join(STATE_DIR, `current-work-${sid}.json`);
 
+  // Structured logging helper
+  const logStructured = async (level, message, extra = {}) => {
+    try {
+      if (client?.app?.log) {
+        await client.app.log({
+          body: {
+            service: 'pai-hooks',
+            level,
+            message,
+            extra: { version: PLUGIN_VERSION, ...extra },
+          },
+        });
+      }
+    } catch {
+      // Fallback to console if structured logging fails
+    }
+  };
+
   console.log(`[PAI] Plugin v${PLUGIN_VERSION} initialized`);
+  await logStructured('info', 'Plugin initialized');
 
   return {
     // ═══════════════════════════════════════════════════════════════
@@ -197,20 +221,43 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // F0.5: CompactionContext — Preserve PAI context across compaction
+    //
+    // Injects PAI rules and recent work into compaction prompts so the model
+    // retains Life OS context after context window resets.
+    // ═══════════════════════════════════════════════════════════════
+    "experimental.session.compacting": async (input, output) => {
+      const sessionId = input.sessionID || 'unknown';
+      const latest = readText(join(PAI_DIR, 'ALGORITHM', 'LATEST'), 80) || 'v6.3.0';
+      const activeWork = buildActiveWorkContext();
+
+      output.context.push(`## PAI Life OS Context
+
+You are operating inside PAI (Personal AI Infrastructure). Key rules:
+- Before substantive multi-step work, read ${PAI_DIR}/ALGORITHM/LATEST then follow that Algorithm version exactly
+- Mode classification: MINIMAL (greetings/ratings), NATIVE (single fact/edit/command), ALGORITHM (everything else)
+- Algorithm tiers: E1 trivial, E2 single-domain, E3 substantial, E4 cross-cutting, E5 comprehensive
+- /e1–/e5 forces tier; unsure → ALGORITHM E3
+
+${activeWork}`);
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // F1.5: PermissionGuard — Notify when dangerous commands are blocked
     //
     // OpenCode-native UX: when a permission would be denied, log a clear
     // security message so the user knows what happened, instead of silent drop.
     // ═══════════════════════════════════════════════════════════════
-    "permission.ask": async (input, output) => {
+    "permission.asked": async (input, output) => {
       const sessionId = input.sessionID || 'unknown';
 
       if (input.tool === 'bash' && input.args?.command) {
         const cmd = input.args.command;
         const result = inspectBashCommand(cmd);
+        const reason = result.violations?.[0]?.reason || 'Unknown violation';
 
         if (result.action === 'deny') {
-          console.error(`[PAI SECURITY] 🚨 BLOCKED: ${result.reason}`);
+          console.error(`[PAI SECURITY] 🚨 BLOCKED: ${reason}`);
           console.error(`[PAI SECURITY] Command: ${truncate(cmd, 200)}`);
           logSecurityEvent({
             sessionId,
@@ -218,7 +265,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
             inspector: 'PermissionGuard',
             tool: 'bash',
             target: truncate(cmd, 500),
-            reason: result.reason,
+            reason,
             actionTaken: 'Denied by PAI security policy with explicit notification',
           });
           output.status = 'deny';
@@ -226,20 +273,130 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         }
 
         if (result.action === 'require_approval') {
-          console.warn(`[PAI SECURITY] ⚠️ REQUIRES APPROVAL: ${result.reason}`);
+          console.warn(`[PAI SECURITY] ⚠️ REQUIRES APPROVAL: ${reason}`);
           console.warn(`[PAI SECURITY] Command: ${truncate(cmd, 200)}`);
         }
       }
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // F2: LoadContext — Prepare PAI state on session start (PARTIAL)
+    // F1.75: CommandGuard — Capture slash commands for PAI processing
     //
-    // LIMITATION: OpenCode does not expose a native system-context injection hook
-    // equivalent to Claude Code's LoadContext.hook.ts. This handler initializes
-    // registry and prints context to console, but CANNOT inject dynamic context
-    // into the model's system prompt. True parity requires a transform hook for
-    // system/chat context.
+    // Intercepts /rate, /e1-/e5, and other PAI commands before they
+    // are processed as regular chat messages.
+    // ═══════════════════════════════════════════════════════════════
+    "command.executed": async (input, output) => {
+      const sessionId = input.sessionID || 'unknown';
+      const command = input.command || '';
+      const args = input.args || [];
+
+      if (command === 'rate' && args.length > 0) {
+        const ratingStr = args[0];
+        const rating = parseInt(ratingStr, 10);
+        const comment = args.slice(1).join(' ') || undefined;
+
+        if (rating >= 1 && rating <= 10) {
+          console.log(`[PAI] ⭐ Command /rate ${rating} captured`);
+
+          let lastResponse = '';
+          try {
+            if (existsSync(lastResponseCache)) {
+              lastResponse = readFileSync(lastResponseCache, 'utf-8');
+            }
+          } catch {}
+
+          appendJsonL(ratingsPath, {
+            timestamp: getISOTimestamp(),
+            rating,
+            session_id: sessionId,
+            source: 'command',
+            comment,
+            response_preview: lastResponse ? truncate(lastResponse, 500) : undefined,
+          });
+
+          // Update work.json
+          try {
+            const registry = readWorkRegistry();
+            for (const [, session] of Object.entries(registry.sessions)) {
+              if (session.sessionUUID === sessionId) {
+                if (!session.ratings) session.ratings = [];
+                session.ratings.push({
+                  value: rating,
+                  timestamp: Date.now(),
+                  message: comment?.slice(0, 32),
+                });
+                session.minimalCount = (session.minimalCount || 0) + 1;
+                writeWorkRegistry(registry);
+                break;
+              }
+            }
+          } catch {}
+
+          // Show toast confirmation
+          try {
+            if (client?.tui?.showToast) {
+              await client.tui.showToast({
+                body: {
+                  message: `Rating ${rating}/10 recorded`,
+                  variant: rating >= 7 ? 'success' : (rating <= 4 ? 'error' : 'warning'),
+                },
+              });
+            }
+          } catch {}
+
+          // Capture low rating learning
+          if (rating < 5) {
+            const category = getLearningCategory(comment || '', comment);
+            const { year, month, day, hours, minutes, seconds } = getPSTComponents();
+            const yearMonth = `${year}-${month}`;
+            const learningsDir = join(LEARNING_DIR, category, yearMonth);
+            ensureDir(learningsDir);
+            const label = `low-rating-${rating}`;
+            const filename = `${year}-${month}-${day}-${hours}${minutes}${seconds}_LEARNING_${label}.md`;
+            const filepath = join(learningsDir, filename);
+
+            const content = `---
+capture_type: LEARNING
+timestamp: ${year}-${month}-${day} ${hours}:${minutes}:${seconds} PST
+rating: ${rating}
+source: command
+auto_captured: true
+tags: [low-rating, improvement-opportunity]
+---
+
+# Low Rating Captured: ${rating}/10
+
+**Date:** ${year}-${month}-${day}
+**Rating:** ${rating}/10
+**Detection Method:** /rate command
+${comment ? `**Feedback:** ${comment}` : ''}
+
+---
+
+## Context
+
+${lastResponse ? truncate(lastResponse, 1000) : 'No context available'}
+
+---
+
+## Improvement Notes
+
+This response was rated ${rating}/10. Use this as an improvement opportunity.
+
+---
+`;
+            writeFileSync(filepath, content, 'utf-8');
+            console.log(`[PAI] 🧠 Captured low rating learning: ${filename}`);
+          }
+        }
+      }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // F2: LoadContext — Prepare PAI state on session start
+    //
+    // Context injection is handled by experimental.chat.system.transform (F0).
+    // This handler initializes registry and seeds the session with PAI context.
     // ═══════════════════════════════════════════════════════════════
     "session.created": async (input, output) => {
       const timestamp = getISOTimestamp();
@@ -249,6 +406,21 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         console.log(`[PAI] 🚀 Session started at ${timestamp}`);
         console.log(`[PAI] 📁 Project: ${project?.name || directory || 'unknown'}`);
         console.log(`[PAI] 🔑 Session ID: ${sessionId}`);
+
+        // Seed session with PAI context via noReply prompt
+        try {
+          if (client?.session?.prompt) {
+            await client.session.prompt({
+              path: { id: sessionId },
+              body: {
+                noReply: true,
+                parts: [{ type: 'text', text: '[PAI Context Loaded]' }],
+              },
+            });
+          }
+        } catch (e) {
+          // Silent fail — noReply injection is best-effort
+        }
 
         // Initialize or update session registry (atomic read-modify-write)
         let registry = safeReadJson(sessionRegistryPath, { sessions: {}, lastSessionId: null, version: '2.0' });

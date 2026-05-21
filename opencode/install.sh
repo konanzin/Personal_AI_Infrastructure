@@ -239,6 +239,9 @@ main() {
     report
     
     success "Done!"
+    echo ""
+    echo "For subsequent plugin updates without full reinstall:"
+    echo "  bash ${REPO_DIR}/opencode/bin/deploy-plugin.sh"
 }
 
 main "$@"

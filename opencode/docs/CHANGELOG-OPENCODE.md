@@ -21,22 +21,58 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Claude Code Feature | OpenCode Port Status |
 |---------------------|----------------------|
 | SecurityPipeline | Native `tool.execute.before` implementation |
+| PermissionGuard | Native `permission.asked` implementation |
 | ToolActivityTracker | Native `tool.execute.after` logging |
 | ContentScanner | Native `tool.execute.after` scanning |
+| CommandGuard | Native `command.executed` captures `/rate` and other PAI commands explicitly |
 | Session cleanup | Adapted to OpenCode session lifecycle |
-| Satisfaction capture | Captured from user messages where available |
+| Satisfaction capture | Captured from user messages and `/rate` command. Note: `/rate` still generates a minimal model prompt as it is a registered slash command; the rating is captured explicitly by the plugin. |
 | Work learning | Captured during session deletion where metadata exists |
-| LoadContext | Partial: initializes state, but cannot fully inject dynamic system context |
+| LoadContext | **1:1 via `experimental.chat.system.transform`** — full TELOS context injected into system prompt |
+| Compaction context | **1:1 via `experimental.session.compacting`** — PAI rules preserved across context resets |
+| PrePromptGuard | **1:1 via `chat.message`** — blocks dangerous prompts *before* model processing |
 | Default PAI behavior | OpenCode default build agent plus system transform with model-native mode classification; `/pai` not required |
 | PromptGuard | Adapted: `chat.message` pre-sanitizes denied prompts before model context; `message.updated` still logs post-event findings |
 | Voice | External Pulse notification only; no OpenCode-native voice |
 | Statusline | Slash-command/status output instead of Claude Code sidebar |
+
+**Parity estimate: ~82-87%** (up from 65-75%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
+
+**Validation: 93/93 checks passing** (70 structural + 23 behavioral).
+
+### Important: Repo vs Runtime Sync
+
+The repository and installed runtime can get out of sync. After pulling updates:
+
+```bash
+# Deploy latest plugin to active OpenCode installation
+bash opencode/bin/deploy-plugin.sh
+
+# Or with restart
+bash opencode/bin/deploy-plugin.sh --restart
+```
 
 ### Removed Historical Noise
 
 - Deleted the old bugfix review document because it described a point-in-time audit, not source of truth.
 - Deleted the old incident report from the repo because active safety is now represented by installer behavior, validator checks, and plugin placement.
 - Removed accidentally generated literal `${HOME}` test artifacts from the repository tree.
+
+### Behavioral Validation Matrix
+
+Latest run: `bash opencode/bin/test-behavioral.sh`
+
+| Category | Tests | Result |
+|----------|-------|--------|
+| Structural (version, handlers, paths) | 7/7 | ✅ PASS |
+| Side-effects (files, JSON validity) | 3/3 | ✅ PASS |
+| PermissionGuard (`permission.asked`) | 1/1 | ✅ PASS |
+| Rating parser (`/rate`, `/rating`) | 1/1 | ✅ PASS |
+| System context injection | 3/3 | ✅ PASS |
+| Compaction context preservation | 2/2 | ✅ PASS |
+| Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
+| Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
+| **Total** | **23/23** | **✅ ALL PASS** |
 
 ## Compatibility Principle
 

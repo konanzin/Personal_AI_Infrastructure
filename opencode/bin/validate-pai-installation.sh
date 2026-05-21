@@ -349,12 +349,12 @@ check_plugins() {
     fi
     checks=$((checks + 1))
 
-    # Check permission.ask hook exists (notified security denials)
-    if grep -q '"permission.ask"' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
-        pass "permission.ask hook exists"
+    # Check permission.asked hook exists (notified security denials)
+    if grep -q '"permission.asked"' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "permission.asked hook exists"
         passed=$((passed + 1))
     else
-        fail "permission.ask hook missing"
+        fail "permission.asked hook missing"
     fi
     checks=$((checks + 1))
 
@@ -630,6 +630,16 @@ main() {
         echo "Success Rate:    $(( PASSED * 100 / TOTAL ))%"
     fi
     echo ""
+    
+    # Optional: run behavioral tests if available
+    if [ -f "${PAI_DIR}/bin/test-behavioral.sh" ]; then
+        echo ""
+        echo "═══════════════════════════════════════════════════"
+        echo "  Behavioral Tests"
+        echo "═══════════════════════════════════════════════════"
+        echo ""
+        bash "${PAI_DIR}/bin/test-behavioral.sh" && echo "" || echo ""
+    fi
     
     if [ $FAILED -eq 0 ]; then
         echo -e "${GREEN}Status: ALL CHECKS PASSED ✅${RESET}"
