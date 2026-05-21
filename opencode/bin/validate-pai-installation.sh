@@ -438,6 +438,14 @@ check_commands() {
     fi
     checks=$((checks + 1))
     
+    if ! grep -q '"rate"' "${OPENCODE_DIR}/opencode.jsonc"; then
+        pass "No stale /rate command in config"
+        passed=$((passed + 1))
+    else
+        fail "/rate command still present in runtime config"
+    fi
+    checks=$((checks + 1))
+    
     echo "  Score: $passed/$checks"
     return $((checks - passed))
 }

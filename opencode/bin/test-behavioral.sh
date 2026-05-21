@@ -44,20 +44,17 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.4.0" \
-    "grep -q \"PLUGIN_VERSION = '2.4.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.5.0" \
+    "grep -q \"PLUGIN_VERSION = '2.5.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
-run_test "11 handlers present" \
-    "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 11 ]"
+run_test "10 handlers present" \
+    "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
 
 run_test "permission.asked handler exists" \
     "grep -q '\"permission.asked\"' ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "experimental.session.compacting handler exists" \
     "grep -q '\"experimental.session.compacting\"' ${PLUGINS_DIR}/pai-hooks.js"
-
-run_test "command.executed handler exists" \
-    "grep -q '\"command.executed\"' ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "Lib in lib/ subdirectory" \
     "[ -f ${PLUGINS_DIR}/lib/pai-hooks.lib.js ]"
@@ -104,7 +101,7 @@ TOTAL=$((TOTAL + 1))
 
 # ─── PARSE EXPLICIT RATING TEST ───────────────────────────
 echo ""
-echo "${BLUE}4. Rating Parser (/rate support)${RESET}"
+echo "${BLUE}4. Rating Parser (explicit message ratings)${RESET}"
 
 RATE_TEST=$(cat <<EOF
 import { parseExplicitRating } from '${PLUGINS_DIR}/lib/pai-hooks.lib.js';
@@ -122,10 +119,10 @@ EOF
 
 RATE_RESULT=$(echo "$RATE_TEST" | bun run - 2>/dev/null || echo "FAIL")
 if [ "$RATE_RESULT" = "PASS" ]; then
-    pass "/rate N, /rating N, and bare N all parse correctly"
+    pass "Explicit rating parsing works for bare ratings and prefixed forms"
     PASSED=$((PASSED + 1))
 else
-    fail "/rate N, /rating N, and bare N parse"
+    fail "Explicit rating parsing"
 fi
 TOTAL=$((TOTAL + 1))
 

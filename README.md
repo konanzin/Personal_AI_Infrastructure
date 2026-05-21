@@ -10,7 +10,7 @@ PAI v5 for OpenCode is a native OpenCode port of Personal AI Infrastructure. The
 - Skills: `~/.config/opencode/skills/*/SKILL.md`
 - Plugin: `~/.config/opencode/plugins/pai-hooks.js`
 - Plugin library: `~/.config/opencode/plugins/lib/pai-hooks.lib.js`
-- Validation target: 66 checks from `opencode/bin/validate-pai-installation.sh`
+- Validation target: 71 checks from `opencode/bin/validate-pai-installation.sh`
 
 PAI is installed as the default behavior for normal OpenCode prompts. `/pai` remains available as a manual shortcut/debug command, but should not be required for day-to-day use.
 
@@ -33,7 +33,7 @@ The installer is idempotent. It preserves installed `USER` and `MEMORY` data, up
 - PAI skills loaded from `~/.config/opencode/skills`
 - PAI core directories for Algorithm, Memory, Pulse, Tools, Templates, and User context
 - Default PAI runtime injection on normal prompts (model decides mode)
-- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/rate`, and `/e1` through `/e5`
+- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse`, `/context`, and `/e1` through `/e5`
 
 ## Useful Docs
 

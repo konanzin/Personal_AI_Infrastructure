@@ -59,7 +59,6 @@ The model itself decides the mode for each prompt based on the injected rules. T
 - `experimental.chat.system.transform`: **inject full PAI runtime context, identity/TELOS excerpts, and mode-classification rules into every system prompt**
 - `experimental.session.compacting`: **preserve PAI context and recent work across context window resets**
 - `permission.asked`: block dangerous commands at the permission level with explicit notification
-- `command.executed`: capture `/rate`, `/e1`-`/e5`, and other PAI slash commands explicitly
 - `tool.execute.before`: inspect risky commands, writes, and egress
 - `tool.execute.after`: log tool activity and scan fetched content
 - `message.updated`: capture ratings/praise and run post-message prompt checks
@@ -79,9 +78,9 @@ Structural validation (70 checks):
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-Behavioral validation (23 checks):
+Behavioral validation (22 checks):
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```
 
-Current score: **93/93 passing** (70 structural + 23 behavioral). Parity estimate: **~82-87%**.
+Current score: **93/93 passing** (71 structural + 22 behavioral). Parity estimate: **~82-87%**.

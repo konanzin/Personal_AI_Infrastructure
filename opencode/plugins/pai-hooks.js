@@ -10,7 +10,6 @@
  * - F0.75: PrePromptGuard (chat.message) — Block dangerous prompts before model processing
  * - F1:   SecurityPipeline (tool.execute.before) — Validate bash commands and writes
  * - F1.5: PermissionGuard (permission.asked) — Block dangerous commands at permission level
- * - F1.75: CommandGuard (command.executed) — Capture /rate and other PAI slash commands
  * - F2:   LoadContext (session.created) — Load PAI context, check Pulse, init registry
  * - F3:   SessionIdle (session.idle) — Non-destructive: update lastIdleAt only
  * - F4:   ToolActivityTracker (tool.execute.after) — Log tool usage to JSONL
@@ -20,7 +19,7 @@
  * - F8:   WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
  * - F9:   SessionEnd (session.deleted) — Destructive cleanup, archive, counts
  *
- * @version 2.4.0
+ * @version 2.5.0
  * @license MIT
  */
 
@@ -50,7 +49,7 @@ import {
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.4.0';
+const PLUGIN_VERSION = '2.5.0';
 const MIN_PROMPT_LENGTH = 3;
 
 function readText(path, maxChars = 3000) {
@@ -275,119 +274,6 @@ ${activeWork}`);
         if (result.action === 'require_approval') {
           console.warn(`[PAI SECURITY] ⚠️ REQUIRES APPROVAL: ${reason}`);
           console.warn(`[PAI SECURITY] Command: ${truncate(cmd, 200)}`);
-        }
-      }
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // F1.75: CommandGuard — Capture slash commands for PAI processing
-    //
-    // Intercepts /rate, /e1-/e5, and other PAI commands before they
-    // are processed as regular chat messages.
-    // ═══════════════════════════════════════════════════════════════
-    "command.executed": async (input, output) => {
-      const sessionId = input.sessionID || 'unknown';
-      const command = input.command || '';
-      const args = input.args || [];
-
-      if (command === 'rate' && args.length > 0) {
-        const ratingStr = args[0];
-        const rating = parseInt(ratingStr, 10);
-        const comment = args.slice(1).join(' ') || undefined;
-
-        if (rating >= 1 && rating <= 10) {
-          console.log(`[PAI] ⭐ Command /rate ${rating} captured`);
-
-          let lastResponse = '';
-          try {
-            if (existsSync(lastResponseCache)) {
-              lastResponse = readFileSync(lastResponseCache, 'utf-8');
-            }
-          } catch {}
-
-          appendJsonL(ratingsPath, {
-            timestamp: getISOTimestamp(),
-            rating,
-            session_id: sessionId,
-            source: 'command',
-            comment,
-            response_preview: lastResponse ? truncate(lastResponse, 500) : undefined,
-          });
-
-          // Update work.json
-          try {
-            const registry = readWorkRegistry();
-            for (const [, session] of Object.entries(registry.sessions)) {
-              if (session.sessionUUID === sessionId) {
-                if (!session.ratings) session.ratings = [];
-                session.ratings.push({
-                  value: rating,
-                  timestamp: Date.now(),
-                  message: comment?.slice(0, 32),
-                });
-                session.minimalCount = (session.minimalCount || 0) + 1;
-                writeWorkRegistry(registry);
-                break;
-              }
-            }
-          } catch {}
-
-          // Show toast confirmation
-          try {
-            if (client?.tui?.showToast) {
-              await client.tui.showToast({
-                body: {
-                  message: `Rating ${rating}/10 recorded`,
-                  variant: rating >= 7 ? 'success' : (rating <= 4 ? 'error' : 'warning'),
-                },
-              });
-            }
-          } catch {}
-
-          // Capture low rating learning
-          if (rating < 5) {
-            const category = getLearningCategory(comment || '', comment);
-            const { year, month, day, hours, minutes, seconds } = getPSTComponents();
-            const yearMonth = `${year}-${month}`;
-            const learningsDir = join(LEARNING_DIR, category, yearMonth);
-            ensureDir(learningsDir);
-            const label = `low-rating-${rating}`;
-            const filename = `${year}-${month}-${day}-${hours}${minutes}${seconds}_LEARNING_${label}.md`;
-            const filepath = join(learningsDir, filename);
-
-            const content = `---
-capture_type: LEARNING
-timestamp: ${year}-${month}-${day} ${hours}:${minutes}:${seconds} PST
-rating: ${rating}
-source: command
-auto_captured: true
-tags: [low-rating, improvement-opportunity]
----
-
-# Low Rating Captured: ${rating}/10
-
-**Date:** ${year}-${month}-${day}
-**Rating:** ${rating}/10
-**Detection Method:** /rate command
-${comment ? `**Feedback:** ${comment}` : ''}
-
----
-
-## Context
-
-${lastResponse ? truncate(lastResponse, 1000) : 'No context available'}
-
----
-
-## Improvement Notes
-
-This response was rated ${rating}/10. Use this as an improvement opportunity.
-
----
-`;
-            writeFileSync(filepath, content, 'utf-8');
-            console.log(`[PAI] 🧠 Captured low rating learning: ${filename}`);
-          }
         }
       }
     },

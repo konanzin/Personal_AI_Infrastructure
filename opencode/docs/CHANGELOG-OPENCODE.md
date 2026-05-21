@@ -12,9 +12,9 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Plugin | `pai-hooks.js` loaded explicitly through OpenCode `plugin` config |
 | Plugin lib | `plugins/lib/pai-hooks.lib.js`, not root auto-loaded |
 | Agents | 18 `.md` files installed under `~/.config/opencode/agents/` |
-| Commands | `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/rate`, `/e1`-`/e5` |
+| Commands | `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/e1`-`/e5` |
 | Memory | `~/.config/opencode/PAI/MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH}` |
-| Validation | 66 checks in `validate-pai-installation.sh` |
+| Validation | 71 checks in `validate-pai-installation.sh` |
 
 ### Parity Notes
 
@@ -24,9 +24,8 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | PermissionGuard | Native `permission.asked` implementation |
 | ToolActivityTracker | Native `tool.execute.after` logging |
 | ContentScanner | Native `tool.execute.after` scanning |
-| CommandGuard | Native `command.executed` captures `/rate` and other PAI commands explicitly |
 | Session cleanup | Adapted to OpenCode session lifecycle |
-| Satisfaction capture | Captured from user messages and `/rate` command. Note: `/rate` still generates a minimal model prompt as it is a registered slash command; the rating is captured explicitly by the plugin. |
+| Satisfaction capture | Captured passively from user messages (explicit ratings and praise fast-path); no dedicated `/rate` command |
 | Work learning | Captured during session deletion where metadata exists |
 | LoadContext | **1:1 via `experimental.chat.system.transform`** — full TELOS context injected into system prompt |
 | Compaction context | **1:1 via `experimental.session.compacting`** — PAI rules preserved across context resets |
@@ -38,7 +37,7 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 
 **Parity estimate: ~82-87%** (up from 65-75%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
 
-**Validation: 93/93 checks passing** (70 structural + 23 behavioral).
+**Validation: 93/93 checks passing** (71 structural + 22 behavioral).
 
 ### Important: Repo vs Runtime Sync
 
@@ -67,12 +66,12 @@ Latest run: `bash opencode/bin/test-behavioral.sh`
 | Structural (version, handlers, paths) | 7/7 | ✅ PASS |
 | Side-effects (files, JSON validity) | 3/3 | ✅ PASS |
 | PermissionGuard (`permission.asked`) | 1/1 | ✅ PASS |
-| Rating parser (`/rate`, `/rating`) | 1/1 | ✅ PASS |
+| Rating parser (explicit message ratings) | 1/1 | ✅ PASS |
 | System context injection | 3/3 | ✅ PASS |
 | Compaction context preservation | 2/2 | ✅ PASS |
 | Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
 | Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
-| **Total** | **23/23** | **✅ ALL PASS** |
+| **Total** | **22/22** | **✅ ALL PASS** |
 
 ## Compatibility Principle
 
