@@ -1,414 +1,161 @@
-# PAI for OpenCode — Troubleshooting Guide
+# PAI for OpenCode Troubleshooting
 
-> Common issues and solutions for the PAI OpenCode port.
-
-## Quick Diagnostic
-
-Run the validation script first:
+## First Check
 
 ```bash
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-Expected output: `64/64 checkpoints passed (100%)`
+The current validator checks 66 installation and parity-critical structure points.
 
-If you see failures, match the section below to find your issue.
+## PAI Only Works With /pai
 
----
+This is a parity bug. Normal prompts should load PAI behavior by default.
 
-## Installation Issues
+Check:
 
-### "Missing prerequisites: git opencode"
-
-**Cause:** The installer cannot find `git` or `opencode` in your PATH.
-
-**Solution:**
 ```bash
-# Install git (macOS)
-brew install git
-
-# Install git (Ubuntu/Debian)
-sudo apt-get install git
-
-# Install opencode
-curl -fsSL https://opencode.ai/install.sh | sh
+grep -n 'Default PAI primary agent' ~/.config/opencode/opencode.jsonc
+grep -n 'experimental.chat.system.transform' ~/.config/opencode/plugins/pai-hooks.js
 ```
 
-### "PAI directory exists but is empty"
+Fix:
 
-**Cause:** Clone failed or was interrupted.
-
-**Solution:**
 ```bash
-# Remove and re-run installer
-rm -rf ~/.config/opencode/PAI
-bash ~/.config/opencode/PAI/bin/install-pai-opencode.sh
+cd ~/PAI-opencode
+./opencode/install.sh --update
 ```
 
-### Backup creation fails
+Restart OpenCode after reinstalling.
 
-**Cause:** Insufficient disk space or permissions.
+## Model Does Not Enter Algorithm Mode
 
-**Solution:**
+If the model stays in NATIVE for complex work, the system context may not be injecting correctly.
+
+Check:
+
 ```bash
-# Check disk space
-df -h ~/.config/
-
-# Check permissions
-ls -ld ~/.config/
-
-# Fix permissions
-chmod 755 ~/.config/
+grep -n 'Mode Classification Rules' ~/.config/opencode/plugins/pai-hooks.js
 ```
 
----
+The plugin injects classification rules into system context. The model decides the mode. If it under-classifies, that is a model behavior issue, not a plugin bug.
 
-## Path Issues
+Fix: use `/e3` or higher explicitly in your prompt to force ALGORITHM mode.
 
-### Code still references `~/.claude/`
+## Plugin Lib Auto-Loaded From Root
 
-**Cause:** Legacy code or skills use the old Claude Code path.
+Symptom: validation reports `pai-hooks.lib.js in plugins/ root`.
 
-**Solution 1 — Check symlink:**
-```bash
-# Verify symlink exists
-ls -la ~/.claude
-
-# Should show: ~/.claude -> ~/.config/opencode/PAI
-
-# If missing, create it:
-ln -s ~/.config/opencode/PAI ~/.claude
-```
-
-**Solution 2 — Update hardcoded paths:**
-```bash
-# Find files referencing old path
-grep -r "~/.claude/" ~/.config/opencode/PAI/ --include="*.md" --include="*.js" --include="*.ts" --include="*.json"
-
-# Replace with new path (review before running)
-find ~/.config/opencode/PAI/ -type f \( -name "*.md" -o -name "*.js" -o -name "*.ts" -o -name "*.json" \) -exec sed -i 's|~/.claude/|~/.config/opencode/PAI/|g' {} +
-```
-
-**Solution 3 — Check PULSE paths:**
-```bash
-# Run PULSE path patcher
-bash ~/.config/opencode/PAI/PULSE/patch-paths.sh
-```
-
-### "PAI_DIR not set"
-
-**Cause:** Plugin failed to set environment variable.
-
-**Solution:**
-```bash
-# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
-export PAI_DIR="$HOME/.config/opencode/PAI"
-```
-
----
-
-## Plugin Loading Issues
-
-### "Plugin not found" or "Cannot load plugin"
-
-**Cause:** Plugin file missing or opencode.jsonc misconfigured.
-
-**Solution:**
-```bash
-# Check plugin exists
-ls -la ~/.config/opencode/plugins/pai-hooks.js
-
-# Check opencode.jsonc configuration
-cat ~/.config/opencode/opencode.jsonc | grep -A 2 "plugin"
-
-# Should show:
-# "plugin": ["./plugins/pai-hooks.js"]
-
-# If missing, add it:
-cat >> ~/.config/opencode/opencode.jsonc << 'EOF'
-{
-  "plugin": ["./plugins/pai-hooks.js"]
-}
-EOF
-```
-
-### Plugin errors on startup
-
-**Cause:** Plugin JavaScript error or incompatible OpenCode version.
-
-**Solution:**
-```bash
-# Check OpenCode version
-opencode --version
-
-# Check plugin syntax
-node --check ~/.config/opencode/plugins/pai-hooks.js
-
-# View plugin logs
-tail -f ~/.config/opencode/PAI/logs/tool-activity.jsonl
-
-# Reinstall plugin
-cp ~/.config/opencode/PAI/plugins/pai-hooks.js ~/.config/opencode/plugins/
-```
-
-### "pai-hooks.lib.js not found"
-
-**Cause:** Library file missing or wrong location.
-
-**Solution:**
-```bash
-# Check library exists
-ls -la ~/.config/opencode/plugins/pai-hooks.lib.js
-
-# If missing, copy from PAI directory
-cp ~/.config/opencode/PAI/plugins/pai-hooks.lib.js ~/.config/opencode/plugins/
-```
-
----
-
-## Agent Issues
-
-### "Agent not found" or "No such agent"
-
-**Cause:** Agent files missing or wrong location.
-
-**Solution:**
-```bash
-# Check agents exist
-ls -la ~/.config/opencode/agents/*.md
-
-# Should show 18+ agent files
-
-# If missing, check if they exist in PAI directory
-ls ~/.config/opencode/PAI/agents/
-
-# Copy if needed
-cp ~/.config/opencode/PAI/agents/*.md ~/.config/opencode/agents/
-```
-
-### Agent uses wrong model
-
-**Cause:** Agent file specifies unavailable model.
-
-**Solution:**
-```bash
-# Check agent frontmatter
-cat ~/.config/opencode/agents/Engineer.md | head -5
-
-# Edit to use available model
-# Valid models: kimi-for-coding/k2p6, claude-sonnet-4, gpt-4, etc.
-```
-
----
-
-## Command Issues
-
-### "/status not found"
-
-**Cause:** Command file missing or not registered.
-
-**Solution:**
-```bash
-# Check command file exists
-ls -la ~/.config/opencode/commands/status.md
-
-# If missing, create it
-cat > ~/.config/opencode/commands/status.md << 'EOF'
----
-name: status
-description: Show PAI status
----
-
-Run: bash ~/.config/opencode/PAI/bin/statusline-command.sh
-EOF
-```
-
-### "/pai not found"
-
-**Cause:** PAI Algorithm command not registered.
-
-**Solution:**
-```bash
-# Check command file
-ls -la ~/.config/opencode/commands/pai.md
-
-# Alternative: Run algorithm directly
-opencode /algorithm "Your task here"
-```
-
----
-
-## Configuration Issues
-
-### "opencode.jsonc invalid"
-
-**Cause:** Syntax error in configuration file.
-
-**Solution:**
-```bash
-# Validate JSON syntax
-node -e "JSON.parse(require('fs').readFileSync('~/.config/opencode/opencode.jsonc', 'utf8').replace(/\\/\\/.*/g, ''))" && echo "Valid JSON"
-
-# Check for trailing commas
-# JSONC allows comments but not trailing commas in some versions
-
-# Reset to default
-cat > ~/.config/opencode/opencode.jsonc << 'EOF'
-{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "kimi-for-coding/k2p6",
-  "default_agent": "build",
-  "plugin": ["./plugins/pai-hooks.js"],
-  "skills": {
-    "paths": ["~/.config/opencode/skills"]
-  }
-}
-EOF
-```
-
-### Skills not loading
-
-**Cause:** Wrong path in opencode.jsonc or skills directory missing.
-
-**Solution:**
-```bash
-# Check skills path
-ls -la ~/.config/opencode/skills/
-
-# Check opencode.jsonc skills config
-grep -A 3 '"skills"' ~/.config/opencode/opencode.jsonc
-
-# Should show paths pointing to ~/.config/opencode/skills
-```
-
----
-
-## Verification Steps
-
-### Verify Complete Installation
+Fix:
 
 ```bash
-# 1. Check directory structure
-ls -la ~/.config/opencode/PAI/
-
-# 2. Check version
-cat ~/.config/opencode/PAI/.version.json
-
-# 3. Run validation
-bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
-
-# 4. Check opencode config
-cat ~/.config/opencode/opencode.jsonc
-
-# 5. Test plugin loading
-opencode --version
-# Should show PAI initialization messages
-```
-
-### Verify Plugin is Active
-
-```bash
-# Check tool activity log
-tail ~/.config/opencode/PAI/logs/tool-activity.jsonl
-
-# Should show entries with [PAI] prefix
-```
-
----
-
-## Reset / Clean Install
-
-### Nuclear Option — Complete Reset
-
-**WARNING:** This removes all PAI data including MEMORY, WORK, and customizations.
-
-```bash
-# 1. Backup your data first
-cp -R ~/.config/opencode/PAI ~/.config/opencode/PAI-backup-$(date +%Y%m%d)
-
-# 2. Remove PAI directory
-rm -rf ~/.config/opencode/PAI
-
-# 3. Remove plugins
-rm -f ~/.config/opencode/plugins/pai-hooks.js
+mkdir -p ~/.config/opencode/plugins/lib
 rm -f ~/.config/opencode/plugins/pai-hooks.lib.js
-
-# 4. Remove agents (optional — they can stay)
-rm -rf ~/.config/opencode/agents
-
-# 5. Re-run installer
-bash /tmp/pai/PAI/bin/install-pai-opencode.sh
+cd ~/PAI-opencode
+./opencode/install.sh --update
 ```
 
-### Soft Reset — Keep Data
+OpenCode auto-discovers root plugin files. The library must stay in `plugins/lib/` so only `pai-hooks.js` is loaded as a plugin.
+
+## Plugin Not Found
+
+Check:
 
 ```bash
-# 1. Backup
-mv ~/.config/opencode/PAI ~/.config/opencode/PAI-old
-
-# 2. Reinstall core files only
-mkdir -p ~/.config/opencode/PAI
-cp -R ~/.config/opencode/PAI-old/{USER,MEMORY} ~/.config/opencode/PAI/ 2>/dev/null || true
-bash ~/.config/opencode/PAI-old/bin/install-pai-opencode.sh
+ls -la ~/.config/opencode/plugins/pai-hooks.js
+grep -n 'pai-hooks.js' ~/.config/opencode/opencode.jsonc
 ```
 
----
-
-## Update PAI
-
-### Update to Latest Version
+Fix:
 
 ```bash
-# 1. Navigate to PAI directory
-cd ~/.config/opencode/PAI
-
-# 2. Pull latest changes
-git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
-
-# 3. Re-run installer to update plugins/agents
-bash bin/install-pai-opencode.sh
-
-# 4. Validate
-bash bin/validate-pai-installation.sh
+cd ~/PAI-opencode
+./opencode/install.sh --update
 ```
 
-### Update Checklist
+## Config Was Overwritten Or Is Invalid
 
-- [ ] Backup existing installation
-- [ ] Pull latest PAI code
-- [ ] Re-run installer
-- [ ] Run validation script
-- [ ] Check for new breaking changes in CHANGELOG
-- [ ] Update custom configurations if needed
+The source of truth is `opencode/config/opencode.jsonc.template`.
 
----
-
-## Getting Help
-
-### Diagnostic Information to Include
-
-When reporting issues, include:
+Fix:
 
 ```bash
-# Run diagnostic script and copy output
-bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh 2>&1
-
-# OpenCode version
+cd ~/PAI-opencode
+cp opencode/config/opencode.jsonc.template ~/.config/opencode/opencode.jsonc
 opencode --version
-
-# OS info
-uname -a
-
-# Plugin logs (last 20 lines)
-tail -20 ~/.config/opencode/PAI/logs/tool-activity.jsonl
 ```
 
-### Support Channels
+After changing OpenCode config/plugins/agents/skills, restart OpenCode because config is loaded at startup.
 
-- **Issues**: [github.com/anomalyco/opencode/issues](https://github.com/anomalyco/opencode/issues)
-- **Documentation**: `PAI/DOCUMENTATION/`
-- **Algorithm Help**: Run `/pai "How do I troubleshoot..."` in OpenCode
+## Agents Missing
 
----
+Check:
 
-*PAI 5.0.0 — OpenCode Port | Troubleshooting Guide*
+```bash
+ls ~/.config/opencode/agents/*.md | wc -l
+```
+
+Fix:
+
+```bash
+cd ~/PAI-opencode
+./opencode/install.sh --update
+```
+
+## Skills Missing
+
+Check:
+
+```bash
+ls ~/.config/opencode/skills
+```
+
+The installer copies skills only if this repo contains `skills/` or `opencode/skills/`. External/global skills may also be loaded by OpenCode depending on your config.
+
+## Commands Missing
+
+Commands are registered in `opencode.jsonc` and command markdown files are copied into `~/.config/opencode/commands/`.
+
+Check:
+
+```bash
+grep -n '"pai"\|"status"\|"interview"' ~/.config/opencode/opencode.jsonc
+ls ~/.config/opencode/commands
+```
+
+Fix:
+
+```bash
+cd ~/PAI-opencode
+./opencode/install.sh --update
+```
+
+## PAI Core Missing
+
+Check:
+
+```bash
+ls ~/.config/opencode/PAI
+```
+
+This repo's installer preserves an existing PAI core and updates OpenCode-specific files. If `~/.config/opencode/PAI` was deleted, restore from backup or reinstall from the upstream PAI source that contains the full `PAI/` tree.
+
+## Path Confusion
+
+Canonical OpenCode path:
+
+```text
+~/.config/opencode/PAI
+```
+
+Do not rely on `~/.claude` for new OpenCode-native behavior. Legacy references may exist in old content, but new config and plugins should use `~/.config/opencode` or `${PAI_DIR}`.
+
+## Clean Update
+
+```bash
+cd ~/PAI-opencode
+./opencode/install.sh --update
+bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
+```
+
+Restart OpenCode after the update.

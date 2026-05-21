@@ -86,9 +86,15 @@ create_directories() {
 install_plugins() {
     log "Installing plugins..."
     
-    cp -f "${REPO_DIR}/opencode/plugins/"*.js "$PLUGINS_DIR/"
+    # Copy main plugin only (lib goes to separate directory)
+    cp -f "${REPO_DIR}/opencode/plugins/pai-hooks.js" "$PLUGINS_DIR/"
+    rm -f "$PLUGINS_DIR/pai-hooks.lib.js"
     
-    success "Plugins installed"
+    # Create lib subdirectory and copy library there
+    mkdir -p "$PLUGINS_DIR/lib"
+    cp -f "${REPO_DIR}/opencode/plugins/lib/pai-hooks.lib.js" "$PLUGINS_DIR/lib/"
+    
+    success "Plugins installed (main + lib in subdirectory)"
 }
 
 # ─── Install Agents ───────────────────────────────────────
@@ -161,27 +167,12 @@ install_pai_core() {
 generate_config() {
     log "Generating opencode.jsonc..."
     
-    if [ -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" ]; then
-        # Use template
-        cp -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" "${OPENCODE_DIR}/opencode.jsonc"
-    else
-        # Generate minimal config
-        cat > "${OPENCODE_DIR}/opencode.jsonc" << 'EOF'
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["./plugins/pai-hooks.js"],
-  "model": "kimi-for-coding/k2p6",
-  "default_agent": "build",
-  "skills": {
-    "paths": ["~/.config/opencode/skills"]
-  },
-  "reference": {
-    "PAI": {"path": "~/.config/opencode/PAI"}
-  },
-  "instructions": ["~/.config/opencode/PAI/CLAUDE.md"]
-}
-EOF
+    if [ ! -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" ]; then
+        error "Missing opencode/config/opencode.jsonc.template"
+        exit 1
     fi
+
+    cp -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" "${OPENCODE_DIR}/opencode.jsonc"
     
     success "Config generated"
 }

@@ -1,20 +1,21 @@
 /**
  * PAI Hooks Plugin for OpenCode
- * 
- * Implements 8 critical PAI hooks using OpenCode's native plugin system.
+ *
+ * Implements 9 event handlers using OpenCode's native plugin system.
  * Ported from PAI v5.0.0 (Claude Code hooks) to native OpenCode events.
- * 
- * Hooks:
+ *
+ * Handlers:
  * - F1: SecurityPipeline (tool.execute.before) — Validate bash commands and writes
  * - F2: LoadContext (session.created) — Load PAI context, check Pulse, init registry
- * - F3: SessionCleanup (session.idle) — Clean up session, update work.json, sync counts
+ * - F3: SessionIdle (session.idle) — Non-destructive: update lastIdleAt only
  * - F4: ToolActivityTracker (tool.execute.after) — Log tool usage to JSONL
  * - F5: ContentScanner (tool.execute.after for web tools) — Validate web content
- * - F6: PromptGuard (message.updated) — Detect dangerous prompt patterns
- * - F7: SatisfactionCapture (session.idle) — Log rating availability
- * - F8: WorkCompletionLearning (session.idle) — Analyze patterns, write learning signals
- * 
- * @version 2.0.0
+ * - F6: PromptGuard (message.updated) — Post-detection + tool quarantine
+ * - F7: SatisfactionCapture (message.updated) — Capture ratings and praise
+ * - F8: WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
+ * - F9: SessionEnd (session.deleted) — Destructive cleanup, archive, counts
+ *
+ * @version 2.3.0
  * @license MIT
  */
 
@@ -38,14 +39,98 @@ import {
   readSessionNames, writeSessionNames,
   parseFrontmatter, writeFrontmatterField,
   getRecentWorkSessions,
-} from './pai-hooks.lib.js';
+} from './lib/pai-hooks.lib.js';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.0.0';
+const PLUGIN_VERSION = '2.3.0';
 const MIN_PROMPT_LENGTH = 3;
+
+function readText(path, maxChars = 3000) {
+  try {
+    if (!existsSync(path)) return null;
+    const content = readFileSync(path, 'utf-8').trim();
+    if (!content) return null;
+    return content.length > maxChars ? `${content.slice(0, maxChars)}\n...[truncated]` : content;
+  } catch {
+    return null;
+  }
+}
+
+function extractTextParts(parts = []) {
+  return parts
+    .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('\n')
+    .trim();
+}
+
+function buildActiveWorkContext() {
+  try {
+    const registry = readWorkRegistry();
+    const sessions = Object.entries(registry.sessions || {})
+      .sort((a, b) => new Date(b[1].updatedAt || b[1].started || 0) - new Date(a[1].updatedAt || a[1].started || 0))
+      .slice(0, 5)
+      .map(([slug, session]) => `- ${slug}: ${session.task || session.sessionName || 'session'} | ${session.phase || 'unknown'} | ${session.progress || 'unknown'}`)
+      .join('\n');
+    return sessions ? `### Recent Work\n${sessions}` : '';
+  } catch {
+    return '';
+  }
+}
+
+function buildIdentityContext() {
+  const identityFiles = [
+    ['Principal Identity', join(PAI_DIR, 'USER', 'PRINCIPAL_IDENTITY.md')],
+    ['DA Identity', join(PAI_DIR, 'USER', 'DA_IDENTITY.md')],
+    ['Principal TELOS', join(PAI_DIR, 'USER', 'TELOS', 'PRINCIPAL_TELOS.md')],
+  ];
+
+  return identityFiles
+    .map(([label, path]) => {
+      const content = readText(path, 4000);
+      return content ? `## ${label}\n${content}` : null;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function buildPAISystemContext(sessionId) {
+  const latest = readText(join(PAI_DIR, 'ALGORITHM', 'LATEST'), 80) || 'v6.3.0';
+  const claudeMd = readText(join(PAI_DIR, 'CLAUDE.md'), 8000);
+  const identityContext = buildIdentityContext();
+  const activeWork = buildActiveWorkContext();
+
+  return `# PAI System Context
+
+You are operating inside PAI (Personal AI Infrastructure), a Life OS framework. This context is injected automatically for every prompt. You do not need to type /pai.
+
+## Identity & Relationship
+${identityContext}
+
+## Operational Procedures
+${claudeMd || 'CLAUDE.md not available'}
+
+## Mode Classification Rules (You Decide)
+Use your own judgment to classify each prompt:
+
+- **MINIMAL** — greetings, ratings, single-token acknowledgments. Respond briefly.
+- **NATIVE** — single fact lookup OR single-line edit OR one command run, no new artifact, no multi-step plan. Light PAI formatting.
+- **ALGORITHM** — everything else. Multi-step, ambiguous, architectural, implementation, debugging, design, migration, or PAI-affecting work. Before substantive work, read ${PAI_DIR}/ALGORITHM/LATEST then ${PAI_DIR}/ALGORITHM/${latest}.md and follow that Algorithm version exactly.
+
+**Tier (ALGORITHM only):** E1 trivial (<90s), E2 single-domain (~3min), E3 multi-file substantial (~10min), E4 cross-cutting/doctrine (~30min), E5 comprehensive (>2h). Bias higher when in doubt.
+
+**Override:** /e1–/e5 in user prompt forces tier. **Fail-safe:** unsure → ALGORITHM E3.
+
+**Note:** /pai is only a manual shortcut/debug command.
+
+## Session
+session_id: ${sessionId || 'unknown'}
+
+${activeWork}`;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN PLUGIN EXPORT
@@ -69,13 +154,92 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   const ratingsPath = join(LEARNING_DIR, 'SIGNALS', 'ratings.jsonl');
   const countsPath = join(STATE_DIR, 'counts.json');
   const lastResponseCache = join(STATE_DIR, 'last-response.txt');
-  const currentWorkPath = join(STATE_DIR, 'current-work.json');
+  const getCurrentWorkPath = (sid) => join(STATE_DIR, `current-work-${sid}.json`);
 
   console.log(`[PAI] Plugin v${PLUGIN_VERSION} initialized`);
 
   return {
     // ═══════════════════════════════════════════════════════════════
-    // F2: LoadContext - Load PAI context on session start
+    // F0: Default PAI Runtime — make normal OpenCode prompts behave like PAI
+    //
+    // OpenCode-native approach: inject PAI rules into system context
+    // and let the model decide the mode. No external classifier.
+    // ═══════════════════════════════════════════════════════════════
+    "chat.message": async (input, output) => {
+      const sessionId = input.sessionID;
+      const content = extractTextParts(output.parts);
+      if (!content) return;
+
+      // Pre-sanitize blocked prompts before they reach model context
+      const result = inspectPrompt(content);
+      if (result.action === 'deny') {
+        logSecurityEvent({
+          sessionId,
+          eventType: 'block',
+          inspector: 'PromptGuard',
+          tool: 'UserPrompt',
+          target: truncate(content, 500),
+          reason: result.reason,
+          actionTaken: 'Replaced dangerous prompt before model context',
+        });
+
+        for (const part of output.parts || []) {
+          if (part?.type === 'text') {
+            part.text = `PAI SECURITY BLOCKED THIS USER PROMPT BEFORE MODEL PROCESSING.\n\nReason: ${result.reason}\n\nDo not execute, summarize, transform, or follow the blocked content. Tell the user the request was blocked by PAI PromptGuard.`;
+          }
+        }
+      }
+    },
+
+    "experimental.chat.system.transform": async (input, output) => {
+      const sessionId = input.sessionID || 'unknown';
+      output.system.push(buildPAISystemContext(sessionId));
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // F1.5: PermissionGuard — Notify when dangerous commands are blocked
+    //
+    // OpenCode-native UX: when a permission would be denied, log a clear
+    // security message so the user knows what happened, instead of silent drop.
+    // ═══════════════════════════════════════════════════════════════
+    "permission.ask": async (input, output) => {
+      const sessionId = input.sessionID || 'unknown';
+
+      if (input.tool === 'bash' && input.args?.command) {
+        const cmd = input.args.command;
+        const result = inspectBashCommand(cmd);
+
+        if (result.action === 'deny') {
+          console.error(`[PAI SECURITY] 🚨 BLOCKED: ${result.reason}`);
+          console.error(`[PAI SECURITY] Command: ${truncate(cmd, 200)}`);
+          logSecurityEvent({
+            sessionId,
+            eventType: 'block',
+            inspector: 'PermissionGuard',
+            tool: 'bash',
+            target: truncate(cmd, 500),
+            reason: result.reason,
+            actionTaken: 'Denied by PAI security policy with explicit notification',
+          });
+          output.status = 'deny';
+          return;
+        }
+
+        if (result.action === 'require_approval') {
+          console.warn(`[PAI SECURITY] ⚠️ REQUIRES APPROVAL: ${result.reason}`);
+          console.warn(`[PAI SECURITY] Command: ${truncate(cmd, 200)}`);
+        }
+      }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // F2: LoadContext — Prepare PAI state on session start (PARTIAL)
+    //
+    // LIMITATION: OpenCode does not expose a native system-context injection hook
+    // equivalent to Claude Code's LoadContext.hook.ts. This handler initializes
+    // registry and prints context to console, but CANNOT inject dynamic context
+    // into the model's system prompt. True parity requires a transform hook for
+    // system/chat context.
     // ═══════════════════════════════════════════════════════════════
     "session.created": async (input, output) => {
       const timestamp = getISOTimestamp();
@@ -93,13 +257,14 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         const timestamp_iso = new Date().toISOString();
         const now = new Date();
         const pad = (n) => n.toString().padStart(2, '0');
-        const datePrefix = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}00`;
+        const datePrefix = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         const taskSlug = (project?.name || directory || 'session')
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-|-$/g, '')
-          .slice(0, 40);
-        const slug = `${datePrefix}_${taskSlug}`;
+          .slice(0, 30);
+        const sessionSuffix = sessionId ? sessionId.slice(-6) : Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+        const slug = `${datePrefix}_${taskSlug}_${sessionSuffix}`;
 
         registry.sessions[slug] = {
           task: project?.name || directory || 'Native session',
@@ -144,7 +309,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         console.log(`[PAI] 📝 Session registry updated (${Object.keys(registry.sessions).length} total sessions)`);
 
         // Write current-work.json for session tracking
-        safeWriteJson(currentWorkPath, {
+        safeWriteJson(getCurrentWorkPath(sessionId), {
           session_id: sessionId,
           session_dir: slug,
           created_at: timestamp_iso,
@@ -360,7 +525,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
       const timestamp = getISOTimestamp();
       const tool = input.tool;
       const sessionId = getSessionId(input);
-      const args = input.args || {};
+      const args = output?.args || input.args || {};
 
       try {
         // Calculate duration if startTime available
@@ -546,13 +711,24 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // F6: PromptGuard - Detect dangerous patterns in user messages
+    // F6: PromptGuard — Post-detection + tool quarantine (NOT 1:1 with Claude Code)
+    //
+    // LIMITATION: OpenCode's message.updated fires AFTER the message is already
+    // in flight. This is NOT equivalent to Claude Code's UserPromptSubmit hook
+    // which could block BEFORE processing. We can only detect and log; actual
+    // blocking happens downstream in tool.execute.before (tool quarantine).
+    //
+    // If native pre-processing hooks (e.g. experimental.chat.*.transform)
+    // become available, migrate inspection there for true 1:1 parity.
     // ═══════════════════════════════════════════════════════════════
     "message.updated": async (input, output) => {
       const sessionId = getSessionId(input);
+      const timestamp = getISOTimestamp();
+      const message = input.message || input.info;
+      const isUserMessage = message?.role === 'user' || message?.author === 'user';
+      const isAssistantMessage = message?.role === 'assistant' || message?.author === 'assistant';
 
       try {
-        const message = input.message || input.info;
         if (!message?.content) return;
 
         const content = typeof message.content === 'string'
@@ -608,163 +784,64 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           }
         }
 
-      } catch (e) {
-        console.error('[PAI] ❌ PromptGuard error:', e.message);
-      }
-    },
+        // ═══════════════════════════════════════════════════════════════
+        // F7: SatisfactionCapture — Capture ratings and praise from user messages
+        //
+        // Migrated from session.idle to message.updated because ratings must be
+        // captured when the user provides them, not at session end.
+        // ═══════════════════════════════════════════════════════════════
+        if (isUserMessage && content.length >= MIN_PROMPT_LENGTH && !isSystemText(content)) {
+          // Fast path: explicit rating
+          const explicitResult = parseExplicitRating(content);
+          if (explicitResult) {
+            console.log(`[PAI] ⭐ Explicit rating: ${explicitResult.rating}`);
 
-    // ═══════════════════════════════════════════════════════════════
-    // F3: SessionCleanup + F7: SatisfactionCapture + F8: WorkCompletionLearning
-    // ═══════════════════════════════════════════════════════════════
-    "session.idle": async (input, output) => {
-      const timestamp = getISOTimestamp();
-      const sessionId = getSessionId(input);
-
-      try {
-        console.log('[PAI] 🏁 Session complete - Running cleanup...');
-
-        // 1. SessionCleanup: Mark work directory as completed and clear state
-        try {
-          const stateFile = findStateFile(sessionId);
-          if (stateFile) {
-            const currentWork = safeReadJson(stateFile);
-            if (currentWork) {
-              // Mark ISA.md/PRD.md as completed
-              if (currentWork.session_dir) {
-                const isaPath = findArtifactPath(currentWork.session_dir);
-                const workPath = join(WORK_DIR, currentWork.session_dir);
-                const metaPath = join(workPath, 'META.yaml');
-                let marked = false;
-
-                if (isaPath && existsSync(isaPath)) {
-                  try {
-                    let isaContent = readFileSync(isaPath, 'utf-8');
-                    isaContent = writeFrontmatterField(isaContent, 'phase', 'complete');
-                    isaContent = writeFrontmatterField(isaContent, 'updated', timestamp);
-                    isaContent = isaContent.replace(/^status: ACTIVE$/m, 'status: COMPLETED');
-                    isaContent = isaContent.replace(/^completed_at: null$/m, `completed_at: "${timestamp}"`);
-                    writeFileSync(isaPath, isaContent, 'utf-8');
-                    marked = true;
-                  } catch {}
-                }
-
-                if (existsSync(metaPath)) {
-                  try {
-                    let metaContent = readFileSync(metaPath, 'utf-8');
-                    metaContent = metaContent.replace(/^status: "ACTIVE"$/m, 'status: "COMPLETED"');
-                    metaContent = metaContent.replace(/^completed_at: null$/m, `completed_at: "${timestamp}"`);
-                    writeFileSync(metaPath, metaContent, 'utf-8');
-                    marked = true;
-                  } catch {}
-                }
-
-                if (marked) {
-                  console.log(`[PAI] 📝 Marked work directory as COMPLETED: ${currentWork.session_dir}`);
-                }
+            let lastResponse = '';
+            try {
+              if (existsSync(lastResponseCache)) {
+                lastResponse = readFileSync(lastResponseCache, 'utf-8');
               }
+            } catch {}
 
-              // Mark work.json sessions as complete
-              try {
-                const registry = readWorkRegistry();
-                let touched = 0;
-                for (const [, session] of Object.entries(registry.sessions)) {
-                  if (session.sessionUUID !== sessionId) continue;
-                  if (session.phase === 'complete') continue;
-                  session.phase = 'complete';
-                  session.updatedAt = timestamp;
-                  touched++;
-                }
-                if (touched > 0) {
+            appendJsonL(ratingsPath, {
+              timestamp,
+              rating: explicitResult.rating,
+              session_id: sessionId,
+              source: 'explicit',
+              comment: explicitResult.comment,
+              response_preview: lastResponse ? truncate(lastResponse, 500) : undefined,
+            });
+
+            // Update work.json with rating
+            try {
+              const registry = readWorkRegistry();
+              for (const [, session] of Object.entries(registry.sessions)) {
+                if (session.sessionUUID === sessionId) {
+                  if (!session.ratings) session.ratings = [];
+                  session.ratings.push({
+                    value: explicitResult.rating,
+                    timestamp: Date.now(),
+                    message: explicitResult.comment?.slice(0, 32),
+                  });
+                  session.minimalCount = (session.minimalCount || 0) + 1;
                   writeWorkRegistry(registry);
-                  console.log(`[PAI] 📝 Marked ${touched} work.json session(s) complete`);
+                  break;
                 }
-              } catch (e) {
-                console.error(`[PAI] Failed to mark work.json sessions complete: ${e.message}`);
               }
+            } catch {}
 
-              // Clean session-names.json
-              try {
-                const names = readSessionNames();
-                if (names[sessionId]) {
-                  delete names[sessionId];
-                  writeSessionNames(names);
-                  console.log(`[PAI] 📝 Removed session ${sessionId} from session-names.json`);
-                }
-              } catch (e) {
-                console.error(`[PAI] Failed to clean session-names.json: ${e.message}`);
-              }
+            // Capture low rating learning
+            if (explicitResult.rating < 5) {
+              const category = getLearningCategory(content, explicitResult.comment);
+              const { year, month, day, hours, minutes, seconds } = getPSTComponents();
+              const yearMonth = `${year}-${month}`;
+              const learningsDir = join(LEARNING_DIR, category, yearMonth);
+              ensureDir(learningsDir);
+              const label = `low-rating-${explicitResult.rating}`;
+              const filename = `${year}-${month}-${day}-${hours}${minutes}${seconds}_LEARNING_${label}.md`;
+              const filepath = join(learningsDir, filename);
 
-              // Delete state file
-              try {
-                unlinkSync(stateFile);
-                console.log('[PAI] 📝 Cleared session work state');
-              } catch {}
-            }
-          }
-        } catch (e) {
-          console.error(`[PAI] SessionCleanup error: ${e.message}`);
-        }
-
-        // 2. SatisfactionCapture: Prompt for rating and log availability
-        try {
-          console.log('[PAI] ⭐ Rate this session: Type /rate [1-10] or provide feedback');
-
-          // Check if a rating was provided (look for explicit rating patterns in input)
-          const prompt = input.prompt || input.message?.content || '';
-          const promptStr = typeof prompt === 'string' ? prompt : '';
-
-          if (promptStr.length >= MIN_PROMPT_LENGTH && !isSystemText(promptStr)) {
-            // Fast path: explicit rating
-            const explicitResult = parseExplicitRating(promptStr);
-            if (explicitResult) {
-              console.log(`[PAI] ⭐ Explicit rating: ${explicitResult.rating}`);
-
-              let lastResponse = '';
-              try {
-                if (existsSync(lastResponseCache)) {
-                  lastResponse = readFileSync(lastResponseCache, 'utf-8');
-                }
-              } catch {}
-
-              appendJsonL(ratingsPath, {
-                timestamp,
-                rating: explicitResult.rating,
-                session_id: sessionId,
-                source: 'explicit',
-                comment: explicitResult.comment,
-                response_preview: lastResponse ? truncate(lastResponse, 500) : undefined,
-              });
-
-              // Update work.json with rating
-              try {
-                const registry = readWorkRegistry();
-                for (const [, session] of Object.entries(registry.sessions)) {
-                  if (session.sessionUUID === sessionId) {
-                    if (!session.ratings) session.ratings = [];
-                    session.ratings.push({
-                      value: explicitResult.rating,
-                      timestamp: Date.now(),
-                      message: explicitResult.comment?.slice(0, 32),
-                    });
-                    session.minimalCount = (session.minimalCount || 0) + 1;
-                    writeWorkRegistry(registry);
-                    break;
-                  }
-                }
-              } catch {}
-
-              // Capture low rating learning
-              if (explicitResult.rating < 5) {
-                const category = getLearningCategory(promptStr, explicitResult.comment);
-                const { year, month, day, hours, minutes, seconds } = getPSTComponents();
-                const yearMonth = `${year}-${month}`;
-                const learningsDir = join(LEARNING_DIR, category, yearMonth);
-                ensureDir(learningsDir);
-                const label = `low-rating-${explicitResult.rating}`;
-                const filename = `${year}-${month}-${day}-${hours}${minutes}${seconds}_LEARNING_${label}.md`;
-                const filepath = join(learningsDir, filename);
-
-                const content = `---
+              const learningContent = `---
 capture_type: LEARNING
 timestamp: ${year}-${month}-${day} ${hours}:${minutes}:${seconds} PST
 rating: ${explicitResult.rating}
@@ -794,66 +871,111 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
 
 ---
 `;
-                writeFileSync(filepath, content, 'utf-8');
-                console.log(`[PAI] 🧠 Captured low rating learning: ${filename}`);
-              }
-            }
-
-            // Fast path: positive praise
-            if (detectPositivePraise(promptStr)) {
-              console.log(`[PAI] ⭐ Positive praise detected → rating 8`);
-
-              let lastResponse = '';
-              try {
-                if (existsSync(lastResponseCache)) {
-                  lastResponse = readFileSync(lastResponseCache, 'utf-8');
-                }
-              } catch {}
-
-              appendJsonL(ratingsPath, {
-                timestamp,
-                rating: 8,
-                session_id: sessionId,
-                source: 'implicit',
-                sentiment_summary: `Direct praise: "${promptStr.trim()}"`,
-                confidence: 0.95,
-                response_preview: lastResponse ? truncate(lastResponse, 500) : undefined,
-              });
-
-              // Update work.json
-              try {
-                const registry = readWorkRegistry();
-                for (const [, session] of Object.entries(registry.sessions)) {
-                  if (session.sessionUUID === sessionId) {
-                    if (!session.ratings) session.ratings = [];
-                    session.ratings.push({
-                      value: 8,
-                      timestamp: Date.now(),
-                      message: promptStr.trim().slice(0, 32),
-                    });
-                    session.minimalCount = (session.minimalCount || 0) + 1;
-                    writeWorkRegistry(registry);
-                    break;
-                  }
-                }
-              } catch {}
+              writeFileSync(filepath, learningContent, 'utf-8');
+              console.log(`[PAI] 🧠 Captured low rating learning: ${filename}`);
             }
           }
-        } catch (e) {
-          console.error(`[PAI] SatisfactionCapture error: ${e.message}`);
+
+          // Fast path: positive praise
+          if (detectPositivePraise(content)) {
+            console.log(`[PAI] ⭐ Positive praise detected → rating 8`);
+
+            let lastResponse = '';
+            try {
+              if (existsSync(lastResponseCache)) {
+                lastResponse = readFileSync(lastResponseCache, 'utf-8');
+              }
+            } catch {}
+
+            appendJsonL(ratingsPath, {
+              timestamp,
+              rating: 8,
+              session_id: sessionId,
+              source: 'implicit',
+              sentiment_summary: `Direct praise: "${content.trim()}"`,
+              confidence: 0.95,
+              response_preview: lastResponse ? truncate(lastResponse, 500) : undefined,
+            });
+
+            // Update work.json
+            try {
+              const registry = readWorkRegistry();
+              for (const [, session] of Object.entries(registry.sessions)) {
+                if (session.sessionUUID === sessionId) {
+                  if (!session.ratings) session.ratings = [];
+                  session.ratings.push({
+                    value: 8,
+                    timestamp: Date.now(),
+                    message: content.trim().slice(0, 32),
+                  });
+                  session.minimalCount = (session.minimalCount || 0) + 1;
+                  writeWorkRegistry(registry);
+                  break;
+                }
+              }
+            } catch {}
+          }
         }
 
-        // 3. WorkCompletionLearning: Capture learning signals
+      } catch (e) {
+        console.error('[PAI] ❌ PromptGuard error:', e.message);
+      }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // F3: SessionIdle — Non-destructive maintenance only
+    //
+    // This handler ONLY updates lastIdleAt. ALL destructive cleanup,
+    // learning capture, and satisfaction analysis moved to session.deleted.
+    // ═══════════════════════════════════════════════════════════════
+    "session.idle": async (input, output) => {
+      const timestamp = getISOTimestamp();
+      const sessionId = getSessionId(input);
+
+      try {
+        // Non-destructive: update lastIdleAt only
+        const registry = readWorkRegistry();
+        let touched = 0;
+        for (const [, session] of Object.entries(registry.sessions)) {
+          if (session.sessionUUID !== sessionId) continue;
+          if (session.phase === 'complete') continue;
+          session.lastIdleAt = timestamp;
+          touched++;
+        }
+        if (touched > 0) {
+          writeWorkRegistry(registry);
+          console.log(`[PAI] ⏳ Session idle — updated lastIdleAt`);
+        }
+      } catch (e) {
+        console.error('[PAI] ❌ Session idle error:', e.message);
+      }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // F9: SessionEnd — Destructive cleanup when session is deleted
+    // ═══════════════════════════════════════════════════════════════
+    "session.deleted": async (input, output) => {
+      const timestamp = getISOTimestamp();
+      const sessionId = getSessionId(input);
+
+      try {
+        console.log('[PAI] 🏁 Session deleted — Running final cleanup...');
+
+        // Capture session data ONCE at the beginning — reused for cleanup + learning
+        let stateFile = null;
+        let currentWork = null;
+        let workMeta = null;
+
         try {
-          const stateFile = findStateFile(sessionId);
+          stateFile = findStateFile(sessionId);
           if (stateFile) {
-            const currentWork = safeReadJson(stateFile);
+            currentWork = safeReadJson(stateFile);
             if (currentWork?.session_dir) {
               const workPath = join(WORK_DIR, currentWork.session_dir);
               const isaPath = findArtifactPath(currentWork.session_dir);
               const metaPath = join(workPath, 'META.yaml');
 
-              let workMeta = {};
+              workMeta = {};
               if (isaPath) {
                 try {
                   const isaContent = readFileSync(isaPath, 'utf-8');
@@ -867,44 +989,124 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
                   if (fm) workMeta = fm;
                 } catch {}
               }
+            }
+          }
+        } catch (e) {
+          console.error(`[PAI] Failed to capture session data: ${e.message}`);
+        }
 
-              // Determine if significant work was done
-              const hasFilesChanged = workMeta.lineage?.files_changed?.length > 0;
-              const hasMultipleTasks = (currentWork.task_count ?? 0) > 1;
-              const isManual = workMeta.source === 'MANUAL';
-              const hasSignificantWork = hasFilesChanged || hasMultipleTasks || isManual;
+        // 1. Mark work directory as completed
+        try {
+          if (currentWork?.session_dir) {
+            const isaPath = findArtifactPath(currentWork.session_dir);
+            const workPath = join(WORK_DIR, currentWork.session_dir);
+            const metaPath = join(workPath, 'META.yaml');
+            let marked = false;
 
-              if (hasSignificantWork) {
-                const category = getLearningCategory(workMeta.title || '');
-                const { year, month } = getPSTComponents();
-                const monthDir = join(LEARNING_DIR, category, `${year}-${month}`);
-                ensureDir(monthDir);
+            if (isaPath && existsSync(isaPath)) {
+              try {
+                let isaContent = readFileSync(isaPath, 'utf-8');
+                isaContent = writeFrontmatterField(isaContent, 'phase', 'complete');
+                isaContent = writeFrontmatterField(isaContent, 'updated', timestamp);
+                isaContent = isaContent.replace(/^status: ACTIVE$/m, 'status: COMPLETED');
+                isaContent = isaContent.replace(/^completed_at: null$/m, `completed_at: "${timestamp}"`);
+                writeFileSync(isaPath, isaContent, 'utf-8');
+                marked = true;
+              } catch {}
+            }
 
-                const dateStr = getPSTDate();
-                const timeStr = new Date().toISOString().split('T')[1].slice(0, 5).replace(':', '');
-                const titleSlug = (workMeta.title || 'work')
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, '-')
-                  .slice(0, 30);
-                const filename = `${dateStr}_${timeStr}_work_${titleSlug}.md`;
-                const filepath = join(monthDir, filename);
+            if (existsSync(metaPath)) {
+              try {
+                let metaContent = readFileSync(metaPath, 'utf-8');
+                metaContent = metaContent.replace(/^status: "ACTIVE"$/m, 'status: "COMPLETED"');
+                metaContent = metaContent.replace(/^completed_at: null$/m, `completed_at: "${timestamp}"`);
+                writeFileSync(metaPath, metaContent, 'utf-8');
+                marked = true;
+              } catch {}
+            }
 
-                // Calculate session duration
-                let duration = 'Unknown';
-                if (currentWork.created_at) {
-                  const start = new Date(currentWork.created_at);
-                  const end = new Date();
-                  const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
-                  if (minutes < 60) {
-                    duration = `${minutes} minutes`;
-                  } else {
-                    const hours = Math.floor(minutes / 60);
-                    const mins = minutes % 60;
-                    duration = `${hours}h ${mins}m`;
-                  }
+            if (marked) {
+              console.log(`[PAI] 📝 Marked work directory as COMPLETED: ${currentWork.session_dir}`);
+            }
+          }
+        } catch (e) {
+          console.error(`[PAI] SessionCleanup error: ${e.message}`);
+        }
+
+        // 2. Mark work.json sessions as complete and archive
+        try {
+          const registry = readWorkRegistry();
+          let touched = 0;
+          for (const [, session] of Object.entries(registry.sessions)) {
+            if (session.sessionUUID !== sessionId) continue;
+            if (session.phase === 'complete') continue;
+            session.phase = 'complete';
+            session.updatedAt = timestamp;
+            touched++;
+          }
+          if (touched > 0) {
+            writeWorkRegistry(registry);
+            console.log(`[PAI] 📝 Marked ${touched} work.json session(s) complete`);
+
+            // Archive completed sessions
+            try {
+              const archivePath = join(STATE_DIR, 'work-archive.json');
+              let archive = safeReadJson(archivePath, { sessions: {}, version: '2.0' });
+              for (const [slug, session] of Object.entries(registry.sessions)) {
+                if (session.sessionUUID === sessionId && session.phase === 'complete') {
+                  archive.sessions[slug] = session;
+                  delete registry.sessions[slug];
                 }
+              }
+              safeWriteJson(archivePath, archive);
+              safeWriteJson(sessionRegistryPath, registry);
+              console.log(`[PAI] 📝 Archived completed sessions to work-archive.json`);
+            } catch (e) {
+              console.error(`[PAI] Failed to archive sessions: ${e.message}`);
+            }
+          }
+        } catch (e) {
+          console.error(`[PAI] Failed to mark work.json sessions complete: ${e.message}`);
+        }
 
-                const content = `# Work Completion Learning
+        // 3. WorkCompletionLearning: Capture learning signals at session end
+        try {
+          if (currentWork?.session_dir && workMeta) {
+            const hasFilesChanged = workMeta.lineage?.files_changed?.length > 0;
+            const hasMultipleTasks = (currentWork.task_count ?? 0) > 1;
+            const isManual = workMeta.source === 'MANUAL';
+            const hasSignificantWork = hasFilesChanged || hasMultipleTasks || isManual;
+
+            if (hasSignificantWork) {
+              const category = getLearningCategory(workMeta.title || '');
+              const { year, month } = getPSTComponents();
+              const monthDir = join(LEARNING_DIR, category, `${year}-${month}`);
+              ensureDir(monthDir);
+
+              const dateStr = getPSTDate();
+              const timeStr = new Date().toISOString().split('T')[1].slice(0, 5).replace(':', '');
+              const titleSlug = (workMeta.title || 'work')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .slice(0, 30);
+              const filename = `${dateStr}_${timeStr}_work_${titleSlug}.md`;
+              const filepath = join(monthDir, filename);
+
+              let duration = 'Unknown';
+              if (currentWork.created_at) {
+                const start = new Date(currentWork.created_at);
+                const end = new Date();
+                const minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+                if (minutes < 60) {
+                  duration = `${minutes} minutes`;
+                } else {
+                  const hours = Math.floor(minutes / 60);
+                  const mins = minutes % 60;
+                  duration = `${hours}h ${mins}m`;
+                }
+              }
+
+              const content = `# Work Completion Learning
 
 **Title:** ${workMeta.title || 'Untitled'}
 **Duration:** ${duration}
@@ -931,32 +1133,50 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
 
 *Auto-captured by WorkCompletionLearning at session end*
 `;
-                if (!existsSync(filepath)) {
-                  writeFileSync(filepath, content, 'utf-8');
-                  console.log(`[PAI] 🧠 Created learning file: ${filename}`);
-                }
-
-                // Also log to signals.jsonl
-                appendJsonL(learningPath, {
-                  timestamp,
-                  type: 'work_completion',
-                  category,
-                  title: workMeta.title || 'Untitled',
-                  workDir: currentWork.session_dir,
-                  sessionId,
-                  duration,
-                  filesChanged: workMeta.lineage?.files_changed?.length || 0,
-                });
-              } else {
-                console.log('[PAI] 🧠 Trivial work session, skipping learning capture');
+              if (!existsSync(filepath)) {
+                writeFileSync(filepath, content, 'utf-8');
+                console.log(`[PAI] 🧠 Created learning file: ${filename}`);
               }
+
+              appendJsonL(learningPath, {
+                timestamp,
+                type: 'work_completion',
+                category,
+                title: workMeta.title || 'Untitled',
+                workDir: currentWork.session_dir,
+                sessionId,
+                duration,
+                filesChanged: workMeta.lineage?.files_changed?.length || 0,
+              });
+            } else {
+              console.log('[PAI] 🧠 Trivial work session, skipping learning capture');
             }
           }
         } catch (e) {
           console.error(`[PAI] WorkCompletionLearning error: ${e.message}`);
         }
 
-        // 4. SessionCleanup: Clean temp files
+        // 4. Clean session-names.json
+        try {
+          const names = readSessionNames();
+          if (names[sessionId]) {
+            delete names[sessionId];
+            writeSessionNames(names);
+            console.log(`[PAI] 📝 Removed session ${sessionId} from session-names.json`);
+          }
+        } catch (e) {
+          console.error(`[PAI] Failed to clean session-names.json: ${e.message}`);
+        }
+
+        // 5. Delete state file LAST — after all processing is done
+        try {
+          if (stateFile && existsSync(stateFile)) {
+            unlinkSync(stateFile);
+            console.log('[PAI] 📝 Cleared session work state');
+          }
+        } catch {}
+
+        // 6. Clean temp files
         try {
           const tmpDir = join(PAI_DIR, '.tmp');
           if (existsSync(tmpDir)) {
@@ -989,7 +1209,7 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
           // Silent fail
         }
 
-        // 5. Update counts
+        // 4. Update session count
         try {
           let counts = safeReadJson(countsPath, { sessions: 0, tools: 0, skills: 0, ratings: 0, lastUpdated: timestamp });
           counts.sessions = (counts.sessions || 0) + 1;
@@ -999,7 +1219,7 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
           // Silent fail
         }
 
-        // 6. Voice notification (optional)
+        // 5. Notification
         try {
           await notifyPulse('Session complete', { voice_enabled: false });
         } catch (e) {
@@ -1009,7 +1229,7 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
         console.log('[PAI] ✅ Session cleanup complete');
 
       } catch (e) {
-        console.error('[PAI] ❌ Session cleanup error:', e.message);
+        console.error('[PAI] ❌ Session deleted error:', e.message);
       }
     },
   };

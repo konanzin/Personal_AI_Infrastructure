@@ -1,315 +1,78 @@
-# PAI 5.0.0 for OpenCode
+# PAI for OpenCode Architecture
 
-> **Personal AI Infrastructure (PAI)** ported from Claude Code to OpenCode.
-> Multi-provider, open-source, vendor-independent Life OS.
+PAI for OpenCode installs PAI into OpenCode's native extension points instead of depending on Claude Code paths or settings.
 
-## What Was Ported
+## Layout
 
-PAI v5.0.0 is a complete port of the Personal AI Infrastructure from Anthropic's Claude Code to the open-source OpenCode CLI. The port preserves 100% of PAI's core functionality while eliminating vendor lock-in.
-
-### Key Changes
-
-| Component | Claude Code | OpenCode |
-|-----------|-------------|----------|
-| **Runtime** | Proprietary CLI | Open-source multi-provider |
-| **Config** | `~/.claude/settings.json` | `~/.config/opencode/opencode.jsonc` |
-| **Hooks** | 38 TypeScript hooks | 8 JavaScript plugins |
-| **Agents** | Embedded in settings | Individual `.md` files |
-| **Model** | Claude only | Kimi, Anthropic, OpenAI, Google |
-| **Skills** | `~/.claude/skills/` | `~/.config/opencode/skills/` |
-
-### Architecture Overview
-
-```
+```text
 ~/.config/opencode/
-├── opencode.jsonc          # Main configuration
+├── opencode.jsonc
 ├── plugins/
-│   ├── pai-hooks.js        # Main PAI plugin (8 event handlers)
-│   └── pai-hooks.lib.js    # Shared utilities
-├── agents/                 # 18 individual agent definitions
-│   ├── Algorithm.md
-│   ├── Engineer.md
-│   └── ...
-├── commands/               # Custom slash commands
-│   ├── context-search.md
-│   ├── cs.md
-│   └── pu.md
-└── PAI/                    # PAI core directory
-    ├── CLAUDE.md           # Operational instructions
-    ├── ALGORITHM/          # Algorithm workflows
-    ├── DOCUMENTATION/      # System docs
-    ├── MEMORY/             # State, work, research, learning
-    ├── PULSE/              # Dashboard & monitoring
-    ├── TOOLS/              # Utility scripts
-    ├── TEMPLATES/          # ISA templates
-    ├── USER/               # Principal data
-    │   ├── TELOS/
-│   │   ├── PRINCIPAL_IDENTITY.md
-    │   └── DA_IDENTITY.md
+│   ├── pai-hooks.js
+│   └── lib/
+│       └── pai-hooks.lib.js
+├── agents/
+│   └── *.md
+├── commands/
+│   └── *.md
+├── skills/
+│   └── */SKILL.md
+└── PAI/
+    ├── ALGORITHM/
+    ├── DOCUMENTATION/
+    ├── MEMORY/
+    ├── PULSE/
+    ├── TOOLS/
+    ├── TEMPLATES/
+    ├── USER/
     └── bin/
-        ├── install-pai-opencode.sh
-        ├── validate-pai-installation.sh
-        └── launch-ralph.sh
 ```
 
-## Prerequisites
+## Native OpenCode Surfaces
 
-- **git** — For cloning/updating PAI
-- **opencode** — The OpenCode CLI ([opencode.ai](https://opencode.ai))
-- **bun** — Optional but recommended ([bun.sh](https://bun.sh))
+- Config: `opencode/config/opencode.jsonc.template`
+- Plugin: `opencode/plugins/pai-hooks.js`
+- Plugin library: `opencode/plugins/lib/pai-hooks.lib.js`
+- Agents: `opencode/agents/*.md`
+- Commands: `opencode/commands/*.md` plus command entries in config
+- Validator: `opencode/bin/validate-pai-installation.sh`
 
-Verify prerequisites:
+## Default PAI Behavior
 
-```bash
-git --version
-opencode --version
-bun --version  # optional
-```
+Normal OpenCode prompts behave like PAI prompts without requiring `/pai`.
 
-## Installation
+The port does this through two native surfaces:
 
-### Quick Install
+- `agent.build.prompt` in `opencode.jsonc.template` makes the default primary agent a PAI-aware assistant.
+- `experimental.chat.system.transform` in `pai-hooks.js` injects PAI runtime context, identity/TELOS excerpts, recent work, and mode/tier classification rules into the system context.
 
-```bash
-# 1. Clone the PAI repository
-git clone https://github.com/danielmiessler/Personal_AI_Infrastructure.git /tmp/pai
+The model itself decides the mode for each prompt based on the injected rules. There is no external classifier process, no subprocess spawn, and no deterministic regex gate.
 
-# 2. Run the idempotent installer
-bash /tmp/pai/PAI/bin/install-pai-opencode.sh
-```
+`/pai` remains as an explicit manual shortcut, but it is not the primary path.
 
-The installer:
-1. Checks prerequisites (git, opencode)
-2. Backs up existing `~/.config/opencode/`
-3. Creates directory structure
-4. Copies PAI files to `~/.config/opencode/PAI/`
-5. Installs plugins to `~/.config/opencode/plugins/`
-6. Installs agents to `~/.config/opencode/agents/`
-7. Configures `opencode.jsonc`
-8. Creates backward-compat symlink `~/.claude/` → `~/.config/opencode/PAI`
+## Plugin Responsibilities
 
-### Manual Install
+`pai-hooks.js` adapts PAI hook behavior to OpenCode events:
 
-If you prefer manual installation:
+- `session.created`: initialize PAI session state and summarize context availability
+- `chat.message`: pre-sanitize blocked prompt-injection attempts before they reach the model
+- `experimental.chat.system.transform`: inject default PAI runtime context and mode-classification rules for every normal prompt
+- `tool.execute.before`: inspect risky commands, writes, and egress
+- `tool.execute.after`: log tool activity and scan fetched content
+- `message.updated`: capture ratings/praise and run post-message prompt checks
+- `session.idle`: update idle timestamp only
+- `session.deleted`: run cleanup, archive, and work-learning behavior where metadata exists
 
-```bash
-# Create directories
-mkdir -p ~/.config/opencode/{plugins,agents,commands,skills}
-mkdir -p ~/.config/opencode/PAI/{ALGORITHM,DOCUMENTATION,MEMORY/{STATE,WORK,RESEARCH,LEARNING},PULSE,TOOLS,TEMPLATES,USER/{TELOS,Config},bin,logs}
+## Known Platform Gaps
 
-# Copy PAI core files
-cp -r /path/to/pai/PAI/* ~/.config/opencode/PAI/
-cp /path/to/pai/plugins/* ~/.config/opencode/plugins/
-cp /path/to/pai/agents/* ~/.config/opencode/agents/
+- Claude Code's Sonnet-based `UserPromptSubmit` classifier is approximated with deterministic classification in the OpenCode plugin unless/until we port the inference call.
+- Prompt blocking before the model sees the message is handled through `chat.message` prompt replacement for denied prompts; this should be tested against live OpenCode behavior after each OpenCode upgrade.
+- Claude Code's persistent statusline/sidebar is represented as commands and logs.
 
-# Create symlink for backward compatibility
-ln -s ~/.config/opencode/PAI ~/.claude
-```
-
-### Verify Installation
+## Validation
 
 ```bash
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-Expected output: `64/64 checkpoints passed (100%)`
-
-## Quick Start Guide
-
-### 1. First Launch
-
-```bash
-opencode
-```
-
-PAI loads automatically via the plugin system. You will see the PAI banner and status.
-
-### 2. Check Status
-
-```bash
-opencode /status
-```
-
-Shows: PAI version, context usage, active work, available agents.
-
-### 3. Run Your First Algorithm
-
-```bash
-opencode /pai "Plan my week"
-```
-
-This executes the full PAI Algorithm workflow.
-
-### 4. Interview (Optional)
-
-```bash
-opencode /interview
-```
-
-Captures your TELOS, goals, and identity for personalized assistance.
-
-## Available Commands
-
-PAI registers these slash commands in OpenCode:
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/pai` | Execute PAI Algorithm workflow | `/pai "Refactor auth module"` |
-| `/status` | Show PAI status line | `/status` |
-| `/interview` | Run TELOS interview | `/interview` |
-| `/pulse` | Check Pulse dashboard | `/pulse` |
-| `/context` | Show context usage | `/context` |
-| `/rate` | Rate session satisfaction (1-10) | `/rate 9` |
-| `/e1` | Standard effort, fast path | `/e1 "Fix typo"` |
-| `/e2` | Extended effort | `/e2 "Add feature"` |
-| `/e3` | Advanced effort | `/e3 "Refactor module"` |
-| `/e4` | Deep effort | `/e4 "Architecture review"` |
-| `/e5` | Comprehensive effort | `/e5 "Full system audit"` |
-
-### Effort Levels Explained
-
-- **E1** — Simple tasks, one file, quick fixes
-- **E2** — Multi-file changes, standard complexity
-- **E3** — Complex tasks, requires planning, may spawn Forge
-- **E4** — Deep investigation, architecture decisions
-- **E5** — Comprehensive analysis, full system context
-
-## Architecture Overview
-
-### Plugin System
-
-The main plugin (`pai-hooks.js`) registers 8 event handlers:
-
-| Event | Handler | Purpose |
-|-------|---------|---------|
-| `tool.execute.before` | SecurityInspector | Pre-execution security scan |
-| `session.created` | loadContext | Load PAI context files |
-| `session.idle` | cleanupSession | Session cleanup |
-| `tool.execute.after` | trackToolActivity | Log tool usage |
-| `tool.execute.after` | scanContent | Content validation |
-| `message.updated` | guardPrompt | Prompt injection guard |
-| `session.idle` | captureSatisfaction | Satisfaction tracking |
-| `session.idle` | learnFromWork | Learning capture |
-
-### Agent System
-
-18 agents are defined as individual `.md` files in `~/.config/opencode/agents/`:
-
-- **Algorithm** — ISC and algorithm workflows
-- **Engineer** — Principal engineer (Marcus Webb)
-- **Forge** — OpenAI-family code producer
-- **Anvil** — Moonshot-family code producer
-- **Architect** — System design specialist
-- **Designer** — UX/UI specialist
-- **Cato** — Cross-vendor ISA auditor
-- **Silas** — Offensive security specialist
-- **ClaudeResearcher** — Academic researcher
-- **GeminiResearcher** — Multi-perspective researcher
-- **GrokResearcher** — Contrarian analyst
-- **PerplexityResearcher** — Investigative analyst
-- **CodexResearcher** — Technical archaeologist
-- **Artist** — Visual content creator
-- **Arthur** — Credential custodian
-- **BrowserAgent** — Browser automation
-- **QATester** — QA validation
-- **UIReviewer** — UI review
-
-### Memory System
-
-```
-PAI/MEMORY/
-├── STATE/        # Session registry, work tracking
-├── WORK/         # Active and completed work
-├── RESEARCH/     # Research artifacts
-├── LEARNING/     # Feedback and learnings
-└── KNOWLEDGE/    # Knowledge archive (People, Companies, Ideas, Research)
-```
-
-### Algorithm System
-
-The PAI Algorithm is a structured problem-solving workflow:
-
-1. **OBSERVE** — Gather context, load ISA
-2. **THINK** — Analyze, plan approach
-3. **EXECUTE** — Implement with appropriate agents
-4. **VERIFY** — Validate against ISC
-5. **LEARN** — Capture insights
-
-Algorithm versions are stored in `PAI/ALGORITHM/`.
-
-## Configuration
-
-### opencode.jsonc
-
-Main configuration at `~/.config/opencode/opencode.jsonc`:
-
-```json
-{
-  "model": "kimi-for-coding/k2p6",
-  "default_agent": "build",
-  "plugin": ["./plugins/pai-hooks.js"],
-  "skills": {
-    "paths": ["~/.config/opencode/skills"]
-  }
-}
-```
-
-### PAI Metadata
-
-- `PAI/.version.json` — Version info
-- `PAI/.preferences.json` — User preferences
-- `PAI/.techstack.json` — Technical preferences
-- `PAI/.observability.json` — Monitoring config
-- `PAI/.notifications.json` — Notification routing
-
-### Environment Variables
-
-Create `~/.config/opencode/PAI/.env`:
-
-```bash
-# Optional: API keys for specific tools
-ANTHROPIC_API_KEY=your_key
-OPENAI_API_KEY=your_key
-# PAI_DIR is set automatically by the plugin
-```
-
-## Troubleshooting
-
-See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed troubleshooting.
-
-Quick checks:
-
-```bash
-# Verify installation
-bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
-
-# Check opencode config
-opencode config list
-
-# View plugin logs
-tail -f ~/.config/opencode/PAI/logs/tool-activity.jsonl
-```
-
-## Updating PAI
-
-```bash
-# Update PAI core
-cd ~/.config/opencode/PAI
-git pull origin main
-
-# Re-run installer to update plugins/agents
-bash ~/.config/opencode/PAI/bin/install-pai-opencode.sh
-
-# Validate
-bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
-```
-
-## Support
-
-- **Issues**: [github.com/anomalyco/opencode/issues](https://github.com/anomalyco/opencode/issues)
-- **Documentation**: `PAI/DOCUMENTATION/`
-- **Algorithm**: Run `/pai "How do I..."`
-
----
-
-*PAI 5.0.0 — OpenCode Port | 64/64 checkpoints validated*
+The validator checks structure and known failure modes. It is not a full behavioral test suite.

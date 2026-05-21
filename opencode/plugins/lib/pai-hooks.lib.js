@@ -148,9 +148,7 @@ export function logSecurityEvent(event) {
 
 // Dangerous bash patterns that should be BLOCKED
 const BLOCKED_PATTERNS = [
-  { pattern: /rm\s+-rf\s+\//, reason: 'rm -rf / detected', severity: 'critical' },
-  { pattern: /rm\s+-rf\s+\$HOME/, reason: 'rm -rf $HOME detected', severity: 'critical' },
-  { pattern: /rm\s+-rf\s+\s*~/, reason: 'rm -rf ~ detected', severity: 'critical' },
+  { pattern: /rm\s+-rf/, reason: 'rm -rf detected', severity: 'critical' },
   { pattern: /curl\s+.*\|\s*bash/, reason: 'curl | bash detected', severity: 'critical' },
   { pattern: /curl\s+.*\|\s*sh/, reason: 'curl | sh detected', severity: 'critical' },
   { pattern: /wget\s+.*\|\s*bash/, reason: 'wget | bash detected', severity: 'critical' },
@@ -165,7 +163,6 @@ const BLOCKED_PATTERNS = [
 
 // Dangerous patterns that require CONFIRMATION
 const CONFIRM_PATTERNS = [
-  { pattern: /rm\s+-rf/, reason: 'Recursive delete requires confirmation' },
   { pattern: /curl\s+.*\|/, reason: 'Piping curl output requires confirmation' },
   { pattern: /wget\s+.*\|/, reason: 'Piping wget output requires confirmation' },
   { pattern: /eval\s*[\(`"']/, reason: 'eval usage requires confirmation' },
@@ -530,6 +527,21 @@ export const WORD_NUMBERS = {
 export function parseExplicitRating(prompt) {
   const trimmed = prompt.trim();
   const lowerTrimmed = trimmed.toLowerCase();
+
+  // Handle /rate N and /rating N prefix
+  const ratePrefixMatch = lowerTrimmed.match(/^\/(?:rate|rating)\s+(.*)$/);
+  if (ratePrefixMatch) {
+    const afterPrefix = ratePrefixMatch[1].trim();
+    // Try to parse the number after the prefix
+    const numMatch = afterPrefix.match(/^(10|[1-9])(?:\s|$)/);
+    if (numMatch) {
+      const rating = parseInt(numMatch[1], 10);
+      const rest = afterPrefix.slice(numMatch[1].length).trim() || undefined;
+      if (rating >= 1 && rating <= 10) {
+        return { rating, comment: rest };
+      }
+    }
+  }
 
   // Check word-form ratings first
   for (const [word, num] of Object.entries(WORD_NUMBERS)) {

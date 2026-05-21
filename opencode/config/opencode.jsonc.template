@@ -1,0 +1,134 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["./plugins/pai-hooks.js"],
+  "model": "kimi-for-coding/k2p6",
+  "default_agent": "build",
+  "skills": {
+    "paths": ["~/.config/opencode/skills"]
+  },
+  "reference": {
+    "PAI": { "path": "~/.config/opencode/PAI" }
+  },
+  "instructions": ["~/.config/opencode/PAI/CLAUDE.md"],
+  "agent": {
+    "build": {
+      "description": "Default PAI primary agent for normal OpenCode prompts",
+      "mode": "primary",
+      "prompt": "You are the primary PAI Digital Assistant inside OpenCode. PAI is the default behavior; the user does not need to type /pai. Follow the PAI runtime context injected by the pai-hooks plugin, honor MODE/TIER classification, use NATIVE for simple tasks, and enter the Algorithm for complex or multi-step work. Prefer OpenCode-native tools and ${PAI_DIR} paths."
+    }
+  },
+  "permission": {
+    "read": {
+      "~/.config/opencode/PAI/**": "allow",
+      "~/.config/opencode/skills/**": "allow",
+      "~/.config/opencode/agents/**": "allow",
+      "~/.config/opencode/commands/**": "allow",
+      "~/Projects/**": "allow",
+      "~/projects/**": "allow",
+      "~/dev/**": "allow",
+      "~/workspace/**": "allow",
+      "~/work/**": "allow",
+      "~/code/**": "allow",
+      "~/src/**": "allow",
+      "/tmp/**": "allow"
+    },
+    "edit": {
+      "~/.config/opencode/PAI/MEMORY/**": "allow",
+      "~/.config/opencode/PAI/logs/**": "allow",
+      "~/.config/opencode/PAI/USER/**": "ask",
+      "~/.config/opencode/plugins/**": "ask",
+      "~/.config/opencode/agents/**": "ask",
+      "~/.config/opencode/commands/**": "ask",
+      "~/.config/opencode/opencode.jsonc": "ask",
+      "~/Projects/**": "allow",
+      "~/projects/**": "allow",
+      "~/dev/**": "allow",
+      "~/workspace/**": "allow",
+      "~/work/**": "allow",
+      "~/code/**": "allow",
+      "~/src/**": "allow",
+      "/tmp/**": "allow"
+    },
+    "bash": {
+      "*": "ask",
+      "git *": "allow",
+      "bun *": "allow",
+      "bunx *": "allow",
+      "opencode --version": "allow",
+      "bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh": "allow",
+      "rm -f ~/.config/opencode/plugins/pai-hooks.lib.js": "ask"
+    },
+    "external_directory": {
+      "~/.config/opencode/PAI/**": "allow",
+      "~/.config/opencode/skills/**": "allow",
+      "~/.config/opencode/agents/**": "allow",
+      "~/.config/opencode/commands/**": "allow",
+      "~/.config/opencode/plugins/**": "allow",
+      "~/Projects/**": "allow",
+      "~/projects/**": "allow",
+      "~/dev/**": "allow",
+      "~/workspace/**": "allow",
+      "~/work/**": "allow",
+      "~/code/**": "allow",
+      "~/src/**": "allow",
+      "/tmp/**": "allow"
+    }
+  },
+  "command": {
+    "pai": {
+      "template": "Execute the PAI Algorithm for: $ARGUMENTS",
+      "description": "Start the PAI Algorithm",
+      "agent": "Algorithm"
+    },
+    "status": {
+      "template": "Report PAI system status: active sessions, memory state, Pulse health, installed agents, installed skills, and pending actions.",
+      "description": "Show PAI system status",
+      "agent": "build"
+    },
+    "interview": {
+      "template": "Begin the PAI onboarding or refresh interview. Capture TELOS, ideal state, preferences, identity, and missing context.",
+      "description": "Run PAI onboarding interview",
+      "agent": "build"
+    },
+    "pulse": {
+      "template": "Check the local Pulse daemon and summarize health, modules, logs, and any remediation needed.",
+      "description": "Check Pulse status",
+      "agent": "build"
+    },
+    "context": {
+      "template": "Search PAI context for: $ARGUMENTS",
+      "description": "Search prior PAI context",
+      "agent": "build"
+    },
+    "rate": {
+      "template": "Record this PAI session rating: $ARGUMENTS",
+      "description": "Record session satisfaction",
+      "agent": "build"
+    },
+    "e1": {
+      "template": "Run PAI effort E1 for: $ARGUMENTS",
+      "description": "PAI Standard effort",
+      "agent": "build"
+    },
+    "e2": {
+      "template": "Run PAI effort E2 for: $ARGUMENTS",
+      "description": "PAI Extended effort",
+      "agent": "build"
+    },
+    "e3": {
+      "template": "Run PAI effort E3 for: $ARGUMENTS",
+      "description": "PAI Advanced effort",
+      "agent": "build"
+    },
+    "e4": {
+      "template": "Run PAI effort E4 for: $ARGUMENTS",
+      "description": "PAI Deep effort",
+      "agent": "build"
+    },
+    "e5": {
+      "template": "Run PAI effort E5 for: $ARGUMENTS",
+      "description": "PAI Comprehensive effort",
+      "agent": "build"
+    }
+  }
+}

@@ -1,105 +1,48 @@
 # PAI for OpenCode
 
-> **PAI (Personal AI Infrastructure) v5.0.0** — Portado nativamente para [OpenCode](https://opencode.ai)
+PAI v5 for OpenCode is a native OpenCode port of Personal AI Infrastructure. The goal is maximum practical parity with the Claude Code version while using OpenCode-native config, agents, skills, plugins, commands, and paths.
 
-[![Validation](https://img.shields.io/badge/validation-64%2F64%20passing-brightgreen)]()
-[![OpenCode](https://img.shields.io/badge/opencode-v1.15.5-blue)]()
-[![Model](https://img.shields.io/badge/model-kimi--k2.6-purple)]()
+## Current Reality
 
-## 🚀 Instalação em 1 Comando
+- Runtime config: `~/.config/opencode/opencode.jsonc`
+- PAI core: `~/.config/opencode/PAI/`
+- Agents: `~/.config/opencode/agents/*.md`
+- Skills: `~/.config/opencode/skills/*/SKILL.md`
+- Plugin: `~/.config/opencode/plugins/pai-hooks.js`
+- Plugin library: `~/.config/opencode/plugins/lib/pai-hooks.lib.js`
+- Validation target: 66 checks from `opencode/bin/validate-pai-installation.sh`
+
+PAI is installed as the default behavior for normal OpenCode prompts. `/pai` remains available as a manual shortcut/debug command, but should not be required for day-to-day use.
+
+This port is not a perfect Claude Code clone. The strongest parity is in filesystem layout, agents, skills, tool/security tracking, startup context injection, and installation. Some lifecycle semantics still differ from Claude Code.
+
+## Install Or Update
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SEU-USUARIO/PAI/opencode/opencode/install.sh | bash
-```
-
-Ou manualmente:
-
-```bash
-# 1. Clone o repo
-git clone -b opencode https://github.com/SEU-USUARIO/PAI.git ~/PAI-opencode
 cd ~/PAI-opencode
-
-# 2. Execute o installer
-./opencode/install.sh
-```
-
-## 📋 O que está incluído
-
-- **48 Skills** — Todas as skills do PAI (ISA, Telos, Fabric, Research, RedTeam, etc.)
-- **18 Agentes** — Com prompts completos e personalidades
-- **8 Plugins nativos** — SecurityPipeline, LoadContext, PromptGuard, etc.
-- **238 Patterns Fabric** — Para extração e análise de conteúdo
-- **Sistema TELOS** — Para metas e identidade
-- **PULSE** — Dashboard e monitoramento
-- **Memory System** — WORK, KNOWLEDGE, LEARNING, RESEARCH
-
-## 🏗️ Arquitetura
-
-```
-┌─────────────────────────────────────────┐
-│           OpenCode (CLI)                │
-│  ┌─────────────┐  ┌─────────────────┐  │
-│  │ opencode.   │  │ 8 Plugins       │  │
-│  │ jsonc       │  │ (eventos        │  │
-│  │             │  │  nativos)       │  │
-│  └─────────────┘  └─────────────────┘  │
-│         │                    │          │
-│         ▼                    ▼          │
-│  ┌─────────────────────────────────┐   │
-│  │     ~/.config/opencode/         │   │
-│  │  ├── PAI/                       │   │
-│  │  ├── agents/ (18)               │   │
-│  │  ├── plugins/ (8 hooks)         │   │
-│  │  └── skills/ (48)               │   │
-│  └─────────────────────────────────┘   │
-└─────────────────────────────────────────┘
-```
-
-## 🎯 Comandos Disponíveis
-
-Após instalação, no OpenCode:
-
-```bash
-/status       # Mostra status do PAI
-/pai          # Executa o Algoritmo PAI
-/interview    # Inicia entrevista TELOS
-/pulse        # Verifica status do Pulse
-/e1           # Effort: Standard
-/e2           # Effort: Extended
-/e3           # Effort: Advanced
-/e4           # Effort: Deep
-/e5           # Effort: Comprehensive
-```
-
-## 🔄 Manter Atualizado
-
-```bash
-# Atualizar para última versão
-cd ~/PAI-opencode
-git pull origin opencode
 ./opencode/install.sh --update
+bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-## 📖 Documentação
+The installer is idempotent. It preserves installed `USER` and `MEMORY` data, updates plugins/agents/commands/config/scripts, and removes the obsolete root-level `pai-hooks.lib.js` plugin copy.
 
-- [INSTALL.md](INSTALL.md) — Guia detalhado de instalação
-- [SYNC.md](SYNC.md) — Como sincronizar com o PAI upstream
-- [TROUBLESHOOTING.md](opencode/docs/TROUBLESHOOTING.md) — Problemas comuns
+## Included Surface
 
-## 🤝 Contribuindo
+- One OpenCode plugin with native event handlers for PAI hook behavior
+- 18 OpenCode agent files
+- PAI skills loaded from `~/.config/opencode/skills`
+- PAI core directories for Algorithm, Memory, Pulse, Tools, Templates, and User context
+- Default PAI runtime injection on normal prompts (model decides mode)
+- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/rate`, and `/e1` through `/e5`
 
-Este é um port da comunidade. Para contribuir:
+## Useful Docs
 
-1. Fork o repo
-2. Crie uma branch: `git checkout -b feature/nome`
-3. Commit: `git commit -am 'Adiciona feature'`
-4. Push: `git push origin feature/nome`
-5. Abra um Pull Request para a branch `opencode`
+- `INSTALL.md` — install/update details
+- `SYNC.md` — upstream sync workflow
+- `opencode/docs/README-OPENCODE.md` — architecture notes
+- `opencode/docs/CHANGELOG-OPENCODE.md` — current parity notes
+- `opencode/docs/TROUBLESHOOTING.md` — operational troubleshooting
 
-## 📜 Licença
+## Design Rule
 
-Mesma licença do PAI original — consulte o repositório upstream.
-
----
-
-**Nota:** Este port é independente do Claude Code. Não requer `~/.claude/` ou symlink.
+Prefer OpenCode-native behavior over Claude Code emulation shims. Keep compatibility where it preserves real PAI behavior, and keep `/pai` optional rather than required.

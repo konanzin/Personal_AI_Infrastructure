@@ -1,0 +1,12 @@
+{
+  "name": "pai-opencode-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "bun test",
+    "test:security": "bun test security-pipeline.test.ts"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

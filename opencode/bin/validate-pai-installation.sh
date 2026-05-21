@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════
 #  PAI Installation Validator
-#  146 checkpoints across 12 categories
+#  68 checkpoints across 12 categories
 # ═══════════════════════════════════════════════════════════
 
 set -uo pipefail
@@ -184,6 +184,14 @@ check_config() {
         fail "Plugins missing"
     fi
     checks=$((checks + 1))
+
+    if grep -q 'Default PAI primary agent' "${OPENCODE_DIR}/opencode.jsonc"; then
+        pass "Default build agent is PAI-aware"
+        passed=$((passed + 1))
+    else
+        fail "Default build agent is not PAI-aware"
+    fi
+    checks=$((checks + 1))
     
     if [ -f "$PAI_DIR/.version.json" ]; then
         pass ".version.json exists"
@@ -292,19 +300,70 @@ check_plugins() {
     fi
     checks=$((checks + 1))
     
-    if [ -f "${OPENCODE_DIR}/plugins/pai-hooks.lib.js" ]; then
-        pass "pai-hooks.lib.js exists"
+    # Check lib is in subdirectory (not auto-loaded as plugin)
+    if [ -f "${OPENCODE_DIR}/plugins/lib/pai-hooks.lib.js" ]; then
+        pass "pai-hooks.lib.js in lib/ subdirectory (correct)"
         passed=$((passed + 1))
+    elif [ -f "${OPENCODE_DIR}/plugins/pai-hooks.lib.js" ]; then
+        fail "pai-hooks.lib.js in plugins/ root — will be auto-loaded as plugin"
     else
-        warn "pai-hooks.lib.js missing (optional)"
+        warn "pai-hooks.lib.js not found"
     fi
     checks=$((checks + 1))
     
-    if grep -q "pai-hooks" "${OPENCODE_DIR}/opencode.jsonc"; then
-        pass "Plugin registered in config"
+    # Check for duplicate plugin registration
+    local plugin_refs=$(grep -o '"\.\/plugins\/pai-hooks\.js"' "${OPENCODE_DIR}/opencode.jsonc" 2>/dev/null | wc -l)
+    if [ "$plugin_refs" -eq 1 ]; then
+        pass "Plugin registered once in config"
+        passed=$((passed + 1))
+    elif [ "$plugin_refs" -gt 1 ]; then
+        fail "Plugin registered $plugin_refs times (duplicate)"
+    else
+        fail "Plugin not registered in config"
+    fi
+    checks=$((checks + 1))
+    
+    # Check for critical isUserMessage bug fix
+    if grep -q "const isUserMessage =" "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "isUserMessage defined at top of message.updated"
         passed=$((passed + 1))
     else
-        fail "Plugin not registered"
+        fail "isUserMessage not found — critical bug not fixed"
+    fi
+    checks=$((checks + 1))
+    
+    # Check session.deleted handler exists
+    if grep -q '"session.deleted"' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "session.deleted handler exists"
+        passed=$((passed + 1))
+    else
+        fail "session.deleted handler missing"
+    fi
+    checks=$((checks + 1))
+
+    if grep -q '"experimental.chat.system.transform"' "${OPENCODE_DIR}/plugins/pai-hooks.js" && grep -q '"chat.message"' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "Default PAI runtime injection hooks exist"
+        passed=$((passed + 1))
+    else
+        fail "Default PAI runtime injection hooks missing"
+    fi
+    checks=$((checks + 1))
+
+    # Check permission.ask hook exists (notified security denials)
+    if grep -q '"permission.ask"' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "permission.ask hook exists"
+        passed=$((passed + 1))
+    else
+        fail "permission.ask hook missing"
+    fi
+    checks=$((checks + 1))
+
+    # Check rm -rf is in BLOCKED_PATTERNS (explicit model-visible block)
+    if grep -q 'rm -rf detected' "${OPENCODE_DIR}/plugins/lib/pai-hooks.lib.js"; then
+        pass "rm -rf in BLOCKED_PATTERNS (explicit fail)"
+        passed=$((passed + 1))
+    else
+        fail "rm -rf not in BLOCKED_PATTERNS"
     fi
     checks=$((checks + 1))
     
@@ -338,11 +397,11 @@ check_agents() {
         checks=$((checks + 1))
     done
     
-    if grep -q "Algorithm" "${OPENCODE_DIR}/opencode.jsonc"; then
-        pass "Agents referenced in config"
+    if grep -q '"pai"' "${OPENCODE_DIR}/opencode.jsonc" && grep -q '"agent": "Algorithm"' "${OPENCODE_DIR}/opencode.jsonc"; then
+        pass "Algorithm command references Algorithm agent"
         passed=$((passed + 1))
     else
-        fail "Agents not in config"
+        fail "Algorithm command does not reference Algorithm agent"
     fi
     checks=$((checks + 1))
     
