@@ -101,6 +101,33 @@ The plugin now maintains stronger parity between ISA frontmatter and `work.json`
 
 This is a **backend-only state sync** with no dashboard, visual, or voice dependency. It works headlessly on VPS and is deployment-agnostic.
 
+### Observability Streams (v2.9.1)
+
+All observability is **file-first, JSONL-only, backend-first** — designed for headless/VPS deployment and future mobile/backend consumers. No dashboards, no visual UI, no voice.
+
+**Storage:** `~/.config/opencode/PAI/MEMORY/OBSERVABILITY/`
+
+| Stream | File | Description |
+|--------|------|-------------|
+| Mode Classifier | `mode-classifier.jsonl` | Every prompt classification: mode, tier, source, confidence, latency, prompt hash, fallback flag |
+| Agent Guard | `agent-guard.jsonl` | Every agent spawn guard decision: decision (allow/warn/deny), rationale, metadata |
+| Skill Guard | `skill-guard.jsonl` | Every skill invocation guard decision: decision, rationale, metadata |
+| Session Events | `session-events.jsonl` | Session lifecycle transitions: created, idle, archived, deleted, state sync |
+| Tool Failures | `tool-failures.jsonl` | Tool execution failures: failure mode, error message, security/permission involvement |
+| Subagent Traces | `subagent-trace.jsonl` | Agent/skill execution traces: spawned/invoked events with success/duration |
+
+**Schema conventions:**
+- Every event has `timestamp` (ISO), `event` (type string), `session_id`
+- Payloads are domain-specific and minimal
+- `prompt_hash` is a truncated FNV-1a hash for correlation without content exposure
+- No PII or full prompt text in observability streams (only truncated previews in classifier)
+
+**Existing streams (pre-v2.9.1):**
+- `MEMORY/STATE/tool-activity.jsonl` — all tool usage (success and failure)
+- `MEMORY/STATE/security-events.jsonl` — security pipeline blocks and alerts
+- `MEMORY/LEARNING/SIGNALS/ratings.jsonl` — explicit ratings and praise
+- `MEMORY/LEARNING/signals.jsonl` — learning signals
+
 ### AgentGuard / SkillGuard (v2.8.0)
 
 Pre-execution guard rails that reduce bad orchestration decisions:
@@ -155,4 +182,4 @@ bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 bash ~/.config/opencode/PAI/bin/test-e2e-runtime.sh
 ```
 
-Current score: **129/129 passing** (75 structural + 44 behavioral + 10 E2E). Parity estimate: **~88-93%**.
+Current score: **142/142 passing** (75 structural + 57 behavioral + 10 E2E). Parity estimate: **~90-95%**.

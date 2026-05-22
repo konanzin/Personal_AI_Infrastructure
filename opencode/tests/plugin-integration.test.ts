@@ -41,10 +41,10 @@ describe("Plugin Integration — Hook Registration", () => {
     expect(plugin["tool.execute.after"]).toBeDefined();
   });
 
-  test("plugin version is 2.8.0", async () => {
+  test("plugin version is 2.9.1", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync("/home/konanzin/.config/opencode/plugins/pai-hooks.js", "utf-8");
-    expect(content).toContain("PLUGIN_VERSION = '2.8.0'");
+    expect(content).toContain("PLUGIN_VERSION = '2.9.1'");
   });
 });
 

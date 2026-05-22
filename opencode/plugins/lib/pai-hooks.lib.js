@@ -85,6 +85,16 @@ export function getISOTimestamp() {
   return new Date().toISOString();
 }
 
+export function hashString(str, maxLen = 16) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  const hex = (hash >>> 0).toString(16).padStart(8, '0');
+  return hex.slice(0, maxLen);
+}
+
 export function getPSTComponents() {
   const now = new Date();
   const pst = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));

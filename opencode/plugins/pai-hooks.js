@@ -32,7 +32,7 @@ import {
   PAI_DIR, MEMORY_DIR, STATE_DIR, WORK_DIR, LEARNING_DIR, OBSERVABILITY_DIR,
   ensureDir, safeReadJson, safeWriteJson, appendJsonL,
   getISOTimestamp, getPSTComponents, getPSTDate,
-  getSessionId, findStateFile, truncate,
+  getSessionId, findStateFile, truncate, hashString,
   logSecurityEvent,
   inspectBashCommand, inspectWritePath, inspectEgress,
   inspectPrompt, inspectContent,
@@ -58,7 +58,7 @@ import {
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.8.0';
+const PLUGIN_VERSION = '2.9.1';
 const MIN_PROMPT_LENGTH = 3;
 
 function readText(path, maxChars = 3000) {
@@ -190,6 +190,9 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   const getCurrentWorkPath = (sid) => join(STATE_DIR, `current-work-${sid}.json`);
   const agentGuardPath = join(OBSERVABILITY_DIR, 'agent-guard.jsonl');
   const skillGuardPath = join(OBSERVABILITY_DIR, 'skill-guard.jsonl');
+  const sessionEventsPath = join(OBSERVABILITY_DIR, 'session-events.jsonl');
+  const toolFailuresPath = join(OBSERVABILITY_DIR, 'tool-failures.jsonl');
+  const subagentTracePath = join(OBSERVABILITY_DIR, 'subagent-trace.jsonl');
 
   // Session-level agent spawn counter (in-memory, resets per plugin load)
   const sessionAgentCounts = new Map();
@@ -327,6 +330,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         appendJsonL(classifierTelemetryPath, {
           timestamp: getISOTimestamp(),
           session_id: sessionId,
+          event: 'mode_classification',
           mode: classification.mode,
           tier: classification.tier,
           source: classification.source,
@@ -334,6 +338,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           confidence: classification.confidence,
           latency_ms: classification.latencyMs,
           fallback: classification.source === 'fail-safe',
+          prompt_hash: hashString(content, 16),
           prompt_preview: truncate(content, 200),
         });
 
@@ -359,6 +364,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         appendJsonL(classifierTelemetryPath, {
           timestamp: getISOTimestamp(),
           session_id: sessionId,
+          event: 'mode_classification',
           mode: 'ALGORITHM',
           tier: 'E3',
           source: 'fail-safe',
@@ -366,6 +372,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           confidence: 1.0,
           latency_ms: 0,
           fallback: true,
+          prompt_hash: hashString(content, 16),
           prompt_preview: truncate(content, 200),
         });
       }
@@ -528,6 +535,19 @@ ${activeWork}`);
           session_id: sessionId,
           session_dir: slug,
           created_at: timestamp_iso,
+        });
+
+        // Session event telemetry
+        appendJsonL(sessionEventsPath, {
+          timestamp: timestamp_iso,
+          event: 'session_created',
+          session_id: sessionId,
+          payload: {
+            project: project?.name || directory || 'unknown',
+            directory: directory || 'unknown',
+            slug,
+            plugin_version: PLUGIN_VERSION,
+          },
         });
 
         // Initial ISA sync: if an ISA artifact already exists for this work dir,
@@ -890,6 +910,10 @@ ${activeWork}`);
           groundTruth = gt;
         }
 
+        // Determine success/failure
+        const hasError = output?.error || (output?.result && output.result?.error);
+        const success = !hasError;
+
         // Log tool activity to JSONL (mirrors ToolActivityTracker)
         const activity = {
           timestamp,
@@ -899,7 +923,7 @@ ${activeWork}`);
           session_id: sessionId,
           tool_name: tool,
           tool_input_preview: truncate(JSON.stringify(args), 300),
-          success: !output?.error && !(output?.result && output.result?.error),
+          success,
           duration,
           metadata: {
             callID: input.callID,
@@ -910,10 +934,62 @@ ${activeWork}`);
 
         appendJsonL(toolActivityPath, activity);
 
+        // Tool failure telemetry
+        if (!success) {
+          const errorMessage = output?.error?.message
+            || output?.result?.error?.message
+            || output?.error?.toString()
+            || output?.result?.error?.toString()
+            || 'Unknown error';
+
+          let failureMode = 'error';
+          if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+            failureMode = 'timeout';
+          } else if (errorMessage.includes('permission') || errorMessage.includes('denied')) {
+            failureMode = 'permission_denied';
+          } else if (errorMessage.includes('security') || errorMessage.includes('blocked')) {
+            failureMode = 'security_blocked';
+          } else if (errorMessage.includes('exception') || errorMessage.includes('throw')) {
+            failureMode = 'exception';
+          }
+
+          appendJsonL(toolFailuresPath, {
+            timestamp,
+            event: 'tool_failure',
+            session_id: sessionId,
+            tool_name: tool,
+            failure_mode: failureMode,
+            error_message: truncate(errorMessage, 500),
+            retry_happened: false,
+            security_involved: failureMode === 'security_blocked',
+            permission_involved: failureMode === 'permission_denied',
+            tool_input_preview: truncate(JSON.stringify(args), 300),
+            duration_ms: duration,
+            metadata: {
+              callID: input.callID,
+              title: output?.title,
+            },
+          });
+        }
+
         // Track skill usage and emit to Pulse
         if (tool === 'skill') {
           const skillName = args?.name || 'unknown';
           console.log(`[PAI] 🎯 Skill used: ${skillName}`);
+
+          // Subagent trace telemetry
+          appendJsonL(subagentTracePath, {
+            timestamp,
+            event: 'skill_invoked',
+            session_id: sessionId,
+            type: 'skill',
+            name: skillName,
+            success,
+            duration_ms: duration,
+            metadata: {
+              callID: input.callID,
+            },
+          });
 
           try {
             await emitPulseEvent({
@@ -925,6 +1001,27 @@ ${activeWork}`);
           } catch (e) {
             // Pulse not available, ignore
           }
+        }
+
+        // Track agent spawn and emit trace
+        if (tool === 'agent' || tool === 'task') {
+          const agentType = args.subagent_type || args.agent || 'unknown';
+          const description = args.description || args.task || '';
+          console.log(`[PAI] 🤖 Agent spawned: ${agentType}`);
+
+          appendJsonL(subagentTracePath, {
+            timestamp,
+            event: 'agent_spawned',
+            session_id: sessionId,
+            type: 'agent',
+            name: agentType,
+            description: truncate(description, 200),
+            success,
+            duration_ms: duration,
+            metadata: {
+              callID: input.callID,
+            },
+          });
         }
 
         // Bump lastToolActivity on work.json (debounced)
@@ -1031,6 +1128,19 @@ ${activeWork}`);
               const result = syncISAToWorkRegistry(filePath, sessionId);
               if (result.synced) {
                 console.log(`[PAI] 🔄 ISA sync: ${filePath} → work.json (${result.fields.join(', ')})`);
+
+                // State sync telemetry
+                appendJsonL(sessionEventsPath, {
+                  timestamp: getISOTimestamp(),
+                  event: 'state_sync',
+                  session_id: sessionId,
+                  payload: {
+                    sync_type: 'isa_to_registry',
+                    source: filePath,
+                    fields_synced: result.fields,
+                    slug: result.slug,
+                  },
+                });
               }
             } catch (e) {
               console.error(`[PAI] ❌ ISA sync error: ${e.message}`);
@@ -1287,6 +1397,17 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
         if (touched > 0) {
           writeWorkRegistry(registry);
           console.log(`[PAI] ⏳ Session idle — updated lastIdleAt`);
+
+          // Session event telemetry
+          appendJsonL(sessionEventsPath, {
+            timestamp,
+            event: 'session_idle',
+            session_id: sessionId,
+            payload: {
+              lastIdleAt: timestamp,
+              idle_sessions_updated: touched,
+            },
+          });
         }
       } catch (e) {
         console.error('[PAI] ❌ Session idle error:', e.message);
@@ -1394,15 +1515,28 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
             try {
               const archivePath = join(STATE_DIR, 'work-archive.json');
               let archive = safeReadJson(archivePath, { sessions: {}, version: '2.0' });
+              const archivedSlugs = [];
               for (const [slug, session] of Object.entries(registry.sessions)) {
                 if (session.sessionUUID === sessionId && session.phase === 'complete') {
                   archive.sessions[slug] = session;
+                  archivedSlugs.push(slug);
                   delete registry.sessions[slug];
                 }
               }
               safeWriteJson(archivePath, archive);
               safeWriteJson(sessionRegistryPath, registry);
               console.log(`[PAI] 📝 Archived completed sessions to work-archive.json`);
+
+              // Session event telemetry
+              appendJsonL(sessionEventsPath, {
+                timestamp,
+                event: 'session_archived',
+                session_id: sessionId,
+                payload: {
+                  archived_count: archivedSlugs.length,
+                  archived_slugs: archivedSlugs,
+                },
+              });
             } catch (e) {
               console.error(`[PAI] Failed to archive sessions: ${e.message}`);
             }
@@ -1567,6 +1701,19 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
         } catch (e) {
           // Pulse not available
         }
+
+        // Session event telemetry
+        appendJsonL(sessionEventsPath, {
+          timestamp,
+          event: 'session_deleted',
+          session_id: sessionId,
+          payload: {
+            had_work_dir: !!currentWork?.session_dir,
+            work_dir: currentWork?.session_dir || null,
+            cleanup_duration_ms: Date.now() - new Date(timestamp).getTime(),
+            plugin_version: PLUGIN_VERSION,
+          },
+        });
 
         console.log('[PAI] ✅ Session cleanup complete');
 

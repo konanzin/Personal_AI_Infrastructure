@@ -1,5 +1,50 @@
 # PAI OpenCode Port Changelog
 
+## [2.9.1] — Observability Parity (Headless / Non-Visual)
+
+### Added
+
+- **Session Events Stream** (`MEMORY/OBSERVABILITY/session-events.jsonl`)
+  - Events: `session_created`, `session_idle`, `session_archived`, `session_deleted`, `state_sync`
+  - Schema: `{ timestamp, event, session_id, payload }`
+  - Payloads vary by event type (project/directory on create, sync fields on state_sync, etc.)
+  - Emitted from: `session.created`, `session.idle`, `session.deleted`, and ISA sync triggers
+
+- **Tool Failures Stream** (`MEMORY/OBSERVABILITY/tool-failures.jsonl`)
+  - Captures tool execution failures only (successes remain in `tool-activity.jsonl`)
+  - Schema: `{ timestamp, event, session_id, tool_name, failure_mode, error_message, retry_happened, security_involved, permission_involved, duration_ms }`
+  - Failure modes: `error`, `exception`, `timeout`, `permission_denied`, `security_blocked`
+  - Emitted from: `tool.execute.after` when `!success`
+
+- **Subagent Traces** (`MEMORY/OBSERVABILITY/subagent-trace.jsonl`)
+  - Execution traces for agent spawns (`agent_spawned`) and skill invocations (`skill_invoked`)
+  - Schema: `{ timestamp, event, session_id, type, name, description, success, duration_ms }`
+  - Complements guard decisions (agent-guard/skill-guard) with actual execution records
+  - Emitted from: `tool.execute.after` for `agent`/`task`/`skill` tools
+
+- **Prompt Hash in Classifier Telemetry**
+  - `mode-classifier.jsonl` now includes `prompt_hash` (truncated FNV-1a, 16 chars)
+  - Enables correlation without exposing full prompt content
+  - Event type field added (`event: 'mode_classification'`)
+
+### Changed
+
+- **Plugin version**: 2.8.0 → 2.9.1
+- **Observability directory structure**: all streams now under `MEMORY/OBSERVABILITY/`
+- **Tool activity logging**: refactored success/failure detection to support separate failure stream
+- **ISA sync telemetry**: state sync events now emitted to `session-events.jsonl`
+
+### Design Notes
+
+- All observability is **append-only JSONL**, no rotation or compaction
+- **Backend-first**: zero dashboard/visual/voice dependency
+- **VPS/headless compatible**: file-based, no HTTP routes or browser requirements
+- **Future mobile/backend ready**: consistent schemas, minimal payloads, typed events
+- No duplicate streams: successes go to `tool-activity.jsonl`, failures go to `tool-failures.jsonl`
+- Guard decisions and execution traces are separate streams to avoid conflating intent with outcome
+
+---
+
 ## [2.9.0] — Canonical Runtime E2E Validation
 
 ### Added
@@ -198,6 +243,7 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Agents | 18 `.md` files installed under `~/.config/opencode/agents/` |
 | Commands | `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/e1`-`/e5` |
 | Memory | `~/.config/opencode/PAI/MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH}` |
+| Observability | 6 JSONL streams under `MEMORY/OBSERVABILITY/` |
 | Validation | 75 checks in `validate-pai-installation.sh` |
 
 ### Parity Notes
@@ -220,9 +266,55 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Voice | External Pulse notification only; no OpenCode-native voice |
 | Statusline | Slash-command/status output instead of Claude Code sidebar |
 
-**Parity estimate: ~88-93%** (up from 85-90%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
+**Parity estimate: ~90-95%** (up from 88-93%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
 
-**Validation: 129/129 checks passing** (75 structural + 44 behavioral + 10 E2E runtime).
+**Validation: 142/142 checks passing** (75 structural + 57 behavioral + 10 E2E runtime).
+
+### Behavioral Validation Matrix
+
+Latest run: `bash opencode/bin/test-behavioral.sh`
+
+| Category | Tests | Result |
+|----------|-------|--------|
+| Structural (version, handlers, paths) | 6/6 | ✅ PASS |
+| Side-effects (files, JSON validity) | 4/4 | ✅ PASS |
+| PermissionGuard (`permission.asked`) | 1/1 | ✅ PASS |
+| Rating parser (explicit message ratings) | 1/1 | ✅ PASS |
+| System context injection | 3/3 | ✅ PASS |
+| Mode/Tier Classifier | 8/8 | ✅ PASS |
+| Compaction context preservation | 2/2 | ✅ PASS |
+| Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
+| ISA ↔ Work-State Sync | 5/5 | ✅ PASS |
+| Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
+| AgentGuard / SkillGuard | 7/7 | ✅ PASS |
+| Observability Streams | 13/13 | ✅ PASS |
+| **Total Behavioral** | **57/57** | **✅ ALL PASS** |
+
+### Runtime E2E Validation Matrix
+
+Latest run: `bash opencode/bin/test-e2e-runtime.sh`
+
+| Scenario | Checks | Result |
+|----------|--------|--------|
+| Prompt Security Path | 2/2 | ✅ PASS |
+| Mode Selection Path | 2/2 | ✅ PASS |
+| Session Lifecycle Path | 1/1 | ✅ PASS |
+| ISA/State Sync Path | 1/1 | ✅ PASS |
+| Passive Satisfaction Path | 2/2 | ✅ PASS |
+| Permission/Security Path | 2/2 | ✅ PASS |
+| **Total E2E** | **10/10** | **✅ ALL PASS** |
+
+### Unit Tests
+
+Latest run: `bun test` in `opencode/tests/`
+
+| File | Tests | Result |
+|------|-------|--------|
+| `security-pipeline.test.ts` | 38/38 | ✅ PASS |
+| `plugin-integration.test.ts` | 14/14 | ✅ PASS |
+| `isa-work-sync.test.ts` | 16/16 | ✅ PASS |
+| `mode-classifier.test.ts` | 39/39 | ✅ PASS |
+| **Total Unit Tests** | **107/107** | **✅ ALL PASS** |
 
 ### Important: Repo vs Runtime Sync
 
@@ -246,34 +338,7 @@ bash opencode/bin/deploy-plugin.sh --restart
 
 Latest run: `bash opencode/bin/test-behavioral.sh`
 
-| Category | Tests | Result |
-|----------|-------|--------|
-| Structural (version, handlers, paths) | 6/6 | ✅ PASS |
-| Side-effects (files, JSON validity) | 4/4 | ✅ PASS |
-| PermissionGuard (`permission.asked`) | 1/1 | ✅ PASS |
-| Rating parser (explicit message ratings) | 1/1 | ✅ PASS |
-| System context injection | 3/3 | ✅ PASS |
-| Mode/Tier Classifier | 8/8 | ✅ PASS |
-| Compaction context preservation | 2/2 | ✅ PASS |
-| Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
-| ISA ↔ Work-State Sync | 5/5 | ✅ PASS |
-| Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
-| AgentGuard / SkillGuard | 7/7 | ✅ PASS |
-| **Total Behavioral** | **44/44** | **✅ ALL PASS** |
 
-### Runtime E2E Validation Matrix
-
-Latest run: `bash opencode/bin/test-e2e-runtime.sh`
-
-| Scenario | Checks | Result |
-|----------|--------|--------|
-| Prompt Security Path | 2/2 | ✅ PASS |
-| Mode Selection Path | 2/2 | ✅ PASS |
-| Session Lifecycle Path | 1/1 | ✅ PASS |
-| ISA/State Sync Path | 1/1 | ✅ PASS |
-| Passive Satisfaction Path | 2/2 | ✅ PASS |
-| Permission/Security Path | 2/2 | ✅ PASS |
-| **Total E2E** | **10/10** | **✅ ALL PASS** |
 
 ## Compatibility Principle
 

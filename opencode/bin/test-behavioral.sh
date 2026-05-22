@@ -44,8 +44,8 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.8.0" \
-    "grep -q \"PLUGIN_VERSION = '2.8.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.9.1" \
+    "grep -q \"PLUGIN_VERSION = '2.9.1'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
@@ -229,9 +229,6 @@ run_test "ISA detection recognizes MEMORY/WORK paths" \
 run_test "Plugin calls sync on ISA write/edit" \
     "grep -q 'isISAArtifactPath' ${PLUGINS_DIR}/pai-hooks.js"
 
-run_test "Plugin version is 2.8.0" \
-    "grep -q \"PLUGIN_VERSION = '2.8.0'\" ${PLUGINS_DIR}/pai-hooks.js"
-
 # Functional test of ISA sync
 ISA_SYNC_TMP=$(mktemp /tmp/pai-isa-sync-test-XXXXXX.js)
 cat > "$ISA_SYNC_TMP" << 'ENDTEST'
@@ -365,6 +362,68 @@ if [ "$GUARD_RESULT" = "PASS" ]; then
     PASSED=$((PASSED + 1))
 else
     fail "Guard functional test"
+fi
+TOTAL=$((TOTAL + 1))
+
+# ─── OBSERVABILITY STREAMS TEST ───────────────────────────
+echo ""
+echo "${BLUE}12. Observability Streams${RESET}"
+
+run_test "session-events.jsonl path referenced" \
+    "grep -q 'session-events.jsonl' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "tool-failures.jsonl path referenced" \
+    "grep -q 'tool-failures.jsonl' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "subagent-trace.jsonl path referenced" \
+    "grep -q 'subagent-trace.jsonl' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "mode-classifier includes prompt_hash" \
+    "grep -q 'prompt_hash' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "hashString exported from lib" \
+    "grep -q 'export function hashString' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
+run_test "Session created event emitted" \
+    "grep -q 'session_created' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Session idle event emitted" \
+    "grep -q 'session_idle' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Session archived event emitted" \
+    "grep -q 'session_archived' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Session deleted event emitted" \
+    "grep -q 'session_deleted' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "State sync event emitted" \
+    "grep -q 'state_sync' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Tool failure event emitted" \
+    "grep -q 'tool_failure' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Agent spawned trace emitted" \
+    "grep -q 'agent_spawned' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Skill invoked trace emitted" \
+    "grep -q 'skill_invoked' ${PLUGINS_DIR}/pai-hooks.js"
+
+# Functional test of hashString
+HASH_TEST=$(cat <<EOF
+import { hashString } from '${PLUGINS_DIR}/lib/pai-hooks.lib.js';
+const h1 = hashString('test prompt', 8);
+const h2 = hashString('test prompt', 8);
+const h3 = hashString('different', 8);
+console.log(h1 === h2 && h1.length === 8 && h1 !== h3 ? 'PASS' : 'FAIL');
+EOF
+)
+
+HASH_RESULT=$(echo "$HASH_TEST" | bun run - 2>/dev/null || echo "FAIL")
+if [ "$HASH_RESULT" = "PASS" ]; then
+    pass "hashString functional test (deterministic, length, different input)"
+    PASSED=$((PASSED + 1))
+else
+    fail "hashString functional test"
 fi
 TOTAL=$((TOTAL + 1))
 
