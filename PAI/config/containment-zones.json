@@ -1,0 +1,71 @@
+{
+  "version": "1.0.0",
+  "description": "Paths that should NEVER be accessed by OpenCode",
+  "zones": [
+    {
+      "path": "~/.ssh",
+      "reason": "SSH private keys",
+      "severity": "critical"
+    },
+    {
+      "path": "~/.aws",
+      "reason": "AWS credentials",
+      "severity": "critical"
+    },
+    {
+      "path": "~/.gnupg",
+      "reason": "GPG private keys",
+      "severity": "critical"
+    },
+    {
+      "path": "~/.docker",
+      "reason": "Docker config with registry tokens",
+      "severity": "high"
+    },
+    {
+      "path": "~/.npmrc",
+      "reason": "npm auth tokens",
+      "severity": "high"
+    },
+    {
+      "path": "~/.netrc",
+      "reason": "Generic credentials",
+      "severity": "high"
+    },
+    {
+      "path": "~/.git-credentials",
+      "reason": "Git credentials",
+      "severity": "high"
+    },
+    {
+      "path": "~/.config/opencode/PAI/USER/CONTACTS.md",
+      "reason": "Private contacts",
+      "severity": "medium"
+    },
+    {
+      "path": "~/.config/opencode/PAI/USER/Config/PAI_CONFIG.yaml",
+      "reason": "Config with API keys",
+      "severity": "medium"
+    },
+    {
+      "path": "~/.env",
+      "reason": "Environment variables with secrets",
+      "severity": "critical"
+    },
+    {
+      "path": "**/.env",
+      "reason": "Environment files anywhere",
+      "severity": "high"
+    },
+    {
+      "path": "**/.env.local",
+      "reason": "Local environment files",
+      "severity": "high"
+    },
+    {
+      "path": "**/.env.production",
+      "reason": "Production secrets",
+      "severity": "critical"
+    }
+  ]
+}

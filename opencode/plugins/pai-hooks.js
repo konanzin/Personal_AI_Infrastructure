@@ -19,7 +19,7 @@
  * - F8:   WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
  * - F9:   SessionEnd (session.deleted) — Destructive cleanup, archive, counts
  *
- * @version 2.6.0
+ * @version 2.9.1
  * @license MIT
  */
 
@@ -53,6 +53,15 @@ import {
   formatClassificationContext,
   getEffortLabel,
 } from './lib/mode-classifier.lib.js';
+
+const PAI_DEBUG_UI = process.env.PAI_DEBUG_UI === 'true';
+const console = PAI_DEBUG_UI
+  ? globalThis.console
+  : {
+      log() {},
+      warn() {},
+      error() {},
+    };
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -203,7 +212,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
     endpoint: process.env.PAI_CLASSIFIER_API_URL || null,
     apiKey: process.env.PAI_CLASSIFIER_API_KEY || null,
     model: process.env.PAI_CLASSIFIER_MODEL || 'opencode/deepseek-v4-flash-free',
-    timeoutMs: parseInt(process.env.PAI_CLASSIFIER_TIMEOUT_MS || '5000', 10),
+    timeoutMs: parseInt(process.env.PAI_CLASSIFIER_TIMEOUT_MS || '8000', 10),
   };
 
   // Structured logging helper

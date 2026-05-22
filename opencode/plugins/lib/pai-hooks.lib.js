@@ -11,6 +11,15 @@ import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, rea
 import { join, dirname, resolve } from 'path';
 import { homedir } from 'os';
 
+const PAI_DEBUG_UI = process.env.PAI_DEBUG_UI === 'true';
+const console = PAI_DEBUG_UI
+  ? globalThis.console
+  : {
+      log() {},
+      warn() {},
+      error() {},
+    };
+
 // ═══════════════════════════════════════════════════════════════
 // PATHS & DIRECTORIES
 // ═══════════════════════════════════════════════════════════════
@@ -824,8 +833,20 @@ export function detectPositivePraise(prompt) {
     'love it', 'nailed it', 'looks great', 'looks good', 'thats great', 'that works',
   ]);
 
+  const NEGATION_MARKERS = new Set(['but', 'however', 'though', 'except']);
+
   const normalized = prompt.trim().toLowerCase().replace(/[.!?,'"]/g, '');
   const words = normalized.split(/\s+/);
+
+  for (const phrase of POSITIVE_PHRASES) {
+    if (normalized.includes(phrase)) {
+      return true;
+    }
+  }
+
+  if (words.some((word) => NEGATION_MARKERS.has(word))) {
+    return false;
+  }
 
   if (words.length <= 2) {
     if (POSITIVE_PRAISE_WORDS.has(normalized) || POSITIVE_PHRASES.has(normalized)) {
@@ -835,6 +856,11 @@ export function detectPositivePraise(prompt) {
       return true;
     }
   }
+
+  if (words.length <= 8 && POSITIVE_PRAISE_WORDS.has(words[0])) {
+    return true;
+  }
+
   return false;
 }
 

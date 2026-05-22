@@ -9,8 +9,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-# Detect if running from runtime (~/.config/opencode/PAI/bin) or from repo
-if [ -d "${REPO_ROOT}/opencode/tests/e2e-runtime" ]; then
+# Detect if running from installed runtime, repo, or a checkout in $HOME
+if [ -d "${SCRIPT_DIR}/../tests/e2e-runtime" ]; then
+    E2E_DIR="${SCRIPT_DIR}/../tests/e2e-runtime"
+elif [ -d "${REPO_ROOT}/opencode/tests/e2e-runtime" ]; then
     E2E_DIR="${REPO_ROOT}/opencode/tests/e2e-runtime"
 elif [ -d "${HOME}/PAI-opencode/opencode/tests/e2e-runtime" ]; then
     E2E_DIR="${HOME}/PAI-opencode/opencode/tests/e2e-runtime"
@@ -36,11 +38,13 @@ FAILED=0
 
 run_scenario() {
     local name="$1"
-    local file="$2"
+    shift
+    local file="$1"
+    shift
     TOTAL=$((TOTAL + 1))
     
     local result
-    result=$(bun run "${E2E_DIR}/${file}" 2>&1) || true
+    result=$(bun run "${E2E_DIR}/${file}" "$@" 2>&1) || true
     
     if echo "$result" | grep -q "^E2E_PASS"; then
         pass "$name"

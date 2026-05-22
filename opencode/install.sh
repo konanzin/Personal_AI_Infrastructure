@@ -74,6 +74,7 @@ create_directories() {
     log "Creating directories..."
     
     mkdir -p "$PAI_DIR"/{ALGORITHM,DOCUMENTATION,MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH},PULSE,TOOLS,TEMPLATES,USER/{TELOS,Config},bin,logs,tests}
+    mkdir -p "$PAI_DIR/plugins/lib"
     mkdir -p "$PLUGINS_DIR"
     mkdir -p "$AGENTS_DIR"
     mkdir -p "$COMMANDS_DIR"
@@ -90,11 +91,15 @@ install_plugins() {
     cp -f "${REPO_DIR}/opencode/plugins/pai-hooks.js" "$PLUGINS_DIR/"
     rm -f "$PLUGINS_DIR/pai-hooks.lib.js"
     
-    # Create lib subdirectory and copy library there
+    # Create lib subdirectory and copy all library files
     mkdir -p "$PLUGINS_DIR/lib"
-    cp -f "${REPO_DIR}/opencode/plugins/lib/pai-hooks.lib.js" "$PLUGINS_DIR/lib/"
+    cp -f "${REPO_DIR}/opencode/plugins/lib/"*.js "$PLUGINS_DIR/lib/"
+
+    # Mirror plugin libs into installed PAI tree for vendored E2E scenarios
+    mkdir -p "$PAI_DIR/plugins/lib"
+    cp -f "${REPO_DIR}/opencode/plugins/lib/"*.js "$PAI_DIR/plugins/lib/"
     
-    success "Plugins installed (main + lib in subdirectory)"
+    success "Plugins installed (main + lib files)"
 }
 
 # ─── Install Agents ───────────────────────────────────────
@@ -120,11 +125,19 @@ install_commands() {
 install_skills() {
     log "Installing skills..."
     
-    if [ -d "${REPO_DIR}/skills" ]; then
-        cp -R "${REPO_DIR}/skills/"* "$SKILLS_DIR/"
-    elif [ -d "${REPO_DIR}/opencode/skills" ]; then
-        cp -R "${REPO_DIR}/opencode/skills/"* "$SKILLS_DIR/"
+    local skills_src=""
+    if [ -d "${REPO_DIR}/skills" ] && [ "$(ls -A ${REPO_DIR}/skills)" ]; then
+        skills_src="${REPO_DIR}/skills"
+    elif [ -d "${REPO_DIR}/opencode/skills" ] && [ "$(ls -A ${REPO_DIR}/opencode/skills)" ]; then
+        skills_src="${REPO_DIR}/opencode/skills"
     fi
+    
+    if [ -z "$skills_src" ]; then
+        error "Required skills directory missing in repo (expected skills/ or opencode/skills/)"
+        exit 1
+    fi
+    
+    cp -R "${skills_src}/"* "$SKILLS_DIR/"
     
     local count=$(ls "$SKILLS_DIR/" | wc -l)
     success "$count skills installed"
@@ -134,29 +147,74 @@ install_skills() {
 install_pai_core() {
     log "Installing PAI core..."
     
-    # Copy from repo's PAI directory or use submodule
-    if [ -d "${REPO_DIR}/PAI" ]; then
-        # Copy preserving existing user data
-        for dir in ALGORITHM DOCUMENTATION PULSE TOOLS TEMPLATES; do
-            if [ -d "${REPO_DIR}/PAI/$dir" ]; then
-                cp -R "${REPO_DIR}/PAI/$dir" "$PAI_DIR/"
-            fi
-        done
-        
-        # Only copy USER if it doesn't exist
-        if [ ! -d "$PAI_DIR/USER" ] && [ -d "${REPO_DIR}/PAI/USER" ]; then
-            cp -R "${REPO_DIR}/PAI/USER" "$PAI_DIR/"
-        fi
+    if [ ! -d "${REPO_DIR}/PAI" ]; then
+        error "Required PAI directory missing in repo (expected PAI/)"
+        exit 1
     fi
     
-    # Copy metadata files
+    # Copy full PAI tree from repo, preserving existing user data on update
+    for dir in ALGORITHM DOCUMENTATION PULSE TOOLS TEMPLATES bin config tests; do
+        if [ -d "${REPO_DIR}/PAI/$dir" ]; then
+            cp -R "${REPO_DIR}/PAI/$dir" "$PAI_DIR/"
+        fi
+    done
+
+    # Copy canonical OpenCode runtime E2E scenarios into installed runtime
+    if [ -d "${REPO_DIR}/opencode/tests/e2e-runtime" ]; then
+        mkdir -p "$PAI_DIR/tests"
+        cp -R "${REPO_DIR}/opencode/tests/e2e-runtime" "$PAI_DIR/tests/"
+    fi
+    
+    # Copy root-level PAI files (CLAUDE.md, etc.)
+    for file in CLAUDE.md; do
+        if [ -f "${REPO_DIR}/PAI/$file" ]; then
+            cp -f "${REPO_DIR}/PAI/$file" "$PAI_DIR/"
+        fi
+    done
+    
+    # Copy safe USER bootstrap only, preserving existing user data
+    if [ -d "${REPO_DIR}/PAI/USER" ]; then
+        local safe_user_files=(
+            "README.md"
+            "PRINCIPAL_IDENTITY.md"
+            "DA_IDENTITY.md"
+            "Config/README.md"
+            "Config/PAI_CONFIG.yaml"
+            "PROJECTS/PROJECTS.md"
+            "TELOS/README.md"
+            "TELOS/BELIEFS.md"
+            "TELOS/BOOKS.md"
+            "TELOS/CHALLENGES.md"
+            "TELOS/NARRATIVES.md"
+            "TELOS/PRINCIPAL_TELOS.md"
+            "TELOS/PROBLEMS.md"
+            "TELOS/STRATEGIES.md"
+            "TELOS/WISDOM.md"
+        )
+
+        for file in "${safe_user_files[@]}"; do
+            if [ -f "${REPO_DIR}/PAI/USER/$file" ]; then
+                target="$PAI_DIR/USER/$file"
+                if [ ! -f "$target" ]; then
+                    mkdir -p "$(dirname "$target")"
+                    cp -f "${REPO_DIR}/PAI/USER/$file" "$target"
+                fi
+            fi
+        done
+    fi
+    
+    # Create runtime directories that shouldn't be vendored
+    mkdir -p "$PAI_DIR/MEMORY"/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH,OBSERVABILITY}
+    mkdir -p "$PAI_DIR/logs"
+    
+    # Copy metadata files (repo canonical versions)
     for file in .version.json .preferences.json .techstack.json .observability.json .notifications.json .env .pai-protected.json; do
         if [ -f "${REPO_DIR}/opencode/config/$file" ]; then
             cp -f "${REPO_DIR}/opencode/config/$file" "$PAI_DIR/"
         fi
     done
     
-    # Copy scripts
+    # Copy scripts (repo canonical versions take precedence)
     cp -f "${REPO_DIR}/opencode/bin/"*.sh "$PAI_DIR/bin/" 2>/dev/null || true
     chmod +x "$PAI_DIR/bin/"*.sh 2>/dev/null || true
     
@@ -216,6 +274,37 @@ report() {
     fi
 }
 
+# ─── Validate Repo Content ────────────────────────────────
+validate_repo_content() {
+    log "Validating repo content..."
+    
+    local missing=()
+    
+    if [ ! -d "${REPO_DIR}/PAI" ]; then
+        missing+=("PAI/")
+    fi
+    
+    if [ ! -d "${REPO_DIR}/skills" ] && [ ! -d "${REPO_DIR}/opencode/skills" ]; then
+        missing+=("skills/")
+    fi
+    
+    if [ ! -f "${REPO_DIR}/opencode/plugins/pai-hooks.js" ]; then
+        missing+=("opencode/plugins/pai-hooks.js")
+    fi
+    
+    if [ ! -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" ]; then
+        missing+=("opencode/config/opencode.jsonc.template")
+    fi
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        error "Required repo content missing: ${missing[*]}"
+        error "This installer requires a fully vendored repo. Run the vendor script first."
+        exit 1
+    fi
+    
+    success "Repo content OK"
+}
+
 # ─── Main ─────────────────────────────────────────────────
 main() {
     echo "═══════════════════════════════════════════════════"
@@ -227,6 +316,7 @@ main() {
     echo ""
     
     check_prerequisites
+    validate_repo_content
     create_backup
     create_directories
     install_plugins

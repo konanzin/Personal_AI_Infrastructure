@@ -1,20 +1,18 @@
 # PAI for OpenCode
 
-PAI v5 for OpenCode is a native OpenCode port of Personal AI Infrastructure. The goal is maximum practical parity with the Claude Code version while using OpenCode-native config, agents, skills, plugins, commands, and paths.
+This is a **self-contained agent product** built on PAI principles, not a live mirror of upstream. The repo holds everything needed to install and run PAI under OpenCode. `main` tracks the original PAI as a reference baseline; `opencode` (this branch) is the working product.
 
-## Current Reality
+## Repo Model
 
-- Runtime config: `~/.config/opencode/opencode.jsonc`
-- PAI core: `~/.config/opencode/PAI/`
-- Agents: `~/.config/opencode/agents/*.md`
-- Skills: `~/.config/opencode/skills/*/SKILL.md`
-- Plugin: `~/.config/opencode/plugins/pai-hooks.js`
-- Plugin library: `~/.config/opencode/plugins/lib/pai-hooks.lib.js`
-- Validation target: 75 checks from `opencode/bin/validate-pai-installation.sh`
+Three kinds of content coexist here:
 
-PAI is installed as the default behavior for normal OpenCode prompts. `/pai` remains available as a manual shortcut/debug command, but should not be required for day-to-day use.
+| Kind | What | Examples |
+|------|------|----------|
+| **Inherited** | Vendored baseline imported from the upstream PAI runtime. Treated as read-only reference; selective sync only. | `PAI/ALGORITHM/`, `PAI/DOCUMENTATION/`, `skills/*/SKILL.md` |
+| **Adapted** | Upstream concepts reimplemented for OpenCode's native surfaces. | `opencode/plugins/pai-hooks.js`, `opencode/agents/*.md`, mode classifier, ISA sync, observability streams |
+| **Native** | Original to this repo; no upstream equivalent. | `opencode/bin/validate-pai-installation.sh`, AgentGuard / SkillGuard, E2E runtime tests, deploy scripts |
 
-This port is not a perfect Claude Code clone. The strongest parity is in filesystem layout, agents, skills, tool/security tracking, startup context injection, and installation. Some lifecycle semantics still differ from Claude Code.
+Parity with upstream is an **initial baseline**, not a forever commitment. Future upstream sync is **selective and manual** — we pull what we want, when we want it, and adapt it to OpenCode's model. See `REPO_MODEL.md` for the full contract and `SYNC.md` for the practical workflow.
 
 ## Install Or Update
 
@@ -37,8 +35,9 @@ The installer is idempotent. It preserves installed `USER` and `MEMORY` data, up
 
 ## Useful Docs
 
+- `REPO_MODEL.md` — how this repo is organized (inherited / adapted / native)
+- `SYNC.md` — selective upstream sync workflow
 - `INSTALL.md` — install/update details
-- `SYNC.md` — upstream sync workflow
 - `opencode/docs/README-OPENCODE.md` — architecture notes
 - `opencode/docs/CHANGELOG-OPENCODE.md` — current parity notes
 - `opencode/docs/TROUBLESHOOTING.md` — operational troubleshooting

@@ -1,5 +1,11 @@
 import { describe, test, expect } from "bun:test";
-import { inspectBashCommand, inspectWritePath, inspectAgentSpawn, inspectSkillInvocation } from "../plugins/lib/pai-hooks.lib.js";
+import {
+  inspectBashCommand,
+  inspectWritePath,
+  inspectAgentSpawn,
+  inspectSkillInvocation,
+  detectPositivePraise,
+} from "../plugins/lib/pai-hooks.lib.js";
 
 describe("Security Pipeline — inspectBashCommand", () => {
   describe("BLOCKED patterns (deny)", () => {
@@ -293,5 +299,17 @@ describe("SkillGuard — inspectSkillInvocation", () => {
       });
       expect(result.action).toBe("allow");
     });
+  });
+});
+
+describe("Passive Satisfaction — detectPositivePraise", () => {
+  test("detects natural praise phrases in longer messages", () => {
+    expect(detectPositivePraise("Great work, thanks!")).toBe(true);
+    expect(detectPositivePraise("Perfect, exactly what I needed")).toBe(true);
+    expect(detectPositivePraise("Excellent job on this")).toBe(true);
+  });
+
+  test("does not treat mixed praise-with-complaint as clean praise", () => {
+    expect(detectPositivePraise("great, but still broken")).toBe(false);
   });
 });

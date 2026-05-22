@@ -1,4 +1,8 @@
 import { describe, test, expect } from "bun:test";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+
+const pluginPath = fileURLToPath(new URL("../plugins/pai-hooks.js", import.meta.url));
 
 // Mock OpenCode plugin context
 const mockContext = {
@@ -10,7 +14,7 @@ const mockContext = {
 };
 
 async function loadPlugin() {
-  const module = await import("/home/konanzin/.config/opencode/plugins/pai-hooks.js");
+  const module = await import(pluginPath);
   return await module.default(mockContext);
 }
 
@@ -42,8 +46,7 @@ describe("Plugin Integration — Hook Registration", () => {
   });
 
   test("plugin version is 2.9.1", async () => {
-    const fs = await import("fs");
-    const content = fs.readFileSync("/home/konanzin/.config/opencode/plugins/pai-hooks.js", "utf-8");
+    const content = readFileSync(pluginPath, "utf-8");
     expect(content).toContain("PLUGIN_VERSION = '2.9.1'");
   });
 });

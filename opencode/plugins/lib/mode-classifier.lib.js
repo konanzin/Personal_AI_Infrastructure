@@ -19,6 +19,15 @@
  * @version 1.0.0
  */
 
+const PAI_DEBUG_UI = process.env.PAI_DEBUG_UI === 'true';
+const console = PAI_DEBUG_UI
+  ? globalThis.console
+  : {
+      log() {},
+      warn() {},
+      error() {},
+    };
+
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════

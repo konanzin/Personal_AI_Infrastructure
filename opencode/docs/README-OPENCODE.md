@@ -172,7 +172,7 @@ Three-tier validation:
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-**Behavioral** (45 checks) — grep-based + lightweight functional probes:
+**Behavioral** (57 checks) — grep-based + lightweight functional probes:
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```

@@ -1,0 +1,92 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+Library
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# API keys and secrets
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+*_rsa
+*_rsa.pub
+*.crt
+*.cer
+
+# Logs
+*.log
+logs/
+Library/Logs/
+
+# Node/Bun
+node_modules/
+.npm
+.yarn
+.pnp.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build outputs
+dist/
+build/
+out/
+
+# Cache
+.cache/
+*.cache
+
+# Personal/Private data
+private/
+secrets/
+credentials/
+
+# Local runtime state — keep repo baseline clean
+PAI/.env
+PAI/logs/**
+PAI/MEMORY/**
+
+# Only keep a curated bootstrap subset of USER/ in git
+PAI/USER/**
+!PAI/USER/README.md
+!PAI/USER/PRINCIPAL_IDENTITY.md
+!PAI/USER/DA_IDENTITY.md
+!PAI/USER/Config/
+!PAI/USER/Config/README.md
+!PAI/USER/Config/PAI_CONFIG.yaml
+!PAI/USER/PROJECTS/
+!PAI/USER/PROJECTS/PROJECTS.md
+!PAI/USER/TELOS/
+!PAI/USER/TELOS/README.md
+!PAI/USER/TELOS/BELIEFS.md
+!PAI/USER/TELOS/BOOKS.md
+!PAI/USER/TELOS/CHALLENGES.md
+!PAI/USER/TELOS/NARRATIVES.md
+!PAI/USER/TELOS/PRINCIPAL_TELOS.md
+!PAI/USER/TELOS/PROBLEMS.md
+!PAI/USER/TELOS/STRATEGIES.md
+!PAI/USER/TELOS/WISDOM.md
+
+# Self-contained clean-install scratch space
+/tmp/opencode-selftest-home/
