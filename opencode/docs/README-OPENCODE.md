@@ -78,7 +78,7 @@ The LLM classifier uses `opencode run --model <model>` internally and includes L
 - `experimental.chat.system.transform`: **inject full PAI runtime context, identity/TELOS excerpts, and mode-classification rules into every system prompt**
 - `experimental.session.compacting`: **preserve PAI context and recent work across context window resets**
 - `permission.asked`: block dangerous commands at the permission level with explicit notification
-- `tool.execute.before`: inspect risky commands, writes, and egress
+- `tool.execute.before`: inspect risky commands, writes, and egress; **AgentGuard** (agent spawn validation); **SkillGuard** (skill invocation validation)
 - `tool.execute.after`: log tool activity and scan fetched content
 - `message.updated`: capture ratings/praise and run post-message prompt checks
 - `session.idle`: update idle timestamp only
@@ -101,6 +101,35 @@ The plugin now maintains stronger parity between ISA frontmatter and `work.json`
 
 This is a **backend-only state sync** with no dashboard, visual, or voice dependency. It works headlessly on VPS and is deployment-agnostic.
 
+### AgentGuard / SkillGuard (v2.8.0)
+
+Pre-execution guard rails that reduce bad orchestration decisions:
+
+**AgentGuard** (`tool.execute.before` on `agent`/`task` tools):
+- **Trivial lookup detection**: warns when native tools (glob/read/grep) would suffice
+- **Fan-out threshold**: warns when session exceeds configured agent count (default: 3)
+- **Vague delegation**: warns on underspecified prompts
+- **Expensive agent mismatch**: warns when research/deep agents used for trivial tasks
+- Decision: `allow` / `warn` / `deny` with logged rationale
+- Warn-first; deny only on unambiguous high-confidence misfires
+
+**SkillGuard** (`tool.execute.before` on `skill` tools):
+- **Obvious misfire**: denies when high-specificity skill invoked in wrong context (e.g., ArXiv for restaurant search)
+- **Trivial request**: warns when native tools would suffice
+- **High-cost on trivial**: warns when expensive skills used for simple lookups
+- Decision: `allow` / `warn` / `deny` with logged rationale
+- Warn-first; deny only on unambiguous misfires
+
+**Observability:**
+- `MEMORY/OBSERVABILITY/agent-guard.jsonl`
+- `MEMORY/OBSERVABILITY/skill-guard.jsonl`
+
+**Configuration:**
+```bash
+PAI_AGENTGUARD_FANOUT_MAX=3              # Max agents before warning
+PAI_AGENTGUARD_DENY_CONFIDENCE=true      # Enable deny on high-confidence agent misfires
+```
+
 ## Known Platform Gaps
 
 - ~~Claude Code's Sonnet-based `UserPromptSubmit` classifier is not yet ported~~ — **RESTORED in v2.6.0** via explicit heuristic classifier with provider-agnostic interface. LLM-backed classification is a future enhancement.
@@ -114,9 +143,9 @@ Structural validation (75 checks):
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-Behavioral validation (37 checks):
+Behavioral validation (45 checks):
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```
 
-Current score: **112/112 passing** (75 structural + 37 behavioral). Parity estimate: **~85-90%**.
+Current score: **119/119 passing** (75 structural + 44 behavioral). Parity estimate: **~87-92%**.

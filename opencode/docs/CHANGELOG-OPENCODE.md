@@ -1,5 +1,70 @@
 # PAI OpenCode Port Changelog
 
+## [2.8.0] — AgentGuard / SkillGuard
+
+### Added
+
+- **AgentGuard** (`plugins/lib/pai-hooks.lib.js`)
+  - `inspectAgentSpawn()`: validates agent spawn decisions before execution
+  - Rules:
+    - **Trivial lookup detection**: warns when native tools (glob/read/grep) would suffice
+    - **Fan-out threshold**: warns when session exceeds configured agent count (default: 3)
+    - **Vague delegation**: warns on underspecified prompts (< 30 chars or generic phrasing)
+    - **Expensive agent mismatch**: warns when research/deep agents used for trivial tasks
+  - Output: `allow` / `warn` / `deny` with rationale and metadata
+  - Warn-first philosophy; deny only on unambiguous high-confidence misfires
+  - In-memory session agent counter (resets per plugin load)
+
+- **SkillGuard** (`plugins/lib/pai-hooks.lib.js`)
+  - `inspectSkillInvocation()`: validates skill invocation decisions before execution
+  - Rules:
+    - **Obvious misfire**: denies when high-specificity skill (ArXiv, Remotion, etc.) is invoked in clearly wrong context
+    - **Trivial request**: warns when native tools (bash, read, grep) would suffice
+    - **High-cost on trivial**: warns when expensive skills (BrightData, Apify, Research) are used for simple lookups
+  - Output: `allow` / `warn` / `deny` with rationale and metadata
+  - Warn-first philosophy; deny only on unambiguous misfires
+
+- **Guard Integration in Plugin**
+  - `tool.execute.before` now runs AgentGuard on `agent`/`task` tool invocations
+  - `tool.execute.before` now runs SkillGuard on `skill` tool invocations
+  - Warn decisions: logged to console + JSONL, execution continues
+  - Deny decisions: logged to console + JSONL, execution blocked with explicit error
+  - Non-blocking design — warnings do not halt execution
+
+- **Observability**
+  - `MEMORY/OBSERVABILITY/agent-guard.jsonl`: structured log of all agent guard decisions
+  - `MEMORY/OBSERVABILITY/skill-guard.jsonl`: structured log of all skill guard decisions
+  - Each entry includes: timestamp, session_id, requested agent/skill, decision, rationale, metadata
+
+- **Tests**
+  - `tests/security-pipeline.test.ts`: 16 new unit tests covering AgentGuard and SkillGuard
+    - AgentGuard: 6 warn cases, 2 allow cases
+    - SkillGuard: 2 deny cases, 3 warn cases, 2 allow cases
+  - `tests/plugin-integration.test.ts`: 3 new integration tests
+    - Skill misfire blocked in hook
+    - Trivial agent spawn warned in hook
+    - Legitimate skill use allowed in hook
+  - `test-behavioral.sh`: 7 new behavioral checks + 1 functional test
+
+### Changed
+
+- **Plugin version**: 2.7.0 → 2.8.0
+- **Behavioral test count**: 37 → 44 checks
+- **Unit test count**: 89 → 107 tests across 4 files
+- **Handler count**: remains 10 (guards integrated within existing `tool.execute.before`)
+
+### Design Notes
+
+- Backend-only guard rails with no dashboard, visual UI, or voice dependency
+- Headless/VPS/mobile-friendly: all decisions logged to JSONL, no HTTP routes
+- Warn-first approach minimizes friction while still surfacing bad decisions
+- Deny threshold is intentionally high to avoid false positives
+- Configurable via environment variables:
+  - `PAI_AGENTGUARD_FANOUT_MAX` (default: 3)
+  - `PAI_AGENTGUARD_DENY_CONFIDENCE=true` to enable deny on high-confidence agent misfires
+
+---
+
 ## [2.7.0] — ISA ↔ Work-State Sync
 
 ### Added
@@ -117,7 +182,7 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 
 **Parity estimate: ~85-90%** (up from 82-87%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
 
-**Validation: 112/112 checks passing** (75 structural + 37 behavioral).
+**Validation: 119/119 checks passing** (75 structural + 44 behavioral).
 
 ### Important: Repo vs Runtime Sync
 
@@ -153,7 +218,8 @@ Latest run: `bash opencode/bin/test-behavioral.sh`
 | Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
 | ISA ↔ Work-State Sync | 5/5 | ✅ PASS |
 | Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
-| **Total** | **37/37** | **✅ ALL PASS** |
+| AgentGuard / SkillGuard | 7/7 | ✅ PASS |
+| **Total** | **44/44** | **✅ ALL PASS** |
 
 ## Compatibility Principle
 

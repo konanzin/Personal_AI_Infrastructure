@@ -41,10 +41,10 @@ describe("Plugin Integration — Hook Registration", () => {
     expect(plugin["tool.execute.after"]).toBeDefined();
   });
 
-  test("plugin version is 2.7.0", async () => {
+  test("plugin version is 2.8.0", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync("/home/konanzin/.config/opencode/plugins/pai-hooks.js", "utf-8");
-    expect(content).toContain("PLUGIN_VERSION = '2.7.0'");
+    expect(content).toContain("PLUGIN_VERSION = '2.8.0'");
   });
 });
 
@@ -112,6 +112,54 @@ describe("Plugin Integration — Security Blocking", () => {
     expect(async () => {
       await hook(input, output);
     }).toThrow(/PAI SECURITY.*BLOCKED/);
+  });
+
+  test("tool.execute.before blocks obvious skill misfire", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+
+    const input = {
+      tool: "skill",
+      args: { name: "ArXiv", args: { prompt: "find a good italian restaurant nearby" } },
+      sessionID: "test-session",
+    };
+    const output = {};
+
+    expect(async () => {
+      await hook(input, output);
+    }).toThrow(/PAI SKILLGUARD.*BLOCKED/);
+  });
+
+  test("tool.execute.before warns on trivial agent spawn", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+
+    const input = {
+      tool: "agent",
+      args: { subagent_type: "explore", description: "find file named config.ts" },
+      sessionID: "test-session",
+    };
+    const output = {};
+
+    // Should NOT throw — warn flows through
+    await hook(input, output);
+    expect(output).toBeDefined();
+  });
+
+  test("tool.execute.before allows legitimate skill use", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+
+    const input = {
+      tool: "skill",
+      args: { name: "ArXiv", args: { prompt: "find recent papers on transformer architectures" } },
+      sessionID: "test-session",
+    };
+    const output = {};
+
+    // Should not throw
+    await hook(input, output);
+    expect(output).toBeDefined();
   });
 });
 

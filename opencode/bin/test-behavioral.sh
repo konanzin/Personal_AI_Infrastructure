@@ -44,8 +44,8 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.7.0" \
-    "grep -q \"PLUGIN_VERSION = '2.7.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.8.0" \
+    "grep -q \"PLUGIN_VERSION = '2.8.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
@@ -229,8 +229,8 @@ run_test "ISA detection recognizes MEMORY/WORK paths" \
 run_test "Plugin calls sync on ISA write/edit" \
     "grep -q 'isISAArtifactPath' ${PLUGINS_DIR}/pai-hooks.js"
 
-run_test "Plugin version is 2.7.0" \
-    "grep -q \"PLUGIN_VERSION = '2.7.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.8.0" \
+    "grep -q \"PLUGIN_VERSION = '2.8.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 # Functional test of ISA sync
 ISA_SYNC_TMP=$(mktemp /tmp/pai-isa-sync-test-XXXXXX.js)
@@ -290,6 +290,83 @@ run_test "tool.execute.before inspects writes" \
 
 run_test "chat.message pre-sanitizes blocked prompts" \
     "grep -q 'PAI SECURITY BLOCKED' ${PLUGINS_DIR}/pai-hooks.js"
+
+# ─── AGENT GUARD / SKILL GUARD TEST ───────────────────────
+echo ""
+echo "${BLUE}11. AgentGuard / SkillGuard${RESET}"
+
+run_test "AgentGuard inspector exists in lib" \
+    "grep -q 'inspectAgentSpawn' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
+run_test "SkillGuard inspector exists in lib" \
+    "grep -q 'inspectSkillInvocation' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
+run_test "AgentGuard integrated in tool.execute.before" \
+    "grep -q 'AgentGuard' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "SkillGuard integrated in tool.execute.before" \
+    "grep -q 'SkillGuard' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "AgentGuard logs to agent-guard.jsonl" \
+    "grep -q 'agent-guard.jsonl' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "SkillGuard logs to skill-guard.jsonl" \
+    "grep -q 'skill-guard.jsonl' ${PLUGINS_DIR}/pai-hooks.js"
+
+# Functional test of guards
+GUARD_TEST_TMP=$(mktemp /tmp/pai-guard-test-XXXXXX.js)
+cat > "$GUARD_TEST_TMP" << 'ENDTEST'
+import {
+  inspectAgentSpawn,
+  inspectSkillInvocation,
+} from '/home/konanzin/.config/opencode/plugins/lib/pai-hooks.lib.js';
+
+// AgentGuard: trivial lookup should warn
+const ag1 = inspectAgentSpawn({
+  subagent_type: 'explore',
+  description: 'find file named config.ts',
+  prompt: '',
+  sessionAgentCount: 0,
+});
+
+// AgentGuard: complex task should allow
+const ag2 = inspectAgentSpawn({
+  subagent_type: 'engineer',
+  description: 'refactor auth module',
+  prompt: 'detailed requirements here',
+  sessionAgentCount: 0,
+});
+
+// SkillGuard: obvious misfire should deny
+const sg1 = inspectSkillInvocation({
+  skillName: 'ArXiv',
+  userRequest: 'find italian restaurant',
+  context: '',
+});
+
+// SkillGuard: matching request should allow
+const sg2 = inspectSkillInvocation({
+  skillName: 'ArXiv',
+  userRequest: 'find papers on transformers',
+  context: '',
+});
+
+console.log(
+  ag1.action === 'warn' && ag2.action === 'allow' &&
+  sg1.action === 'deny' && sg2.action === 'allow'
+  ? 'PASS' : 'FAIL'
+);
+ENDTEST
+
+GUARD_RESULT=$(bun run "$GUARD_TEST_TMP" 2>/dev/null || echo "FAIL")
+rm -f "$GUARD_TEST_TMP"
+if [ "$GUARD_RESULT" = "PASS" ]; then
+    pass "Guard functional test (AgentGuard + SkillGuard)"
+    PASSED=$((PASSED + 1))
+else
+    fail "Guard functional test"
+fi
+TOTAL=$((TOTAL + 1))
 
 # ─── REPORT ───────────────────────────────────────────────
 echo ""
