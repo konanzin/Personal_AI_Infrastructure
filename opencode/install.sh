@@ -24,13 +24,52 @@ COMMANDS_DIR="${OPENCODE_DIR}/commands"
 
 # ─── Flags ────────────────────────────────────────────────
 UPDATE_MODE=false
-[ "${1:-}" = "--update" ] && UPDATE_MODE=true
+BOOTSTRAP_DEPS=true
+
+for arg in "$@"; do
+    case "$arg" in
+        --update) UPDATE_MODE=true ;;
+        --no-bootstrap) BOOTSTRAP_DEPS=false ;;
+    esac
+done
 
 # ─── Logging ──────────────────────────────────────────────
 log() { echo -e "${BLUE}[PAI-INSTALL]${RESET} $1"; }
 success() { echo -e "${GREEN}[SUCCESS]${RESET} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${RESET} $1"; }
 error() { echo -e "${RED}[ERROR]${RESET} $1"; }
+
+require_curl() {
+    if ! command -v curl &>/dev/null; then
+        error "curl is required to bootstrap missing dependencies"
+        exit 1
+    fi
+}
+
+install_opencode() {
+    log "OpenCode not found — bootstrapping..."
+    require_curl
+    if curl -fsSL https://opencode.ai/install | bash; then
+        export PATH="$HOME/.opencode/bin:$PATH"
+        success "OpenCode installed"
+    else
+        error "Failed to install OpenCode automatically"
+        exit 1
+    fi
+}
+
+install_bun() {
+    log "bun not found — bootstrapping..."
+    require_curl
+    if curl -fsSL https://bun.sh/install | bash; then
+        export BUN_INSTALL="$HOME/.bun"
+        export PATH="$BUN_INSTALL/bin:$PATH"
+        success "bun installed"
+    else
+        error "Failed to install bun automatically"
+        exit 1
+    fi
+}
 
 # ─── Check Prerequisites ──────────────────────────────────
 check_prerequisites() {
@@ -43,17 +82,33 @@ check_prerequisites() {
     fi
     
     if ! command -v opencode &>/dev/null; then
-        missing+=("opencode")
-        echo "   Install: https://opencode.ai"
+        if [ "$BOOTSTRAP_DEPS" = true ]; then
+            install_opencode
+        else
+            missing+=("opencode")
+            echo "   Install: https://opencode.ai"
+        fi
     fi
-    
+
+    if ! command -v bun &>/dev/null; then
+        if [ "$BOOTSTRAP_DEPS" = true ]; then
+            install_bun
+        else
+            missing+=("bun")
+            echo "   Install: https://bun.sh"
+        fi
+    fi
+
+    if ! command -v opencode &>/dev/null; then
+        missing+=("opencode")
+    fi
+    if ! command -v bun &>/dev/null; then
+        missing+=("bun")
+    fi
+
     if [ ${#missing[@]} -gt 0 ]; then
         error "Missing: ${missing[*]}"
         exit 1
-    fi
-    
-    if ! command -v bun &>/dev/null; then
-        warn "bun not found (optional)"
     fi
     
     success "Prerequisites OK"
