@@ -84,6 +84,23 @@ The LLM classifier uses `opencode run --model <model>` internally and includes L
 - `session.idle`: update idle timestamp only
 - `session.deleted`: run cleanup, archive, and work-learning behavior where metadata exists
 
+### ISA ↔ Work-State Sync (v2.7.0)
+
+The plugin now maintains stronger parity between ISA frontmatter and `work.json`:
+
+- **Source of truth:** ISA frontmatter (`MEMORY/WORK/**/ISA.md` or legacy `PRD.md`)
+- **Derived state:** `work.json` registry
+- **Sync trigger:** Any `write`/`edit`/`multiedit` touching an ISA artifact
+- **Synced fields:** `phase`, `progress`, `updated`, `effort`, `mode`, `task`/`title`, `status` (`work.json.updatedAt` records sync time)
+- **Behavior:**
+  - Upserts existing sessions by slug (never duplicates)
+  - Falls back to parent directory name when path is outside `MEMORY/WORK`
+  - Gracefully handles partial or missing frontmatter
+  - Non-ISA writes do not trigger sync
+  - Initial sync runs on `session.created` if an ISA already exists for the work directory
+
+This is a **backend-only state sync** with no dashboard, visual, or voice dependency. It works headlessly on VPS and is deployment-agnostic.
+
 ## Known Platform Gaps
 
 - ~~Claude Code's Sonnet-based `UserPromptSubmit` classifier is not yet ported~~ — **RESTORED in v2.6.0** via explicit heuristic classifier with provider-agnostic interface. LLM-backed classification is a future enhancement.
@@ -92,14 +109,14 @@ The LLM classifier uses `opencode run --model <model>` internally and includes L
 
 ## Validation
 
-Structural validation (70 checks):
+Structural validation (75 checks):
 ```bash
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-Behavioral validation (22 checks):
+Behavioral validation (37 checks):
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```
 
-Current score: **107/107 passing** (75 structural + 32 behavioral). Parity estimate: **~87-92%**.
+Current score: **112/112 passing** (75 structural + 37 behavioral). Parity estimate: **~85-90%**.

@@ -43,6 +43,7 @@ import {
   readSessionNames, writeSessionNames,
   parseFrontmatter, writeFrontmatterField,
   getRecentWorkSessions,
+  isISAArtifactPath, extractISAState, syncISAToWorkRegistry,
 } from './lib/pai-hooks.lib.js';
 
 import {
@@ -56,7 +57,7 @@ import {
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.6.0';
+const PLUGIN_VERSION = '2.7.0';
 const MIN_PROMPT_LENGTH = 3;
 
 function readText(path, maxChars = 3000) {
@@ -523,6 +524,20 @@ ${activeWork}`);
           created_at: timestamp_iso,
         });
 
+        // Initial ISA sync: if an ISA artifact already exists for this work dir,
+        // pull its state into the registry so work.json starts from truth.
+        try {
+          const isaPath = findArtifactPath(slug);
+          if (isaPath) {
+            const result = syncISAToWorkRegistry(isaPath, sessionId);
+            if (result.synced) {
+              console.log(`[PAI] 🔄 Initial ISA sync: ${result.fields.join(', ')}`);
+            }
+          }
+        } catch (e) {
+          // Non-fatal: initial sync is best-effort
+        }
+
         // Check Pulse daemon connection
         try {
           const response = await fetch('http://localhost:31337/api/pulse/health', {
@@ -901,6 +916,27 @@ ${activeWork}`);
           const filePath = args?.filePath || '';
           if (filePath.includes('TELOS/') || filePath.includes('USER/') || filePath.includes('PROJECTS/')) {
             console.log(`[PAI] 📝 User content modified: ${filePath}`);
+          }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // ISA ↔ Work-State Sync
+        //
+        // When an ISA-like artifact is written/edited, propagate its frontmatter
+        // state (phase, progress, effort, mode, etc.) into the work registry.
+        // This preserves the ISA as the single source of truth for task state.
+        // ═══════════════════════════════════════════════════════════════
+        if ((tool === 'write' || tool === 'edit' || tool === 'multiedit') && args?.filePath) {
+          const filePath = args.filePath;
+          if (isISAArtifactPath(filePath)) {
+            try {
+              const result = syncISAToWorkRegistry(filePath, sessionId);
+              if (result.synced) {
+                console.log(`[PAI] 🔄 ISA sync: ${filePath} → work.json (${result.fields.join(', ')})`);
+              }
+            } catch (e) {
+              console.error(`[PAI] ❌ ISA sync error: ${e.message}`);
+            }
           }
         }
 

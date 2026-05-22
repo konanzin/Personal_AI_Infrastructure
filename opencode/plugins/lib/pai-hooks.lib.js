@@ -765,6 +765,140 @@ export function parseFrontmatter(content) {
   return fm;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ISA ↔ WORK-STATE SYNC
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Detect whether a file path is an ISA/task artifact.
+ * Recognizes:
+ *   - task ISA paths in MEMORY/WORK/**
+ *   - project ISA.md files
+ *   - legacy PRD.md files
+ */
+export function isISAArtifactPath(filePath) {
+  if (!filePath) return false;
+  const normalized = filePath.replace(/\\/g, '/');
+  const isaPatterns = [
+    /MEMORY\/WORK\/[^/]+\/ISA\.md$/i,
+    /MEMORY\/WORK\/[^/]+\/PRD\.md$/i,
+    /\/ISA\.md$/i,
+  ];
+  return isaPatterns.some(p => p.test(normalized));
+}
+
+/**
+ * Extract state-bearing fields from an ISA file's frontmatter.
+ * Returns null if file is missing or has no parseable frontmatter.
+ */
+export function extractISAState(filePath) {
+  try {
+    if (!existsSync(filePath)) return null;
+    const content = readFileSync(filePath, 'utf-8');
+    const fm = parseFrontmatter(content);
+    if (!fm) return null;
+
+    const state = {};
+    if (fm.phase !== undefined) state.phase = fm.phase;
+    if (fm.progress !== undefined) state.progress = fm.progress;
+    if (fm.updated !== undefined) state.updated = fm.updated;
+    if (fm.effort !== undefined) state.effort = fm.effort;
+    if (fm.mode !== undefined) state.mode = fm.mode;
+    if (fm.task !== undefined) state.task = fm.task;
+    if (fm.slug !== undefined) state.slug = fm.slug;
+    if (fm.title !== undefined) state.title = fm.title;
+    if (fm.status !== undefined) state.status = fm.status;
+
+    return Object.keys(state).length > 0 ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Synchronize ISA frontmatter state into the work.json registry.
+ * Upserts the matching session by slug or sessionUUID; never duplicates.
+ * If sessionId is provided, also updates current-work-<sessionId>.json.
+ */
+export function syncISAToWorkRegistry(filePath, sessionId = null) {
+  const isaState = extractISAState(filePath);
+  if (!isaState) return { synced: false, reason: 'no_state_extracted' };
+
+  try {
+    const registry = readWorkRegistry();
+    if (!registry.sessions) registry.sessions = {};
+
+    // Derive slug from file path: /.../MEMORY/WORK/<slug>/ISA.md
+    const pathParts = filePath.replace(/\\/g, '/').split('/');
+    const workIdx = pathParts.findIndex(p => p.toUpperCase() === 'WORK');
+    let slug = (workIdx >= 0 && pathParts[workIdx + 1])
+      ? pathParts[workIdx + 1]
+      : null;
+    // Fallback: use parent directory name when path is not under MEMORY/WORK
+    if (!slug && pathParts.length >= 2) {
+      slug = pathParts[pathParts.length - 2];
+    }
+
+    // Find existing session: prefer exact slug match, then sessionUUID match
+    let targetSlug = null;
+    if (slug && registry.sessions[slug]) {
+      targetSlug = slug;
+    } else if (sessionId) {
+      for (const [s, sess] of Object.entries(registry.sessions)) {
+        if (sess.sessionUUID === sessionId) {
+          targetSlug = s;
+          break;
+        }
+      }
+    }
+
+    // If no existing session, create one only when we have a slug
+    if (!targetSlug) {
+      if (!slug) return { synced: false, reason: 'no_slug_derived' };
+      targetSlug = slug;
+      registry.sessions[targetSlug] = {
+        sessionUUID: sessionId || undefined,
+        started: isaState.updated || getISOTimestamp(),
+      };
+    }
+
+    const session = registry.sessions[targetSlug];
+
+    // Apply ISA state fields (source of truth)
+    if (isaState.phase !== undefined) session.phase = isaState.phase;
+    if (isaState.progress !== undefined) session.progress = isaState.progress;
+    if (isaState.updated !== undefined) session.updatedAt = isaState.updated;
+    if (isaState.effort !== undefined) session.effort = isaState.effort;
+    if (isaState.mode !== undefined) session.mode = isaState.mode;
+    if (isaState.task !== undefined) session.task = isaState.task;
+    if (isaState.title !== undefined) session.task = isaState.title;
+    if (isaState.status !== undefined) session.status = isaState.status;
+
+    session.updatedAt = getISOTimestamp();
+
+    writeWorkRegistry(registry);
+
+    // Also sync to current-work-<sessionId>.json when available
+    if (sessionId) {
+      try {
+        const cwPath = join(STATE_DIR, `current-work-${sessionId}.json`);
+        const cw = safeReadJson(cwPath, { session_id: sessionId });
+        cw.isa_sync = isaState;
+        cw.isa_synced_at = getISOTimestamp();
+        cw.isa_source = filePath;
+        safeWriteJson(cwPath, cw);
+      } catch {
+        // Best-effort: current-work update is non-critical
+      }
+    }
+
+    return { synced: true, slug: targetSlug, fields: Object.keys(isaState) };
+  } catch (e) {
+    console.error(`[PAI] ISA sync failed: ${e.message}`);
+    return { synced: false, reason: e.message };
+  }
+}
+
 export function writeFrontmatterField(content, field, value) {
   const fmMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
   if (!fmMatch) return content;
@@ -878,4 +1012,7 @@ export default {
   parseFrontmatter,
   writeFrontmatterField,
   getRecentWorkSessions,
+  isISAArtifactPath,
+  extractISAState,
+  syncISAToWorkRegistry,
 };

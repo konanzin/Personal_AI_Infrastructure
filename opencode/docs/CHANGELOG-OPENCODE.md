@@ -1,5 +1,41 @@
 # PAI OpenCode Port Changelog
 
+## [2.7.0] — ISA ↔ Work-State Sync
+
+### Added
+
+- **ISA Detection and State Extraction** (`plugins/lib/pai-hooks.lib.js`)
+  - `isISAArtifactPath()`: recognizes task ISA paths in `MEMORY/WORK/**`, project `ISA.md`, and legacy `PRD.md`
+  - `extractISAState()`: parses frontmatter and extracts state-bearing fields (`phase`, `progress`, `updated`, `effort`, `mode`, `task`, `title`, `status`)
+  - `syncISAToWorkRegistry()`: propagates ISA state into `work.json` and `current-work-<session>.json`
+  - Upsert semantics: updates existing sessions in-place, never duplicates
+  - Resilient to partial or missing frontmatter
+  - Slug derivation from `MEMORY/WORK/<slug>` path, with fallback to parent directory name
+
+- **ISA Sync Integration in Plugin**
+  - `tool.execute.after` triggers sync on any `write`/`edit`/`multiedit` touching an ISA artifact
+  - `session.created` runs initial sync if an ISA already exists for the work directory
+  - Console logging of sync operations for observability
+
+- **Tests**
+  - `tests/isa-work-sync.test.ts`: 16 unit tests covering detection, extraction, sync, upsert, and edge cases
+  - `test-behavioral.sh`: 5 new behavioral checks for ISA sync (detect, extract, sync, version, functional)
+
+### Changed
+
+- **Plugin version**: 2.6.0 → 2.7.0
+- **Behavioral test count**: 32 → 37 checks
+- **Unit test count**: 34 → 50 tests across 3 files
+
+### Design Notes
+
+- This is a **backend-only state sync** with no dashboard, visual tab, or voice dependency
+- Works headlessly on VPS and is deployment-agnostic
+- ISA frontmatter is the **single source of truth** for task state; `work.json` is derived
+- Non-ISA writes do not trigger sync, avoiding registry corruption
+
+---
+
 ## [2.6.0] — Mode/Tier Classifier Subsystem
 
 ### Added
@@ -70,6 +106,7 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Session cleanup | Adapted to OpenCode session lifecycle |
 | Satisfaction capture | Captured passively from user messages (explicit ratings and praise fast-path); no dedicated `/rate` command |
 | Work learning | Captured during session deletion where metadata exists |
+| ISA sync | **Backend-only state sync** — ISA frontmatter is source of truth for `work.json` phase/progress |
 | LoadContext | **1:1 via `experimental.chat.system.transform`** — full TELOS context injected into system prompt |
 | Compaction context | **1:1 via `experimental.session.compacting`** — PAI rules preserved across context resets |
 | PrePromptGuard | **1:1 via `chat.message`** — blocks dangerous prompts *before* model processing |
@@ -78,9 +115,9 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Voice | External Pulse notification only; no OpenCode-native voice |
 | Statusline | Slash-command/status output instead of Claude Code sidebar |
 
-**Parity estimate: ~82-87%** (up from 65-75%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
+**Parity estimate: ~85-90%** (up from 82-87%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
 
-**Validation: 107/107 checks passing** (75 structural + 32 behavioral).
+**Validation: 112/112 checks passing** (75 structural + 37 behavioral).
 
 ### Important: Repo vs Runtime Sync
 
@@ -114,8 +151,9 @@ Latest run: `bash opencode/bin/test-behavioral.sh`
 | Mode/Tier Classifier | 8/8 | ✅ PASS |
 | Compaction context preservation | 2/2 | ✅ PASS |
 | Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
+| ISA ↔ Work-State Sync | 5/5 | ✅ PASS |
 | Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
-| **Total** | **31/31** | **✅ ALL PASS** |
+| **Total** | **37/37** | **✅ ALL PASS** |
 
 ## Compatibility Principle
 

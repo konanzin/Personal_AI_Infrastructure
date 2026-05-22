@@ -44,8 +44,8 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.6.0" \
-    "grep -q \"PLUGIN_VERSION = '2.6.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.7.0" \
+    "grep -q \"PLUGIN_VERSION = '2.7.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
@@ -216,9 +216,71 @@ run_test "session.deleted archives to work-archive.json" \
 run_test "session.idle only updates lastIdleAt" \
     "grep -q 'Non-destructive: update lastIdleAt only' ${PLUGINS_DIR}/pai-hooks.js"
 
+# ─── ISA ↔ WORK-STATE SYNC TEST ───────────────────────────
+echo ""
+echo "${BLUE}9. ISA ↔ Work-State Sync${RESET}"
+
+run_test "ISA sync helper exists in lib" \
+    "grep -q 'syncISAToWorkRegistry' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
+run_test "ISA detection recognizes MEMORY/WORK paths" \
+    "grep -q 'MEMORY/WORK' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
+run_test "Plugin calls sync on ISA write/edit" \
+    "grep -q 'isISAArtifactPath' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Plugin version is 2.7.0" \
+    "grep -q \"PLUGIN_VERSION = '2.7.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+
+# Functional test of ISA sync
+ISA_SYNC_TMP=$(mktemp /tmp/pai-isa-sync-test-XXXXXX.js)
+cat > "$ISA_SYNC_TMP" << 'ENDTEST'
+import {
+  isISAArtifactPath,
+  extractISAState,
+  syncISAToWorkRegistry,
+  readWorkRegistry,
+} from '/home/konanzin/.config/opencode/plugins/lib/pai-hooks.lib.js';
+
+// Test 1: Detection
+const isISA = isISAArtifactPath('/PAI/MEMORY/WORK/task/ISA.md');
+const notISA = isISAArtifactPath('/project/README.md');
+
+// Test 2: State extraction
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pai-isa-test-'));
+const isaFile = path.join(tmpDir, 'ISA.md');
+fs.writeFileSync(isaFile, '---\nphase: observe\nprogress: 2/5\neffort: e3\n---\n\n# ISA\n');
+const state = extractISAState(isaFile);
+
+// Test 3: Sync
+const result = syncISAToWorkRegistry(isaFile);
+const registry = readWorkRegistry();
+const slug = path.basename(tmpDir);
+const synced = registry.sessions[slug]?.phase === 'observe';
+
+console.log(isISA && !notISA && state?.phase === 'observe' && result.synced && synced ? 'PASS' : 'FAIL');
+
+// Cleanup
+fs.unlinkSync(isaFile);
+fs.rmdirSync(tmpDir);
+ENDTEST
+
+ISA_RESULT=$(bun run "$ISA_SYNC_TMP" 2>/dev/null || echo "FAIL")
+rm -f "$ISA_SYNC_TMP"
+if [ "$ISA_RESULT" = "PASS" ]; then
+    pass "ISA sync functional test (detect + extract + sync)"
+    PASSED=$((PASSED + 1))
+else
+    fail "ISA sync functional test"
+fi
+TOTAL=$((TOTAL + 1))
+
 # ─── SECURITY PIPELINE TEST ───────────────────────────────
 echo ""
-echo "${BLUE}8. Security Pipeline${RESET}"
+echo "${BLUE}10. Security Pipeline${RESET}"
 
 run_test "tool.execute.before inspects bash" \
     "grep -q 'inspectBashCommand' ${PLUGINS_DIR}/pai-hooks.js"
