@@ -138,14 +138,21 @@ PAI_AGENTGUARD_DENY_CONFIDENCE=true      # Enable deny on high-confidence agent 
 
 ## Validation
 
-Structural validation (75 checks):
+Three-tier validation:
+
+**Structural** (75 checks) — file existence, config validity, agent/skill/plugin presence:
 ```bash
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-Behavioral validation (45 checks):
+**Behavioral** (45 checks) — grep-based + lightweight functional probes:
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```
 
-Current score: **119/119 passing** (75 structural + 44 behavioral). Parity estimate: **~87-92%**.
+**Runtime E2E** (10 scenarios) — real runtime flows beyond structural/grep:
+```bash
+bash ~/.config/opencode/PAI/bin/test-e2e-runtime.sh
+```
+
+Current score: **129/129 passing** (75 structural + 44 behavioral + 10 E2E). Parity estimate: **~88-93%**.

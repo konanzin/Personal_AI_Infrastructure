@@ -682,6 +682,16 @@ main() {
         bash "${PAI_DIR}/bin/test-behavioral.sh" && echo "" || echo ""
     fi
     
+    # Optional: run E2E runtime tests if available
+    if [ -f "${PAI_DIR}/bin/test-e2e-runtime.sh" ]; then
+        echo ""
+        echo "═══════════════════════════════════════════════════"
+        echo "  E2E Runtime Validation"
+        echo "═══════════════════════════════════════════════════"
+        echo ""
+        bash "${PAI_DIR}/bin/test-e2e-runtime.sh" && echo "" || echo ""
+    fi
+    
     if [ $FAILED -eq 0 ]; then
         echo -e "${GREEN}Status: ALL CHECKS PASSED ✅${RESET}"
         exit 0
