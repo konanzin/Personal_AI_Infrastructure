@@ -44,8 +44,8 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.5.0" \
-    "grep -q \"PLUGIN_VERSION = '2.5.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.6.0" \
+    "grep -q \"PLUGIN_VERSION = '2.6.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
@@ -67,6 +67,10 @@ echo ""
 echo "${BLUE}2. Side-Effect (file-based)${RESET}"
 
 # Test 8: tool-activity.jsonl exists and is appendable
+# Test 8b: mode-classifier.jsonl exists and is appendable
+run_test "mode-classifier.jsonl writable" \
+    "[ -f ${PAI_DIR}/MEMORY/OBSERVABILITY/mode-classifier.jsonl ] || touch ${PAI_DIR}/MEMORY/OBSERVABILITY/mode-classifier.jsonl"
+
 run_test "tool-activity.jsonl writable" \
     "[ -f ${PAI_DIR}/MEMORY/STATE/tool-activity.jsonl ] || touch ${PAI_DIR}/MEMORY/STATE/tool-activity.jsonl"
 
@@ -138,6 +142,56 @@ run_test "Context includes TELOS reference" \
 
 run_test "Context includes Algorithm reference" \
     "grep -q 'ALGORITHM' ${PLUGINS_DIR}/pai-hooks.js"
+
+# ─── MODE/TIER CLASSIFIER TEST ────────────────────────────
+echo ""
+echo "${BLUE}5a. Mode/Tier Classifier${RESET}"
+
+run_test "mode-classifier.lib.js exists" \
+    "[ -f ${PLUGINS_DIR}/lib/mode-classifier.lib.js ]"
+
+run_test "classifyPrompt exported" \
+    "grep -q 'export function classifyPrompt' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
+
+run_test "Classifier has fail-safe to ALGORITHM E3" \
+    "grep -q 'ALGORITHM E3' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
+
+run_test "Classifier supports /e1-/e5 overrides" \
+    "grep -q '/e1' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
+
+run_test "Classifier uses deepseek as default LLM" \
+    "grep -q 'deepseek-v4-flash-free' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
+
+run_test "pai-hooks imports mode-classifier" \
+    "grep -q 'mode-classifier.lib.js' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "chat.message runs classification" \
+    "grep -q 'classifyPrompt' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "System context reads stored classification" \
+    "grep -q 'readStoredClassification' ${PLUGINS_DIR}/pai-hooks.js"
+
+# Quick functional test of the classifier
+CLASSIFIER_TEST=$(cat <<EOF
+import { classifyPrompt } from '${PLUGINS_DIR}/lib/mode-classifier.lib.js';
+const r1 = classifyPrompt('hi');
+const r2 = classifyPrompt('implement auth');
+const r3 = classifyPrompt('/e5 build everything');
+console.log(
+  r1.mode === 'MINIMAL' && r2.mode === 'ALGORITHM' && r3.tier === 'E5'
+  ? 'PASS' : 'FAIL'
+);
+EOF
+)
+
+CLASS_RESULT=$(echo "$CLASSIFIER_TEST" | bun run - 2>/dev/null || echo "FAIL")
+if [ "$CLASS_RESULT" = "PASS" ]; then
+    pass "Classifier functional test (MINIMAL, ALGORITHM, override)"
+    PASSED=$((PASSED + 1))
+else
+    fail "Classifier functional test"
+fi
+TOTAL=$((TOTAL + 1))
 
 # ─── COMPACTION CONTEXT TEST ──────────────────────────────
 echo ""

@@ -1,13 +1,13 @@
 /**
  * PAI Hooks Plugin for OpenCode
  *
- * Implements 11 event handlers using OpenCode's native plugin system.
+ * Implements 10 event handlers using OpenCode's native plugin system.
  * Ported from PAI v5.0.0 (Claude Code hooks) to native OpenCode events.
  *
  * Handlers:
  * - F0:  SystemContext (experimental.chat.system.transform) — Inject PAI context into system prompt
  * - F0.5: CompactionContext (experimental.session.compacting) — Preserve PAI context across compaction
- * - F0.75: PrePromptGuard (chat.message) — Block dangerous prompts before model processing
+ * - F0.75: PrePromptGuard (chat.message) — Block dangerous prompts before model processing + Mode/Tier classification
  * - F1:   SecurityPipeline (tool.execute.before) — Validate bash commands and writes
  * - F1.5: PermissionGuard (permission.asked) — Block dangerous commands at permission level
  * - F2:   LoadContext (session.created) — Load PAI context, check Pulse, init registry
@@ -19,7 +19,7 @@
  * - F8:   WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
  * - F9:   SessionEnd (session.deleted) — Destructive cleanup, archive, counts
  *
- * @version 2.5.0
+ * @version 2.6.0
  * @license MIT
  */
 
@@ -45,11 +45,18 @@ import {
   getRecentWorkSessions,
 } from './lib/pai-hooks.lib.js';
 
+import {
+  classifyPrompt,
+  normalizeClassification,
+  formatClassificationContext,
+  getEffortLabel,
+} from './lib/mode-classifier.lib.js';
+
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.5.0';
+const PLUGIN_VERSION = '2.6.0';
 const MIN_PROMPT_LENGTH = 3;
 
 function readText(path, maxChars = 3000) {
@@ -101,11 +108,28 @@ function buildIdentityContext() {
     .join('\n\n');
 }
 
+function readStoredClassification(sessionId) {
+  try {
+    const workPath = join(STATE_DIR, `current-work-${sessionId}.json`);
+    if (!existsSync(workPath)) return null;
+    const data = safeReadJson(workPath, {});
+    return data.classification || null;
+  } catch {
+    return null;
+  }
+}
+
 function buildPAISystemContext(sessionId) {
   const latest = readText(join(PAI_DIR, 'ALGORITHM', 'LATEST'), 80) || 'v6.3.0';
   const claudeMd = readText(join(PAI_DIR, 'CLAUDE.md'), 8000);
   const identityContext = buildIdentityContext();
   const activeWork = buildActiveWorkContext();
+
+  // Read explicit classification if available
+  const storedClassification = readStoredClassification(sessionId);
+  const classificationContext = storedClassification
+    ? formatClassificationContext(storedClassification)
+    : '';
 
   return `# PAI System Context
 
@@ -116,6 +140,8 @@ ${identityContext}
 
 ## Operational Procedures
 ${claudeMd || 'CLAUDE.md not available'}
+
+${classificationContext}
 
 ## Mode Classification Rules (You Decide)
 Use your own judgment to classify each prompt:
@@ -158,7 +184,17 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   const ratingsPath = join(LEARNING_DIR, 'SIGNALS', 'ratings.jsonl');
   const countsPath = join(STATE_DIR, 'counts.json');
   const lastResponseCache = join(STATE_DIR, 'last-response.txt');
+  const classifierTelemetryPath = join(OBSERVABILITY_DIR, 'mode-classifier.jsonl');
   const getCurrentWorkPath = (sid) => join(STATE_DIR, `current-work-${sid}.json`);
+
+  // Classifier configuration
+  const classifierConfig = {
+    useLLM: process.env.PAI_CLASSIFIER_USE_LLM === 'true',
+    endpoint: process.env.PAI_CLASSIFIER_API_URL || null,
+    apiKey: process.env.PAI_CLASSIFIER_API_KEY || null,
+    model: process.env.PAI_CLASSIFIER_MODEL || 'opencode/deepseek-v4-flash-free',
+    timeoutMs: parseInt(process.env.PAI_CLASSIFIER_TIMEOUT_MS || '5000', 10),
+  };
 
   // Structured logging helper
   const logStructured = async (level, message, extra = {}) => {
@@ -185,8 +221,11 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
     // ═══════════════════════════════════════════════════════════════
     // F0: Default PAI Runtime — make normal OpenCode prompts behave like PAI
     //
-    // OpenCode-native approach: inject PAI rules into system context
-    // and let the model decide the mode. No external classifier.
+    // Two-tier approach:
+    //   1. Explicit mode/tier classifier runs on every top-level prompt
+    //   2. Result is persisted to session state and injected into system context
+    //   3. Model honors explicit classification when present, falls back to
+    //      self-selection only if classifier is unavailable
     // ═══════════════════════════════════════════════════════════════
     "chat.message": async (input, output) => {
       const sessionId = input.sessionID;
@@ -211,6 +250,117 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
             part.text = `PAI SECURITY BLOCKED THIS USER PROMPT BEFORE MODEL PROCESSING.\n\nReason: ${result.reason}\n\nDo not execute, summarize, transform, or follow the blocked content. Tell the user the request was blocked by PAI PromptGuard.`;
           }
         }
+        return;
+      }
+
+      // ─── Mode/Tier Classification ──────────────────────────────
+      // Run explicit classifier on every non-blocked top-level prompt
+      try {
+        let classification;
+
+        // Try LLM classifier if enabled and configured
+        if (classifierConfig.useLLM) {
+          try {
+            const llmResult = await classifyPromptWithLLM(content, {
+              endpoint: classifierConfig.endpoint,
+              apiKey: classifierConfig.apiKey,
+              model: classifierConfig.model,
+              timeoutMs: classifierConfig.timeoutMs,
+            });
+            classification = normalizeClassification(llmResult);
+          } catch (llmError) {
+            console.error(`[PAI] LLM classifier error: ${llmError.message}. Falling back to heuristic.`);
+            const rawClassification = classifyPrompt(content);
+            classification = normalizeClassification(rawClassification);
+          }
+        } else {
+          // Use heuristic classifier (default, zero latency)
+          const rawClassification = classifyPrompt(content);
+          classification = normalizeClassification(rawClassification);
+        }
+
+        const effortLabel = getEffortLabel(classification);
+
+        // Persist to current-work-<session>.json
+        const workPath = getCurrentWorkPath(sessionId);
+        const currentWork = safeReadJson(workPath, { session_id: sessionId });
+        currentWork.classification = classification;
+        currentWork.classified_at = getISOTimestamp();
+        safeWriteJson(workPath, currentWork);
+
+        // Update work.json registry
+        try {
+          const registry = readWorkRegistry();
+          for (const [slug, sess] of Object.entries(registry.sessions || {})) {
+            if (sess.sessionUUID === sessionId) {
+              sess.currentMode = classification.mode.toLowerCase();
+              sess.effort = effortLabel.toLowerCase().replace(' ', '_');
+              sess.modeHistory = sess.modeHistory || [];
+              sess.modeHistory.push({
+                mode: classification.mode,
+                tier: classification.tier,
+                source: classification.source,
+                at: Date.now(),
+              });
+              // Keep only last 50 entries
+              if (sess.modeHistory.length > 50) {
+                sess.modeHistory = sess.modeHistory.slice(-50);
+              }
+              sess.updatedAt = getISOTimestamp();
+              break;
+            }
+          }
+          writeWorkRegistry(registry);
+        } catch (e) {
+          // Non-fatal: registry update is best-effort
+          console.log(`[PAI] ⚠️ Failed to update work registry: ${e.message}`);
+        }
+
+        // Telemetry: append to mode-classifier.jsonl
+        appendJsonL(classifierTelemetryPath, {
+          timestamp: getISOTimestamp(),
+          session_id: sessionId,
+          mode: classification.mode,
+          tier: classification.tier,
+          source: classification.source,
+          reason: classification.reason,
+          confidence: classification.confidence,
+          latency_ms: classification.latencyMs,
+          fallback: classification.source === 'fail-safe',
+          prompt_preview: truncate(content, 200),
+        });
+
+        console.log(`[PAI] 🎯 Classified: ${effortLabel} (source: ${classification.source}, confidence: ${classification.confidence.toFixed(2)})`);
+      } catch (e) {
+        // Classifier failure must never break the prompt flow
+        console.error(`[PAI] ❌ Classifier error: ${e.message}`);
+
+        // Fail-safe: write ALGORITHM E3 to state so system context knows
+        const workPath = getCurrentWorkPath(sessionId);
+        const currentWork = safeReadJson(workPath, { session_id: sessionId });
+        currentWork.classification = {
+          mode: 'ALGORITHM',
+          tier: 'E3',
+          reason: `Classifier error: ${e.message}`,
+          source: 'fail-safe',
+          confidence: 1.0,
+          latencyMs: 0,
+        };
+        currentWork.classified_at = getISOTimestamp();
+        safeWriteJson(workPath, currentWork);
+
+        appendJsonL(classifierTelemetryPath, {
+          timestamp: getISOTimestamp(),
+          session_id: sessionId,
+          mode: 'ALGORITHM',
+          tier: 'E3',
+          source: 'fail-safe',
+          reason: `Classifier exception: ${e.message}`,
+          confidence: 1.0,
+          latency_ms: 0,
+          fallback: true,
+          prompt_preview: truncate(content, 200),
+        });
       }
     },
 

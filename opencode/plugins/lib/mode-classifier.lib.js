@@ -1,0 +1,667 @@
+/**
+ * PAI Mode/Tier Classifier (mode-classifier.lib.js)
+ *
+ * Provider-agnostic prompt classification subsystem for the PAI → OpenCode port.
+ * Restores explicit mode/tier selection as a first-class subsystem instead of
+ * relying entirely on model-native self-selection from injected system context.
+ *
+ * Architecture:
+ *   - Layer 1: Deterministic heuristic classifier (zero cost, zero latency)
+ *   - Layer 2: (Future) External LLM classifier via pluggable provider interface
+ *   - Fail-safe: ALGORITHM E3 when confidence is low or classifier errors
+ *
+ * Output contract:
+ *   { mode: 'MINIMAL' | 'NATIVE' | 'ALGORITHM',
+ *     tier: 'E1' | 'E2' | 'E3' | 'E4' | 'E5' | null,
+ *     reason: string,
+ *     source: 'heuristic' | 'override' | 'fail-safe' | 'llm' }
+ *
+ * @version 1.0.0
+ */
+
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+const OVERRIDE_PATTERN = /\/(e[1-5])\b/i;
+
+const MINIMAL_PATTERNS = [
+  { pattern: /^(hi|hello|hey|ola|oi)\b/i, reason: 'Greeting' },
+  { pattern: /^(ok|okay|thanks?|thx|bye|goodbye)\b/i, reason: 'Acknowledgment' },
+  { pattern: /^\/?rate\s+\d/i, reason: 'Explicit rating' },
+  { pattern: /^\d+\s*\/\s*10$/i, reason: 'Bare rating' },
+  { pattern: /^\/?status\b/i, reason: 'Status check command' },
+];
+
+const NATIVE_PATTERNS = [
+  { pattern: /^(what|who|when|where|why|how|is|are|does|can|will)\s+/i, reason: 'Single fact lookup' },
+  { pattern: /^(find|search|lookup|show|list|get|tell me)\s+/i, reason: 'Information retrieval' },
+  { pattern: /^(run|execute|run the command|what does this command do)\b/i, reason: 'Single command query' },
+  { pattern: /^(cat|ls|pwd|echo|grep|head|tail)\s+/i, reason: 'Simple command explanation' },
+  { pattern: /^(explain|define|describe)\s+\S+$/i, reason: 'Single concept explanation' },
+  { pattern: /^where is\s+/i, reason: 'Location lookup' },
+  { pattern: /^(what is|what's)\s+\S+\?*$/i, reason: 'Single definition' },
+];
+
+const ALGORITHM_INDICATORS = [
+  { pattern: /\b(implement|build|create|write|develop|refactor|migrate|fix|debug|solve)\b.*\b(file|files|module|component|function|class|test|script|api|endpoint|route|schema|migration|database)\b/i, reason: 'Implementation work' },
+  { pattern: /\b(refactor|rewrite|restructure|reorganize|redesign|extract|split|merge|rename|move)\b/i, reason: 'Refactoring' },
+  { pattern: /\b(multi-step|multi-file|multiple files|architecture|design|pattern|framework|system|subsystem|pipeline|workflow)\b/i, reason: 'Architecture/design' },
+  { pattern: /\b(add|implement|support|feature|integration|endpoint|handler|middleware|service|repository|controller|component)\b.*\b(new|new feature|to the|into|for)\b/i, reason: 'Feature addition' },
+  { pattern: /\b(plan|design|strategy|approach|structure|organize|arrange)\b/i, reason: 'Planning/design' },
+  { pattern: /\b(bug|error|issue|problem|broken|failing|crash|exception|regression|fix|repair|resolve)\b/i, reason: 'Debugging/repair' },
+  { pattern: /\b(test|testing|spec|jest|vitest|mocha|cypress|playwright|e2e|unit test|integration test)\b/i, reason: 'Testing work' },
+  { pattern: /\b(docker|kubernetes|k8s|deploy|ci\/cd|pipeline|infrastructure|terraform|ansible|provision)\b/i, reason: 'DevOps/infrastructure' },
+  { pattern: /\b(performance|optimize|speed|latency|memory|cpu|bottleneck|slow|cache|benchmark|profile)\b/i, reason: 'Performance optimization' },
+  { pattern: /\b(security|vulnerability|auth|authentication|authorization|encrypt|sanitize|xss|csrf|sql injection)\b/i, reason: 'Security work' },
+  { pattern: /\b(pai|algorithm|ideal state|isa|isc|telos|mission|goal|strategy|wisdom|belief|framework)\b/i, reason: 'PAI-affecting work' },
+  { pattern: /\b(update|upgrade|migrate|version|dependency|package|npm|pip|cargo|gem|composer)\b/i, reason: 'Migration/upgrade' },
+  { pattern: /\b(documentation|readme|doc|changelog|guide|tutorial|example|diagram|flowchart)\b/i, reason: 'Documentation' },
+  { pattern: /^(Quero que você|Please implement|Can you implement|Implement|Build|Create|Add|Fix|Refactor|Write|Develop)\s+/i, reason: 'Explicit implementation request' },
+  { pattern: /\b(compare|evaluate|assess|audit|review|analyze|investigate|research|study)\b.*\b(multiple|several|various|across|between|among)\b/i, reason: 'Multi-target analysis' },
+  { pattern: /\b(integrate|connect|hook|wire|plugin|adapter|bridge|wrapper|client|sdk|api)\b/i, reason: 'Integration work' },
+];
+
+const TIER_INDICATORS = {
+  E1: [
+    { pattern: /\b(single|one|tiny|small|quick|fast|simple|minor|tweak|adjust|fix typo|rename|add comment|one line)\b/i, weight: 1 },
+  ],
+  E2: [
+    { pattern: /\b(one file|single file|single module|single component|single function|one feature)\b/i, weight: 1 },
+    { pattern: /\b(add|implement|create|write)\b.*\b(one|single|a|an)\b.*\b(function|method|class|component|test|utility|helper)\b/i, weight: 1 },
+  ],
+  E4: [
+    { pattern: /\b(cross.cutting|doctrine|principle|constitutional|fundamental|core|central|critical|foundational)\b/i, weight: 1 },
+    { pattern: /\b(rewrite|rebuild|restructure|redesign|rearchitect|overhaul|revamp|transform)\b.*\b(entire|whole|full|complete|system|app|application|platform|framework)\b/i, weight: 2 },
+    { pattern: /\b(algorithm|system upgrade|framework upgrade|major version|breaking change|deprecat)\b/i, weight: 1 },
+  ],
+  E5: [
+    { pattern: /\b(comprehensive|complete|full|end.to.end|enterprise|production|scale|scalable|multi.team|multi.project)\b/i, weight: 1 },
+    { pattern: /\b(rewrite|rebuild|restructure|redesign|rearchitect|overhaul|revamp|transform)\b.*\b(platform|ecosystem|infrastructure|architecture|system|organization|company)\b/i, weight: 2 },
+    { pattern: /\b(roadmap|multi.month|quarter|year|long.term|strategic|vision|mission)\b/i, weight: 1 },
+  ],
+};
+
+// Word-count thresholds for tier estimation
+const WORD_COUNT_THRESHOLDS = {
+  E1: { max: 15 },
+  E2: { max: 50 },
+  E3: { min: 20, max: 150 },
+  E4: { min: 50 },
+  E5: { min: 100 },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// HEURISTIC CLASSIFIER
+// ═══════════════════════════════════════════════════════════════
+
+function checkOverride(prompt) {
+  const match = prompt.match(OVERRIDE_PATTERN);
+  if (match) {
+    const tier = match[1].toUpperCase();
+    return {
+      mode: 'ALGORITHM',
+      tier,
+      reason: `Explicit /${tier.toLowerCase()} override detected`,
+      source: 'override',
+      confidence: 1.0,
+    };
+  }
+  return null;
+}
+
+function checkMinimal(prompt) {
+  const trimmed = prompt.trim();
+  if (trimmed.length <= 3) {
+    return { mode: 'MINIMAL', reason: 'Very short prompt (≤3 chars)', confidence: 0.95 };
+  }
+  if (/^\d+$/.test(trimmed)) {
+    return { mode: 'MINIMAL', reason: 'Bare number (likely rating)', confidence: 0.9 };
+  }
+  for (const { pattern, reason } of MINIMAL_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return { mode: 'MINIMAL', reason, confidence: 0.9 };
+    }
+  }
+  return null;
+}
+
+function checkNative(prompt) {
+  const trimmed = prompt.trim();
+  // If it's a question but very short, it's native
+  if (trimmed.length < 80) {
+    for (const { pattern, reason } of NATIVE_PATTERNS) {
+      if (pattern.test(trimmed)) {
+        return { mode: 'NATIVE', reason, confidence: 0.85 };
+      }
+    }
+  }
+  // Single command or code snippet explanation
+  if (/^`[^`]+`\??$/.test(trimmed)) {
+    return { mode: 'NATIVE', reason: 'Single backtick command query', confidence: 0.85 };
+  }
+  return null;
+}
+
+function checkAlgorithm(prompt) {
+  const trimmed = prompt.trim().toLowerCase();
+  let score = 0;
+  let reasons = [];
+
+  for (const { pattern, reason } of ALGORITHM_INDICATORS) {
+    if (pattern.test(trimmed)) {
+      score += 1;
+      if (reasons.length < 3) reasons.push(reason);
+    }
+  }
+
+  // High word count strongly suggests algorithm
+  const wordCount = trimmed.split(/\s+/).length;
+  if (wordCount > 80) {
+    score += 1;
+    if (reasons.length < 3) reasons.push('Long prompt (>80 words)');
+  }
+  if (wordCount > 200) {
+    score += 2;
+    if (reasons.length < 3) reasons.push('Very long prompt (>200 words)');
+  }
+
+  // Multiple sentences often mean multi-step
+  const sentenceCount = trimmed.split(/[.!?]+/).filter(s => s.trim().length > 3).length;
+  if (sentenceCount > 3) {
+    score += 1;
+    if (reasons.length < 3) reasons.push('Multiple sentences');
+  }
+
+  // Presence of numbered lists or bullet points
+  if (/^(\d+[.)]|[-*] )\s+/m.test(trimmed)) {
+    score += 1;
+    if (reasons.length < 3) reasons.push('Contains numbered/bulleted list');
+  }
+
+  if (score >= 1) {
+    return {
+      mode: 'ALGORITHM',
+      reason: reasons.join('; ') || 'Multiple algorithm indicators matched',
+      confidence: Math.min(0.5 + score * 0.15, 0.95),
+    };
+  }
+
+  return null;
+}
+
+function estimateTier(prompt, confidence) {
+  const trimmed = prompt.trim().toLowerCase();
+  const wordCount = trimmed.split(/\s+/).length;
+
+  // Score each tier
+  const scores = { E1: 0, E2: 0, E3: 0, E4: 0, E5: 0 };
+
+  for (const [tier, indicators] of Object.entries(TIER_INDICATORS)) {
+    for (const { pattern, weight } of indicators) {
+      if (pattern.test(trimmed)) {
+        scores[tier] += weight;
+      }
+    }
+  }
+
+  // Word count heuristics
+  if (wordCount <= WORD_COUNT_THRESHOLDS.E1.max) scores.E1 += 1;
+  if (wordCount <= WORD_COUNT_THRESHOLDS.E2.max && wordCount >= 10) scores.E2 += 1;
+  if (wordCount >= WORD_COUNT_THRESHOLDS.E3.min && wordCount <= WORD_COUNT_THRESHOLDS.E3.max) scores.E3 += 1;
+  if (wordCount >= WORD_COUNT_THRESHOLDS.E4.min) scores.E4 += 1;
+  if (wordCount >= WORD_COUNT_THRESHOLDS.E5.min) scores.E5 += 1;
+
+  // Complexity indicators
+  const codeBlockCount = (trimmed.match(/```/g) || []).length / 2;
+  if (codeBlockCount >= 2) scores.E3 += 1;
+  if (codeBlockCount >= 4) scores.E4 += 1;
+
+  const fileRefCount = (trimmed.match(/\b\w+\.(js|ts|jsx|tsx|py|go|rs|java|cpp|c|h|md|json|yaml|yml|toml)\b/gi) || []).length;
+  if (fileRefCount >= 3) scores.E3 += 1;
+  if (fileRefCount >= 6) scores.E4 += 1;
+
+  // ALGORITHM indicator count influences tier
+  // More complex indicators → higher tier
+  let algorithmScore = 0;
+  for (const { pattern } of ALGORITHM_INDICATORS) {
+    if (pattern.test(trimmed)) {
+      algorithmScore += 1;
+    }
+  }
+  if (algorithmScore >= 3) scores.E3 += 1;
+  if (algorithmScore >= 5) scores.E4 += 1;
+
+  // Specific high-signal keywords that strongly suggest higher tiers
+  if (/\b(refactor|rewrite|restructure|redesign|rearchitect|migrate|upgrade)\b.*\b(multiple|many|several|all|entire|complete|whole|system|module|modules|file|files|component|components)\b/i.test(trimmed)) {
+    scores.E3 += 2;
+  }
+
+  // Find highest-scoring tier
+  let bestTier = 'E3'; // Default fail-safe
+  let bestScore = scores.E3;
+
+  for (const tier of ['E5', 'E4', 'E3', 'E2', 'E1']) {
+    if (scores[tier] > bestScore) {
+      bestScore = scores[tier];
+      bestTier = tier;
+    }
+  }
+
+  // If confidence is low and tier is E1/E2, bump to E3 (fail-safe: under-escalation is worse)
+  if (confidence < 0.7 && (bestTier === 'E1' || bestTier === 'E2')) {
+    return 'E3';
+  }
+
+  return bestTier;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PUBLIC API
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Classify a user prompt into MODE and TIER.
+ *
+ * @param {string} prompt - Raw user prompt text
+ * @param {object} options - Optional configuration
+ * @param {string} options.defaultModel - Reserved for future LLM classifier
+ * @param {string} options.fallbackModel - Reserved for future small-model fallback
+ * @param {boolean} options.useLLM - Whether to use external LLM (future feature)
+ * @returns {object} Classification result with mode, tier, reason, source
+ */
+export function classifyPrompt(prompt, options = {}) {
+  if (!prompt || typeof prompt !== 'string') {
+    return {
+      mode: 'ALGORITHM',
+      tier: 'E3',
+      reason: 'Invalid or empty prompt — fail-safe to ALGORITHM E3',
+      source: 'fail-safe',
+      confidence: 1.0,
+      latencyMs: 0,
+    };
+  }
+
+  const startTime = performance.now();
+
+  // Layer 0: Explicit override (/e1–/e5)
+  const override = checkOverride(prompt);
+  if (override) {
+    return {
+      ...override,
+      latencyMs: Math.round(performance.now() - startTime),
+    };
+  }
+
+  // Layer 1: Deterministic heuristic
+  const minimal = checkMinimal(prompt);
+  if (minimal) {
+    return {
+      mode: 'MINIMAL',
+      tier: null,
+      reason: minimal.reason,
+      source: 'heuristic',
+      confidence: minimal.confidence,
+      latencyMs: Math.round(performance.now() - startTime),
+    };
+  }
+
+  const native = checkNative(prompt);
+  if (native) {
+    return {
+      mode: 'NATIVE',
+      tier: null,
+      reason: native.reason,
+      source: 'heuristic',
+      confidence: native.confidence,
+      latencyMs: Math.round(performance.now() - startTime),
+    };
+  }
+
+  const algorithm = checkAlgorithm(prompt);
+  if (algorithm) {
+    const tier = estimateTier(prompt, algorithm.confidence);
+    return {
+      mode: 'ALGORITHM',
+      tier,
+      reason: algorithm.reason,
+      source: 'heuristic',
+      confidence: algorithm.confidence,
+      latencyMs: Math.round(performance.now() - startTime),
+    };
+  }
+
+  // Fail-safe: when no clear signal, prefer ALGORITHM E3
+  // Under-escalation is worse than over-escalation in PAI doctrine
+  return {
+    mode: 'ALGORITHM',
+    tier: 'E3',
+    reason: 'No strong heuristic signal — fail-safe to ALGORITHM E3',
+    source: 'fail-safe',
+    confidence: 0.5,
+    latencyMs: Math.round(performance.now() - startTime),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LLM CLASSIFIER
+// ═══════════════════════════════════════════════════════════════
+
+// Simple LRU cache for classification results
+const classificationCache = new Map();
+const CACHE_MAX_SIZE = 100;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCached(prompt) {
+  const entry = classificationCache.get(prompt);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) {
+    classificationCache.delete(prompt);
+    return null;
+  }
+  return entry.result;
+}
+
+function setCached(prompt, result) {
+  if (classificationCache.size >= CACHE_MAX_SIZE) {
+    const firstKey = classificationCache.keys().next().value;
+    classificationCache.delete(firstKey);
+  }
+  classificationCache.set(prompt, { result, ts: Date.now() });
+}
+
+/**
+ * Auto-discover available LLM API endpoint.
+ * Tries common endpoints and returns the first that responds.
+ */
+async function discoverEndpoint() {
+  const candidates = [
+    // OpenCode API (if/when available)
+    { url: 'https://api.opencode.ai/v1', auth: null },
+    // OpenAI API (if user has key)
+    { url: 'https://api.openai.com/v1', auth: process.env.OPENAI_API_KEY },
+    // Custom from env
+    ...(process.env.PAI_CLASSIFIER_API_URL ? [{ url: process.env.PAI_CLASSIFIER_API_URL, auth: process.env.PAI_CLASSIFIER_API_KEY }] : []),
+  ];
+
+  for (const { url, auth } of candidates) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${url}/models`, {
+        signal: controller.signal,
+        ...(auth ? { headers: { 'Authorization': `Bearer ${auth}` } } : {}),
+      });
+      clearTimeout(timeout);
+      if (res.ok || res.status === 401) { // 401 means endpoint exists but needs auth
+        return { url, auth };
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Build the classification prompt for the LLM.
+ */
+function buildClassificationPrompt(userPrompt) {
+  return `You are a prompt classifier for PAI (Personal AI Infrastructure). Your job is to classify user prompts into mode and tier.
+
+## Classification Rules
+
+**MODE:**
+- MINIMAL — greetings, ratings, single-token acknowledgments, very short (<=3 chars), bare numbers (likely ratings)
+- NATIVE — single fact lookup, simple command explanation, single definition, short question (<80 words), no multi-step work
+- ALGORITHM — everything else: implementation, refactoring, debugging, architecture, design, multi-step, ambiguous, or PAI-affecting work
+
+**TIER (ALGORITHM only):**
+- E1 — trivial, <90 seconds, single tiny change (typo fix, rename, add comment)
+- E2 — single-domain, ~3 minutes, one file/module/component, single feature addition
+- E3 — multi-file substantial, ~10 minutes, refactoring across files, bug fixes, feature implementation
+- E4 — cross-cutting/doctrine, ~30 minutes, system-wide changes, breaking changes, major refactoring
+- E5 — comprehensive, >2 hours, platform/ecosystem level, complete rewrite, strategic architecture
+
+**Overrides:** If the prompt contains "/e1" through "/e5", the tier is forced to that value.
+**Fail-safe:** When uncertain, classify as ALGORITHM E3. Under-escalation is worse than over-escalation.
+
+## Output Format
+Respond with EXACTLY this format (no markdown, no extra text):
+
+MODE: [MINIMAL|NATIVE|ALGORITHM]
+TIER: [E1|E2|E3|E4|E5|null]
+REASON: [one sentence explaining why]
+
+## User Prompt to Classify
+"""${userPrompt.replace(/"/g, '\"')}"""
+
+CLASSIFICATION:`;
+}
+
+/**
+ * Parse LLM response into classification object.
+ */
+function parseLLMResponse(text) {
+  const modeMatch = text.match(/MODE:\s*(MINIMAL|NATIVE|ALGORITHM)/i);
+  const tierMatch = text.match(/TIER:\s*(E[1-5]|null|none)/i);
+  const reasonMatch = text.match(/REASON:\s*(.+?)(?:\n|$)/i);
+
+  if (!modeMatch) {
+    return null;
+  }
+
+  const mode = modeMatch[1].toUpperCase();
+  let tier = tierMatch ? tierMatch[1].toUpperCase() : null;
+  if (tier === 'NULL' || tier === 'NONE') tier = null;
+
+  return {
+    mode,
+    tier: mode === 'ALGORITHM' ? tier : null,
+    reason: reasonMatch ? reasonMatch[1].trim() : 'LLM classification',
+    source: 'llm',
+    confidence: 0.85,
+  };
+}
+
+/**
+ * Execute a subprocess to call opencode run with a model.
+ * This uses the local opencode CLI to run the model.
+ */
+async function execOpencodeRun(model, message, timeoutMs = 15000) {
+  const proc = Bun.spawn({
+    cmd: ['opencode', 'run', '--model', model, '--message', message],
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { ...process.env, OPENCODE: '1' },
+  });
+
+  // Set up timeout
+  const timeout = setTimeout(() => {
+    proc.kill();
+  }, timeoutMs);
+
+  try {
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+    clearTimeout(timeout);
+
+    if (exitCode !== 0) {
+      throw new Error(`opencode run exited with code ${exitCode}: ${stderr}`);
+    }
+
+    return stdout;
+  } catch (err) {
+    clearTimeout(timeout);
+    proc.kill();
+    throw err;
+  }
+}
+
+/**
+ * Classify using an LLM via opencode run.
+ * 
+ * Uses `opencode run --model <model> --message <prompt>` to get classification.
+ * Falls back to heuristic on any error or timeout.
+ * 
+ * @param {string} prompt - Raw user prompt text
+ * @param {object} providerConfig - Optional: { model, timeoutMs }
+ * @returns {Promise<object>} Classification result
+ */
+export async function classifyPromptWithLLM(prompt, providerConfig = null) {
+  // Check cache first
+  const cached = getCached(prompt);
+  if (cached) {
+    return { ...cached, latencyMs: 0 };
+  }
+
+  // Start timing
+  const startTime = performance.now();
+
+  // If no provider config or LLM not explicitly enabled, fall back to heuristic
+  if (!providerConfig) {
+    const result = classifyPrompt(prompt);
+    return { ...result, source: 'heuristic' };
+  }
+
+  const {
+    model = 'opencode/deepseek-v4-flash-free',
+    timeoutMs = 8000,
+  } = providerConfig;
+
+  // Build the classification prompt
+  const classificationPrompt = buildClassificationPrompt(prompt);
+
+  try {
+    // Run opencode with the model
+    const stdout = await execOpencodeRun(model, classificationPrompt, timeoutMs);
+
+    // Parse the response - look for the CLASSIFICATION output
+    const lines = stdout.split('\n');
+    let classificationText = '';
+    let inClassification = false;
+
+    for (const line of lines) {
+      if (line.includes('CLASSIFICATION:')) {
+        inClassification = true;
+        continue;
+      }
+      if (inClassification) {
+        if (line.trim() === '') continue;
+        classificationText += line + '\n';
+        // Stop after we have 3 lines (MODE, TIER, REASON)
+        if (classificationText.split('\n').filter(l => l.trim()).length >= 3) break;
+      }
+    }
+
+    // If we didn't find structured output, try to parse from the whole response
+    if (!classificationText) {
+      classificationText = stdout;
+    }
+
+    const parsed = parseLLMResponse(classificationText);
+    if (!parsed) {
+      throw new Error('Could not parse LLM response');
+    }
+
+    const result = {
+      ...parsed,
+      latencyMs: Math.round(performance.now() - startTime),
+    };
+
+    // Cache the result
+    setCached(prompt, result);
+
+    return normalizeClassification(result);
+  } catch (error) {
+    // Any error → fall back to heuristic
+    console.error(`[PAI Classifier] LLM error: ${error.message}. Falling back to heuristic.`);
+    const result = classifyPrompt(prompt);
+    return {
+      ...result,
+      reason: `${result.reason} (LLM fallback: ${error.message})`,
+      source: 'heuristic',
+      latencyMs: Math.round(performance.now() - startTime),
+    };
+  }
+}
+
+/**
+ * Normalize a classification result to ensure it always has the expected shape.
+ *
+ * @param {object} result - Raw classification result
+ * @returns {object} Normalized result
+ */
+export function normalizeClassification(result) {
+  if (!result || typeof result !== 'object') {
+    return {
+      mode: 'ALGORITHM',
+      tier: 'E3',
+      reason: 'Normalization fail-safe — ALGORITHM E3',
+      source: 'fail-safe',
+      confidence: 1.0,
+      latencyMs: 0,
+    };
+  }
+
+  const validModes = ['MINIMAL', 'NATIVE', 'ALGORITHM'];
+  const validTiers = ['E1', 'E2', 'E3', 'E4', 'E5', null];
+  const validSources = ['heuristic', 'override', 'fail-safe', 'llm'];
+
+  const mode = validModes.includes(result.mode) ? result.mode : 'ALGORITHM';
+  const tier = validTiers.includes(result.tier) ? result.tier : 'E3';
+
+  return {
+    mode,
+    tier: mode === 'ALGORITHM' ? tier : null,
+    reason: typeof result.reason === 'string' && result.reason.length > 0
+      ? result.reason
+      : 'No reason provided',
+    source: validSources.includes(result.source) ? result.source : 'fail-safe',
+    confidence: typeof result.confidence === 'number' ? Math.max(0, Math.min(1, result.confidence)) : 0.5,
+    latencyMs: typeof result.latencyMs === 'number' ? result.latencyMs : 0,
+  };
+}
+
+/**
+ * Format classification for injection into system context.
+ *
+ * @param {object} classification - Normalized classification result
+ * @returns {string} Formatted context string
+ */
+export function formatClassificationContext(classification) {
+  const { mode, tier, reason, source } = classification;
+  const tierLine = tier ? `\n**Tier:** ${tier}` : '';
+
+  return `## Explicit Mode/Tier Classification
+**Mode:** ${mode}${tierLine}
+**Reason:** ${reason}
+**Source:** ${source}
+
+> This classification was computed by the PAI Mode/Tier Classifier. When present, it is the authoritative source. The model should honor this classification above self-selection. If this classification seems wrong, note the discrepancy but still follow it.`;
+}
+
+/**
+ * Check if a classification result should trigger the Algorithm.
+ *
+ * @param {object} classification - Normalized classification result
+ * @returns {boolean}
+ */
+export function isAlgorithmMode(classification) {
+  return classification?.mode === 'ALGORITHM';
+}
+
+/**
+ * Get the effort tier string for display/logging.
+ *
+ * @param {object} classification - Normalized classification result
+ * @returns {string}
+ */
+export function getEffortLabel(classification) {
+  if (classification?.mode === 'MINIMAL') return 'MINIMAL';
+  if (classification?.mode === 'NATIVE') return 'NATIVE';
+  if (classification?.mode === 'ALGORITHM') return `ALGORITHM ${classification.tier || 'E3'}`;
+  return 'UNKNOWN';
+}

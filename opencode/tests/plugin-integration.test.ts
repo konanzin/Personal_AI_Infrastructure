@@ -26,9 +26,9 @@ describe("Plugin Integration — Hook Registration", () => {
     expect(plugin["experimental.chat.system.transform"]).toBeDefined();
   });
 
-  test("plugin exports permission.ask hook", async () => {
+  test("plugin exports permission.asked hook", async () => {
     const plugin = await loadPlugin();
-    expect(plugin["permission.ask"]).toBeDefined();
+    expect(plugin["permission.asked"]).toBeDefined();
   });
 
   test("plugin exports tool.execute.before hook", async () => {
@@ -39,6 +39,12 @@ describe("Plugin Integration — Hook Registration", () => {
   test("plugin exports tool.execute.after hook", async () => {
     const plugin = await loadPlugin();
     expect(plugin["tool.execute.after"]).toBeDefined();
+  });
+
+  test("plugin version is 2.6.0", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/konanzin/.config/opencode/plugins/pai-hooks.js", "utf-8");
+    expect(content).toContain("PLUGIN_VERSION = '2.6.0'");
   });
 });
 

@@ -349,6 +349,39 @@ check_plugins() {
     fi
     checks=$((checks + 1))
 
+    # Check mode classifier exists and is imported
+    if [ -f "${OPENCODE_DIR}/plugins/lib/mode-classifier.lib.js" ]; then
+        pass "mode-classifier.lib.js exists"
+        passed=$((passed + 1))
+    else
+        fail "mode-classifier.lib.js missing"
+    fi
+    checks=$((checks + 1))
+
+    if grep -q 'mode-classifier.lib.js' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "Plugin imports mode-classifier"
+        passed=$((passed + 1))
+    else
+        fail "Plugin does not import mode-classifier"
+    fi
+    checks=$((checks + 1))
+
+    if grep -q 'deepseek-v4-flash-free' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "Plugin uses deepseek as default LLM"
+        passed=$((passed + 1))
+    else
+        fail "Plugin does not use deepseek"
+    fi
+    checks=$((checks + 1))
+
+    if grep -q 'classifyPrompt' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "chat.message uses classifyPrompt"
+        passed=$((passed + 1))
+    else
+        fail "chat.message does not call classifyPrompt"
+    fi
+    checks=$((checks + 1))
+
     # Check permission.asked hook exists (notified security denials)
     if grep -q '"permission.asked"' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
         pass "permission.asked hook exists"

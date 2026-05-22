@@ -1,5 +1,48 @@
 # PAI OpenCode Port Changelog
 
+## [2.6.0] — Mode/Tier Classifier Subsystem
+
+### Added
+
+- **Explicit Mode/Tier Classifier** (`plugins/lib/mode-classifier.lib.js`)
+  - Provider-agnostic classification interface with two tiers:
+    - **Heuristic layer** (default): deterministic, zero cost, zero latency
+    - **LLM layer** (optional): configurable via env vars, uses any OpenAI-compatible API
+  - Structured output: `MODE`, `TIER`, `REASON`, `SOURCE`, `CONFIDENCE`
+  - Explicit fail-safe to `ALGORITHM E3` when confidence is low or on error
+  - Override detection for `/e1`–`/e5` slash commands
+  - LRU cache for LLM results (100 entries, 5min TTL) to reduce API usage
+  - Auto-discovery of available API endpoints
+  - Default model: `opencode/deepseek-v4-flash-free` (~4-5s response, free tier)
+
+- **Classifier Integration in Plugin**
+  - `chat.message` hook now runs explicit classification on every top-level prompt
+  - Classification result persisted to `current-work-<session>.json`
+  - Registry updated in `work.json` with `currentMode`, `effort`, and `modeHistory`
+  - Telemetry stream: `MEMORY/OBSERVABILITY/mode-classifier.jsonl`
+  - System context injection reads stored classification and surfaces it to the model
+
+- **Observability**
+  - JSONL telemetry includes: mode, tier, source, confidence, latency_ms, fallback flag
+  - Console logging of classification decision on every prompt
+
+### Changed
+
+- **System Context Contract**
+  - `buildPAISystemContext()` now reads explicit classification from session state
+  - When present, classification is injected as `## Explicit Mode/Tier Classification`
+  - Model instructed to honor explicit classification above self-selection
+  - Model-native mode rules remain as fallback/backup behavior
+
+- **Version bump**: `pai-hooks.js` 2.5.0 → 2.6.0
+
+### Validation
+
+- Behavioral tests expanded to cover classifier (see test-behavioral.sh)
+- Integration tests added for classification normalization and fail-safe
+
+---
+
 ## Current Port State
 
 This repository ports PAI from Claude Code to OpenCode-native configuration and plugin surfaces.
@@ -14,7 +57,7 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Agents | 18 `.md` files installed under `~/.config/opencode/agents/` |
 | Commands | `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/e1`-`/e5` |
 | Memory | `~/.config/opencode/PAI/MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH}` |
-| Validation | 71 checks in `validate-pai-installation.sh` |
+| Validation | 75 checks in `validate-pai-installation.sh` |
 
 ### Parity Notes
 
@@ -37,7 +80,7 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 
 **Parity estimate: ~82-87%** (up from 65-75%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
 
-**Validation: 93/93 checks passing** (71 structural + 22 behavioral).
+**Validation: 107/107 checks passing** (75 structural + 32 behavioral).
 
 ### Important: Repo vs Runtime Sync
 
@@ -63,15 +106,16 @@ Latest run: `bash opencode/bin/test-behavioral.sh`
 
 | Category | Tests | Result |
 |----------|-------|--------|
-| Structural (version, handlers, paths) | 7/7 | ✅ PASS |
-| Side-effects (files, JSON validity) | 3/3 | ✅ PASS |
+| Structural (version, handlers, paths) | 6/6 | ✅ PASS |
+| Side-effects (files, JSON validity) | 4/4 | ✅ PASS |
 | PermissionGuard (`permission.asked`) | 1/1 | ✅ PASS |
 | Rating parser (explicit message ratings) | 1/1 | ✅ PASS |
 | System context injection | 3/3 | ✅ PASS |
+| Mode/Tier Classifier | 8/8 | ✅ PASS |
 | Compaction context preservation | 2/2 | ✅ PASS |
 | Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
 | Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
-| **Total** | **22/22** | **✅ ALL PASS** |
+| **Total** | **31/31** | **✅ ALL PASS** |
 
 ## Compatibility Principle
 
