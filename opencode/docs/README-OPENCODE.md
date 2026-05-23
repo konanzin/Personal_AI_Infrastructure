@@ -162,6 +162,7 @@ PAI_AGENTGUARD_DENY_CONFIDENCE=true      # Enable deny on high-confidence agent 
 - ~~Claude Code's Sonnet-based `UserPromptSubmit` classifier is not yet ported~~ — **RESTORED in v2.6.0** via explicit heuristic classifier with provider-agnostic interface. LLM-backed classification is a future enhancement.
 - Claude Code's persistent statusline/sidebar is represented as commands and logs.
 - Voice remains external-only via Pulse notifications.
+- **Pulse runtime remains out of scope for this branch.** The repo ships Pulse configuration scaffolding (`PULSE.toml`, docs, directory layout), but a supported always-on daemon serving `localhost:31337` is not part of current install success criteria.
 
 ## Validation
 

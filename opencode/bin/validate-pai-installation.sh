@@ -534,12 +534,12 @@ check_documentation() {
 }
 
 check_pulse() {
-    section "10. Pulse"
+    section "10. Pulse Scaffolding"
     local checks=0
     local passed=0
     
     if [ -d "$PAI_DIR/PULSE" ]; then
-        pass "PULSE/ directory exists"
+        pass "PULSE/ directory exists (scaffold)"
         passed=$((passed + 1))
     else
         fail "PULSE/ missing"
@@ -547,7 +547,7 @@ check_pulse() {
     checks=$((checks + 1))
     
     if [ -f "$PAI_DIR/PULSE/PULSE.toml" ]; then
-        pass "PULSE.toml exists"
+        pass "PULSE.toml exists (config scaffold)"
         passed=$((passed + 1))
     else
         fail "PULSE.toml missing"
@@ -563,6 +563,7 @@ check_pulse() {
     fi
     checks=$((checks + 1))
     
+    echo "  Note: this validates Pulse files only, not a live daemon."
     echo "  Score: $passed/$checks"
     return $((checks - passed))
 }

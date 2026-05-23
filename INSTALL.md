@@ -42,6 +42,15 @@ Strict mode (do not auto-install dependencies):
 - `opencode` binary when missing
 - `bun` runtime when missing
 
+## Pulse Scope
+
+This installer ships the **Pulse scaffold** only:
+
+- `~/.config/opencode/PAI/PULSE/PULSE.toml`
+- related docs and directory structure
+
+It does **not** currently provision or start a supported Pulse daemon/runtime. A missing `localhost:31337` service is therefore **not** treated as an installation failure for this branch.
+
 It also removes the obsolete `~/.config/opencode/plugins/pai-hooks.lib.js` root copy because OpenCode auto-discovers root plugin files.
 
 ## Preserved Data
@@ -56,4 +65,4 @@ Expected successful state:
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The validator currently checks 75 structural points and then runs the behavioral and E2E suites.
+The validator currently checks 75 structural points and then runs the behavioral and E2E suites. Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.

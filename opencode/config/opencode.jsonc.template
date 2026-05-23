@@ -87,7 +87,7 @@
       "agent": "Algorithm"
     },
     "status": {
-      "template": "Report PAI system status: active sessions, memory state, Pulse health, installed agents, installed skills, and pending actions.",
+      "template": "Report PAI system status: active sessions, memory state, installed agents, installed skills, and pending actions. Treat Pulse as optional scaffolding only; do not classify missing localhost:31337 health surfaces as install failure unless the user explicitly says they enabled or expect a live Pulse daemon.",
       "description": "Show PAI system status",
       "agent": "build"
     },
@@ -97,8 +97,8 @@
       "agent": "build"
     },
     "pulse": {
-      "template": "Check the local Pulse daemon and summarize health, modules, logs, and any remediation needed.",
-      "description": "Check Pulse status",
+      "template": "Inspect Pulse scaffolding and, if a live daemon is explicitly configured by the user, summarize its health. Otherwise report whether only static Pulse config is installed and avoid calling that degraded.",
+      "description": "Inspect Pulse scaffold or runtime",
       "agent": "build"
     },
     "context": {

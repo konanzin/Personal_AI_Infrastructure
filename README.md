@@ -29,9 +29,13 @@ The installer is idempotent. It preserves installed `USER` and `MEMORY` data, up
 - One OpenCode plugin with native event handlers for PAI hook behavior
 - 18 OpenCode agent files
 - PAI skills loaded from `~/.config/opencode/skills`
-- PAI core directories for Algorithm, Memory, Pulse, Tools, Templates, and User context
+- PAI core directories for Algorithm, Memory, optional Pulse scaffolding, Tools, Templates, and User context
 - Default PAI runtime injection on normal prompts (model decides mode)
-- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse`, `/context`, and `/e1` through `/e5`
+- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse` (diagnostic scaffold only), `/context`, and `/e1` through `/e5`
+
+## Current Scope Boundary
+
+The current product includes **Pulse configuration scaffolding** (`PULSE.toml`, docs, and directory structure), but **does not ship a supported always-on Pulse daemon runtime**. Health endpoints like `localhost:31337` are therefore **not part of the install success criteria** for this branch right now.
 
 ## Useful Docs
 
