@@ -1,0 +1,27 @@
+{
+  "name": "pai-mobile",
+  "version": "0.0.1",
+  "private": true,
+  "description": "PAI Mobile — Private mobile interface for the Personal AI Infrastructure",
+  "packageManager": "bun@1.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "cd apps/mobile && bun run start",
+    "dev:ios": "cd apps/mobile && bun run ios",
+    "dev:android": "cd apps/mobile && bun run android",
+    "typecheck": "tsc --build",
+    "test": "bun test packages/shared-schemas/src packages/audio-elevenlabs/src packages/opencode-mobile-client/src apps/mobile/src/stores",
+    "test:all": "bun test packages/*/src",
+    "lint": "echo 'No linter configured yet — add eslint in M5'",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "dependencies": {
+  }
+}

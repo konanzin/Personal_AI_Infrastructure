@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./packages/shared-types" },
+    { "path": "./packages/shared-schemas" },
+    { "path": "./packages/opencode-mobile-client" },
+    { "path": "./packages/opencode-mobile-plugin" },
+    { "path": "./packages/ui-system" },
+    { "path": "./packages/audio-elevenlabs" },
+    { "path": "./packages/test-utils" },
+    { "path": "./apps/mobile" }
+  ]
+}
