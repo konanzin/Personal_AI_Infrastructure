@@ -1,0 +1,1 @@
+/home/konanzin/Work/tries/2026-05-28-pai-flutter/Personal_AI_Infrastructure/mobile-app/apps/flutter/build/app/intermediates/cxx/RelWithDebInfo/4n12l4i3/obj/arm64-v8a

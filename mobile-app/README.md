@@ -1,96 +1,110 @@
 # PAI Mobile
 
-Private mobile interface for the Personal AI Infrastructure (PAI). This is not a public product — it is the mobile remote for my Digital Assistant, operating over a private Tailscale network.
+Private Android interface for PAI/OpenCode. This app is the mobile remote for Dori: connect over the private Tailscale network, select an OpenCode session, type or speak a prompt, and stream the assistant response from the OpenCode Server.
 
-## Monorepo Structure
+## Canonical App
 
 ```text
 mobile-app/
   apps/
-    mobile/                 # Expo Router app (React Native)
-  packages/
-    shared-types/           # TypeScript contracts
-    shared-schemas/         # Validation schemas
-    opencode-mobile-client/ # OpenCode Server API client
-    opencode-mobile-plugin/ # Notification plugin (server-side)
-    ui-system/              # Material 3 design system
-    audio-elevenlabs/       # STT/TTS abstraction
-    test-utils/             # Shared test fixtures
+    flutter/                 # Canonical Flutter app
+  ISA.md                     # System of record for the mobile app
+  FLUTTER_IMPLEMENTATION_PLAN.md
 ```
+
+The previous React Native/Expo workspace is legacy. Do not start new implementation work there unless the project is explicitly re-opened as an archival migration task.
+
+## Current Status
+
+The Flutter app is a functional pre-alpha spine, not an alpha release yet.
+
+- ✅ Flutter app exists at `apps/flutter`
+- ✅ Settings store credentials with `flutter_secure_storage`
+- ✅ Connection validation uses OpenCode `/global/health`
+- ✅ Session list/open/create/rename/delete exists
+- ✅ Chat streams OpenCode SSE with Dart native HTTP streaming
+- ✅ Active session persists locally with `shared_preferences`
+- ✅ Voice input is STT-only and sends the final transcript to chat
+- 🚧 Runtime verification is blocked in this shell until Flutter/Dart CLI is installed
 
 ## Requirements
 
-- [Bun](https://bun.sh/) >= 1.1.0
-- Node.js (for Expo CLI compatibility)
-- iOS: Xcode + Simulator
-- Android: Android Studio + Emulator
+- Flutter SDK compatible with the app's `pubspec.yaml`
+- Android device or emulator
+- OpenCode Server reachable from the device
+- Tailscale on the Android device and server host for private remote use
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-bun install
-
-# Start the mobile app
-bun run dev
-
-# Typecheck all packages
-bun run typecheck
-
-# Run tests
-bun run test
+cd mobile-app/apps/flutter
+flutter pub get
+flutter analyze
+flutter test
+flutter run
 ```
 
-## Package Manager
+## OpenCode Server for Tailscale
 
-This repository uses **Bun workspaces**. Do not use npm or pnpm. The root `package.json` declares:
+On the Linux machine that runs OpenCode, expose the server on the tailnet interface:
 
-```json
-"packageManager": "bun@1.1.0",
-"workspaces": ["apps/*", "packages/*"]
+```bash
+OPENCODE_SERVER_PASSWORD='<your-password>' opencode serve --hostname 0.0.0.0 --port 4096
 ```
 
-## Why Bun?
+Then, in the Flutter app settings, use the Linux server's Tailscale IP or MagicDNS name:
 
-The original technical plan mentioned pnpm, but Bun was chosen because:
+```text
+http://<server-tailnet-ip-or-name>:4096
+```
 
-1. It is the standard across all PAI projects
-2. Bun workspaces satisfy the same monorepo need with lower overhead
-3. Lockfile (`bun.lockb`) is simpler and faster
-4. The ecosystem gap for React Native has closed in recent Bun versions
+Important: `a51` is the Android client in the tailnet. It is not the OpenCode server URL unless you are running OpenCode on the phone, which this app does not do.
 
-## Tech Stack
+## Authentication
 
-- **Framework**: Expo (React Native)
-- **Router**: Expo Router
-- **Language**: TypeScript (strict mode)
-- **State**: Zustand
-- **UI Base**: Material 3
-- **Storage**: expo-secure-store + expo-sqlite
-- **Audio**: ElevenLabs (STT + TTS)
-- **Push**: Expo Notifications
+OpenCode Server supports Basic Auth when `OPENCODE_SERVER_PASSWORD` is set. The app stores URL, username, and password in Android secure storage. Settings are validated against `/global/health` before saving.
 
-## Development Workflow
+## Voice Scope
 
-See [`docs/KIMI_WORKFLOW.md`](docs/KIMI_WORKFLOW.md) for the Kimi-driven coding protocol used in this repository.
+Voice in this stage means:
 
-For the real-device Android workflow that proved stable in this repo, see [`docs/SAMSUNG_WSL_EXPO_WORKFLOW.md`](docs/SAMSUNG_WSL_EXPO_WORKFLOW.md).
+1. Tap microphone.
+2. Android SpeechRecognizer captures speech.
+3. The final transcript is sent as a normal chat message.
 
-## Milestones
+No TTS playback is implemented in this stage.
 
-| Milestone | Description | Status |
-|-----------|-------------|--------|
-| M0 | Workspace & Bootstrap | Done |
-| M1 | Contracts & Internal Architecture | Done |
-| M2 | Navigation, App State & Settings | Done |
-| M3 | OpenCode Client & Sessions | Done |
-| M4 | SSE Foreground & Rehydration | Partial |
-| M5 | Timeline, Rendering & Permissions | In Progress |
-| M6 | Audio: STT/TTS with ElevenLabs | Planned |
-| M7 | OpenCode Notification Plugin | Planned |
-| M8 | Deep Linking & Notification UX | Planned |
-| M9 | Resilience, Security & Observability | Planned |
-| M10 | QA, Build & Private Release | Planned |
+## Verification
+
+Use these checks once Flutter is available in the environment:
+
+```bash
+cd mobile-app/apps/flutter
+flutter pub get
+flutter analyze
+flutter test
+```
+
+Then smoke-test on `a51`:
+
+1. Start OpenCode on the Linux host with `--hostname 0.0.0.0 --port 4096`.
+2. Confirm the phone and server are online in Tailscale.
+3. Fill settings with the server tailnet URL.
+4. Test connection.
+5. Open an existing session.
+6. Send a text prompt.
+7. Send a voice prompt.
+8. Confirm only the active session receives streamed updates.
+9. Trigger a reasoning-capable response and confirm reasoning appears only on that assistant message.
+
+## Related Files
+
+- `apps/flutter/lib/services/opencode_client.dart` — REST + SSE client
+- `apps/flutter/lib/providers/opencode_provider.dart` — chat stream, history, reasoning, reconnect
+- `apps/flutter/lib/providers/session_provider.dart` — session list and active-session persistence
+- `apps/flutter/lib/screens/settings_screen.dart` — settings, auth validation, Tailscale helper
+- `apps/flutter/lib/widgets/voice_fab.dart` — STT-only voice button
+- `apps/flutter/android/app/src/main/kotlin/com/example/pai_mobile_flutter/MainActivity.kt` — Android SpeechRecognizer bridge
 
 ## License
 

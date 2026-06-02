@@ -1,0 +1,2 @@
+/home/konanzin/Work/tries/2026-05-28-pai-flutter/Personal_AI_Infrastructure/mobile-app/apps/flutter/android/app/.cxx/RelWithDebInfo/4n12l4i3/armeabi-v7a/CMakeFiles/edit_cache.dir
+/home/konanzin/Work/tries/2026-05-28-pai-flutter/Personal_AI_Infrastructure/mobile-app/apps/flutter/android/app/.cxx/RelWithDebInfo/4n12l4i3/armeabi-v7a/CMakeFiles/rebuild_cache.dir
