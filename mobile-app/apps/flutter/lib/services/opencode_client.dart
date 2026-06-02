@@ -454,6 +454,22 @@ class OpenCodeClient {
       case 'session.status':
       case 'session.idle':
       case 'session.error':
+      case 'session.created':
+      case 'session.updated':
+      case 'session.deleted':
+      case 'session.compacted':
+      case 'session.diff':
+      case 'todo.updated':
+      case 'file.edited':
+      case 'file.watcher.updated':
+      case 'session.next.step.started':
+      case 'session.next.step.ended':
+      case 'session.next.step.failed':
+      case 'session.next.agent.switched':
+      case 'session.next.model.switched':
+      case 'session.next.compaction.started':
+      case 'session.next.compaction.delta':
+      case 'session.next.compaction.ended':
         if (parsed != null) {
           return StatusEvent(
             payload: parsed,
@@ -665,6 +681,190 @@ class OpenCodeClient {
       return data;
     }
     return [];
+  }
+
+  /// Abort a running session (stop generation).
+  Future<void> abortSession(String sessionId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/abort');
+    await http.post(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+  }
+
+  /// Get session details (model, cost, tokens, etc).
+  Future<Map<String, dynamic>> getSession(String sessionId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId');
+    final response = await http.get(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get session: ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// List available providers and models.
+  Future<Map<String, dynamic>> getProviders() async {
+    final url = Uri.parse('${config.baseUrl}/provider');
+    final response = await http.get(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get providers: ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Send a message with optional model/parts override.
+  Future<void> sendMessageAdvanced(
+    String sessionId, {
+    required List<Map<String, dynamic>> parts,
+    Map<String, String>? model,
+  }) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
+    final body = <String, dynamic>{'parts': parts};
+    if (model != null) body['model'] = model;
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 30));
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to send message: ${response.statusCode}');
+    }
+  }
+
+  /// Fork a session at a specific message.
+  Future<Map<String, dynamic>> forkSession(String sessionId, String messageId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/fork');
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'messageID': messageId}),
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fork session: ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Create or remove a share link for a session.
+  Future<Map<String, dynamic>> shareSession(String sessionId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/share');
+    final response = await http.post(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to share session: ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<void> unshareSession(String sessionId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/share');
+    final response = await http.delete(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to unshare session: ${response.statusCode}');
+    }
+  }
+
+  /// Revert a message (undo file changes).
+  Future<void> revertMessage(String sessionId, String messageId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/revert');
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'messageID': messageId}),
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to revert message: ${response.statusCode}');
+    }
+  }
+
+  /// Unrevert messages in a session.
+  Future<void> unrevertSession(String sessionId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/unrevert');
+    final response = await http.post(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to unrevert: ${response.statusCode}');
+    }
+  }
+
+  /// Get session todos.
+  Future<List<dynamic>> getSessionTodos(String sessionId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/todo');
+    final response = await http.get(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get todos: ${response.statusCode}');
+    }
+    final data = jsonDecode(response.body);
+    if (data is List) return data;
+    return [];
+  }
+
+  /// List available slash commands.
+  Future<List<dynamic>> getCommands() async {
+    final url = Uri.parse('${config.baseUrl}/command');
+    final response = await http.get(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get commands: ${response.statusCode}');
+    }
+    final data = jsonDecode(response.body);
+    if (data is List) return data;
+    return [];
+  }
+
+  /// Execute a slash command.
+  Future<void> executeCommand(String sessionId, String command, {String? arguments}) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/command');
+    final body = <String, dynamic>{'command': command};
+    if (arguments != null) body['arguments'] = arguments;
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 30));
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to execute command: ${response.statusCode}');
+    }
+  }
+
+  /// Generic GET request.
+  Future<http.Response> get(String path) async {
+    final url = Uri.parse('${config.baseUrl}$path');
+    final response = await http.get(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(const Duration(seconds: 10));
+    return response;
   }
 
   /// Generic POST request to an endpoint path.

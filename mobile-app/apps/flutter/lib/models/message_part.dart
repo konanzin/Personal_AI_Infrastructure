@@ -32,6 +32,7 @@ class ToolCallPart implements MessagePart {
   final Map<String, dynamic> input;
   List<ToolContent> content;
   String? errorMessage;
+  final int textInsertOffset;
   
   @override
   String get type => 'tool';
@@ -43,6 +44,7 @@ class ToolCallPart implements MessagePart {
     this.input = const {},
     this.content = const [],
     this.errorMessage,
+    this.textInsertOffset = 0,
   });
 }
 
@@ -59,6 +61,7 @@ class ShellPart implements MessagePart {
   final String callId;
   final String command;
   final String output;
+  final int textInsertOffset;
   
   @override
   String get type => 'shell';
@@ -67,6 +70,7 @@ class ShellPart implements MessagePart {
     required this.callId,
     required this.command,
     required this.output,
+    this.textInsertOffset = 0,
   });
 }
 

@@ -8,6 +8,22 @@ import '../models/chat_event.dart';
 import '../models/message_part.dart';
 import '../services/connectivity_service.dart';
 import '../services/opencode_client.dart';
+import '../services/secure_storage.dart';
+
+/// Dados de uma pergunta já respondida pelo usuário.
+class AnsweredQuestionData {
+  final QuestionRequest request;
+  final List<List<String>> answers;
+  final String? associatedMessageId;
+  final int textInsertOffset;
+
+  const AnsweredQuestionData({
+    required this.request,
+    required this.answers,
+    this.associatedMessageId,
+    this.textInsertOffset = 0,
+  });
+}
 
 /// Provider que integra o OpenCode Server com o Flutter AI Toolkit.
 /// 
@@ -47,13 +63,41 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Mapa de requestID -> QuestionRequest para perguntas pendentes.
   final Map<String, QuestionRequest> _pendingQuestions = {};
 
+  /// Perguntas já respondidas, para exibição inline na mensagem do assistente.
+  final Map<String, AnsweredQuestionData> _answeredQuestions = {};
+
   /// Mapa de callID -> ShellPart para shell commands.
   final Map<String, ShellPart> _shellBuffers = {};
 
   int _localMessageCounter = 0;
+
+  /// Flag que impede o fechamento prematuro do stream SSE após
+  /// responder a uma question/permission. Resetada quando novos deltas
+  /// de texto chegam, indicando que a continuação começou.
+  bool _awaitingContinuation = false;
+  Timer? _continuationTimer;
+
+  /// Contagem de caracteres já emitidos no stream da resposta atual.
+  /// Usado para posicionar Q&A inline no texto.
+  int _streamedTextLength = 0;
   
   /// ID da última mensagem do usuário enviada (para filtrar deltas de volta)
   String? _lastUserMessageId;
+  
+  /// Whether the agent is currently streaming a response.
+  bool _isStreaming = false;
+
+  /// Latest error message from SSE, cleared on next successful event.
+  String? _lastError;
+
+  /// Session details cached from server (model, cost, tokens, etc.)
+  Map<String, dynamic>? _sessionInfo;
+
+  /// Todos for the current session.
+  List<Map<String, dynamic>> _todos = [];
+
+  /// Model override for next message (providerID, modelID).
+  Map<String, String>? _modelOverride;
   
   /// Serviço de conectividade
   final ConnectivityService _connectivity = ConnectivityService();
@@ -140,12 +184,141 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Todas as perguntas pendentes
   Map<String, QuestionRequest> get pendingQuestions => Map.unmodifiable(_pendingQuestions);
 
+  /// Perguntas já respondidas para exibição inline
+  List<AnsweredQuestionData> getAnsweredQuestionsForMessage(String messageId) {
+    return _answeredQuestions.values
+        .where((aq) => aq.associatedMessageId == messageId)
+        .toList();
+  }
+
   /// Todos os shell commands
   Map<String, ShellPart> get shellCommands => Map.unmodifiable(_shellBuffers);
 
   /// Retorna shell commands associados a uma mensagem
   List<ShellPart> getShellCommandsForMessage(String messageId) {
     return _shellBuffers.values.toList();
+  }
+
+  /// Whether the agent is currently streaming.
+  bool get isStreaming => _isStreaming;
+
+  /// Latest error message from SSE (null if no error).
+  String? get lastError => _lastError;
+
+  /// Clears the last error.
+  void clearError() {
+    _lastError = null;
+    notifyListeners();
+  }
+
+  /// Cached session info from server.
+  Map<String, dynamic>? get sessionInfo => _sessionInfo;
+
+  /// Current session's todos.
+  List<Map<String, dynamic>> get todos => List.unmodifiable(_todos);
+
+  /// Model override for next message.
+  Map<String, String>? get modelOverride => _modelOverride;
+  set modelOverride(Map<String, String>? value) {
+    _modelOverride = value;
+    notifyListeners();
+  }
+
+  /// Abort the currently running generation.
+  Future<void> abortSession() async {
+    if (_currentSessionId == null) return;
+    try {
+      await client.abortSession(_currentSessionId!);
+      _isStreaming = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[PAI_SSE] Abort failed: $e');
+    }
+  }
+
+  /// Load session details (model, cost, tokens).
+  Future<void> loadSessionInfo() async {
+    if (_currentSessionId == null) return;
+    try {
+      _sessionInfo = await client.getSession(_currentSessionId!);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[PAI_SSE] Failed to load session info: $e');
+    }
+  }
+
+  /// Load todos for the current session.
+  Future<void> loadTodos() async {
+    if (_currentSessionId == null) return;
+    try {
+      final raw = await client.getSessionTodos(_currentSessionId!);
+      _todos = raw.whereType<Map<String, dynamic>>().toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[PAI_SSE] Failed to load todos: $e');
+    }
+  }
+
+  /// Fork session at a message.
+  Future<String?> forkSession(String messageId) async {
+    if (_currentSessionId == null) return null;
+    try {
+      final result = await client.forkSession(_currentSessionId!, messageId);
+      return result['id'] as String?;
+    } catch (e) {
+      debugPrint('[PAI_SSE] Fork failed: $e');
+      return null;
+    }
+  }
+
+  /// Share session (create share link).
+  Future<String?> shareSession() async {
+    if (_currentSessionId == null) return null;
+    try {
+      final result = await client.shareSession(_currentSessionId!);
+      _sessionInfo = result;
+      notifyListeners();
+      return result['share'] as String?;
+    } catch (e) {
+      debugPrint('[PAI_SSE] Share failed: $e');
+      return null;
+    }
+  }
+
+  /// Unshare session (remove share link).
+  Future<void> unshareSession() async {
+    if (_currentSessionId == null) return;
+    try {
+      await client.unshareSession(_currentSessionId!);
+      _sessionInfo?.remove('share');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[PAI_SSE] Unshare failed: $e');
+    }
+  }
+
+  /// Revert a message (undo file changes).
+  Future<bool> revertMessage(String messageId) async {
+    if (_currentSessionId == null) return false;
+    try {
+      await client.revertMessage(_currentSessionId!, messageId);
+      return true;
+    } catch (e) {
+      debugPrint('[PAI_SSE] Revert failed: $e');
+      return false;
+    }
+  }
+
+  /// Unrevert messages.
+  Future<bool> unrevertSession() async {
+    if (_currentSessionId == null) return false;
+    try {
+      await client.unrevertSession(_currentSessionId!);
+      return true;
+    } catch (e) {
+      debugPrint('[PAI_SSE] Unrevert failed: $e');
+      return false;
+    }
   }
 
   /// Responde a uma solicitação de permissão
@@ -160,15 +333,13 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     };
 
     await client.post(
-      '/session/$currentSessionId/permission/$requestId/reply',
+      '/permission/$requestId/reply',
       body: jsonEncode({'reply': replyValue}),
     );
 
     _pendingPermissions.remove(requestId);
+    _startContinuationWait();
     notifyListeners();
-    
-    // Reabre SSE para capturar continuação da resposta
-    _reopenSSEForContinuation();
   }
 
   /// Responde a uma pergunta
@@ -182,7 +353,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     debugPrint('[PAI_SSE] replyToQuestion: posting reply for requestId=$requestId');
     try {
       final response = await client.post(
-        '/session/$currentSessionId/question/$requestId/reply',
+        '/question/$requestId/reply',
         body: jsonEncode({'answers': answers}),
       );
       debugPrint('[PAI_SSE] replyToQuestion: POST success, status=${response.statusCode}');
@@ -191,11 +362,17 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       return;
     }
 
+    _answeredQuestions[requestId] = AnsweredQuestionData(
+      request: request,
+      answers: answers,
+      associatedMessageId: _latestAssistantMessageId(),
+      textInsertOffset: _streamedTextLength,
+    );
+
     _pendingQuestions.remove(requestId);
+    _startContinuationWait();
+    _persistAnsweredQuestions();
     notifyListeners();
-    
-    // Reabre SSE para capturar continuação da resposta
-    _reopenSSEForContinuation();
   }
 
   /// Rejeita uma pergunta
@@ -204,7 +381,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     if (request == null) return;
 
     await client.post(
-      '/session/$currentSessionId/question/$requestId/reject',
+      '/question/$requestId/reject',
     );
 
     _pendingQuestions.remove(requestId);
@@ -223,6 +400,14 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       _messageTimestamps.clear();
       _historyMessageIds.clear();
       _partMessageIds.clear();
+      _answeredQuestions.clear();
+      _toolCallBuffers.clear();
+      _shellBuffers.clear();
+
+      // Tool calls and reasoning from tool-only assistant messages are
+      // associated with the NEXT text-bearing assistant message.
+      var pendingToolCalls = <ToolCallPart>[];
+      var pendingReasoning = StringBuffer();
       
       for (final msg in messages) {
         if (msg is! Map) continue;
@@ -233,12 +418,11 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
         
         if (role == null || parts == null) continue;
         
-        // Extrai timestamp do servidor
         final timestamp = _parseTimestamp(info?['time'] ?? info?['created']);
         
-        // Extrai texto e reasoning das parts
         final textBuffer = StringBuffer();
         final reasoningBuffer = StringBuffer();
+        final msgToolCalls = <ToolCallPart>[];
         
         for (final part in parts) {
           if (part is! Map) continue;
@@ -255,24 +439,69 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
             textBuffer.write(partText);
           } else if (partType == 'reasoning' && partText != null) {
             reasoningBuffer.write(partText);
+          } else if (partType == 'tool') {
+            final toolName = part['tool'] as String? ?? 'unknown';
+            final callId = part['callID'] as String? ?? partId ?? '';
+            final stateMap = part['state'] as Map?;
+            final status = stateMap?['status'] as String?;
+            final toolState = switch (status) {
+              'completed' => ToolCallState.completed,
+              'running' => ToolCallState.running,
+              'error' || 'failed' => ToolCallState.error,
+              _ => ToolCallState.pending,
+            };
+            final input = stateMap?['input'] is Map
+                ? Map<String, dynamic>.from(stateMap!['input'] as Map)
+                : <String, dynamic>{};
+            msgToolCalls.add(ToolCallPart(
+              id: callId,
+              name: toolName,
+              state: toolState,
+              input: input,
+              textInsertOffset: 0,
+            ));
           }
         }
         
         final messageText = textBuffer.toString();
-        if (messageText.isEmpty) continue;
-        
-        // Cria ChatMessage
+
         if (role == 'user') {
+          _flushPendingToolCalls(pendingToolCalls);
+          pendingToolCalls = [];
+          pendingReasoning = StringBuffer();
           _history.add(ChatMessage.user(messageText, const []));
           _historyMessageIds.add(messageId);
         } else if (role == 'assistant') {
+          if (messageText.isEmpty) {
+            // Tool-only message: stage tool calls & reasoning for next text msg
+            pendingToolCalls.addAll(msgToolCalls);
+            if (reasoningBuffer.isNotEmpty) {
+              pendingReasoning.write(reasoningBuffer);
+            }
+            continue;
+          }
+
           _history.add(ChatMessage.llm()..append(messageText));
           _historyMessageIds.add(messageId);
-          
-          // Salva reasoning se existir
-          if (reasoningBuffer.isNotEmpty && messageId != null) {
-            _reasoningBuffers[messageId] = reasoningBuffer;
+
+          // Merge pending reasoning with this message's reasoning
+          if (pendingReasoning.isNotEmpty || reasoningBuffer.isNotEmpty) {
+            if (messageId != null) {
+              final merged = StringBuffer();
+              if (pendingReasoning.isNotEmpty) merged.write(pendingReasoning);
+              if (reasoningBuffer.isNotEmpty) merged.write(reasoningBuffer);
+              _reasoningBuffers[messageId] = merged;
+            }
           }
+
+          for (final tc in pendingToolCalls) {
+            _toolCallBuffers[tc.id] = tc;
+          }
+          for (final tc in msgToolCalls) {
+            _toolCallBuffers[tc.id] = tc;
+          }
+          pendingToolCalls = [];
+          pendingReasoning = StringBuffer();
         } else {
           continue;
         }
@@ -281,10 +510,25 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
           _messageTimestamps[messageId] = timestamp;
         }
       }
-      
+
+      _flushPendingToolCalls(pendingToolCalls);
+
+      await _loadPersistedAnsweredQuestions();
       notifyListeners();
+
+      // Load session metadata and todos in background
+      loadSessionInfo();
+      loadTodos();
     } catch (e) {
       debugPrint('Error loading history: $e');
+    }
+  }
+
+  /// Flushes any pending tool calls into the buffers even when there's
+  /// no subsequent text message to associate them with.
+  void _flushPendingToolCalls(List<ToolCallPart> pending) {
+    for (final tc in pending) {
+      _toolCallBuffers[tc.id] = tc;
     }
   }
   
@@ -297,6 +541,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     _messageTimestamps.clear();
     _historyMessageIds.clear();
     _partMessageIds.clear();
+    _answeredQuestions.clear();
     notifyListeners();
   }
   
@@ -308,6 +553,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     _reasoningBuffers.clear();
     _messageTimestamps.clear();
     _partMessageIds.clear();
+    _answeredQuestions.clear();
     if (history != null) {
       _history.addAll(history);
       _historyMessageIds.addAll(List<String?>.filled(_history.length, null));
@@ -340,13 +586,42 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       throw Exception('Failed to create session');
     }
     
-    // Primeiro conecta ao SSE para não perder eventos
     final responseStream = _listenForResponse();
     
-    // Depois envia a mensagem (fire and forget)
-    client.sendMessage(_currentSessionId!, prompt).catchError((e) {
-      debugPrint('[PAI_SSE] Error sending message: $e');
-    });
+    // Build message parts
+    final parts = <Map<String, dynamic>>[
+      {'type': 'text', 'text': prompt},
+    ];
+    for (final att in attachments) {
+      if (att is FileAttachment) {
+        parts.add({
+          'type': 'file',
+          'url': att.name,
+          'mime': att.mimeType,
+          'filename': att.name,
+        });
+      }
+    }
+
+    // Send with optional model override
+    final model = _modelOverride;
+    if (model != null || parts.length > 1) {
+      client.sendMessageAdvanced(
+        _currentSessionId!,
+        parts: parts,
+        model: model,
+      ).catchError((e) {
+        debugPrint('[PAI_SSE] Error sending message: $e');
+        _lastError = e.toString();
+        notifyListeners();
+      });
+    } else {
+      client.sendMessage(_currentSessionId!, prompt).catchError((e) {
+        debugPrint('[PAI_SSE] Error sending message: $e');
+        _lastError = e.toString();
+        notifyListeners();
+      });
+    }
     
     // Repassa chunks do SSE
     await for (final chunk in responseStream) {
@@ -385,10 +660,14 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     _sseSubscription?.cancel();
     _sseSubscription = null;
     client.unsubscribe();
+    _streamedTextLength = 0;
     
+    _isStreaming = true;
+    _lastError = null;
+    notifyListeners();
+
     final controller = StreamController<String>(
       onCancel: () {
-        // Fecha a conexão SSE quando o stream é cancelado
         _sseSubscription?.cancel();
         _sseSubscription = null;
         client.unsubscribe();
@@ -402,12 +681,25 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     
     String? activeAssistantMessageId = _latestAssistantMessageId();
 
+    // O servidor pode enviar o mesmo texto por até 3 caminhos SSE:
+    //   1. session.next.text.delta → TextDeltaEvent  (streaming direto)
+    //   2. message.part.delta     → MessageEvent      (delta low-level)
+    //   3. message.part.updated   → MessageEvent      (snapshot completo)
+    // Para evitar duplicação, o primeiro caminho delta (1 ou 2) que chegar
+    // é eleito e os demais são ignorados. O caminho 3 (snapshot) nunca é
+    // usado para texto pois sempre duplica o conteúdo dos deltas.
+    //   null = ainda não decidido, true = TextDeltaEvent, false = message.part.delta
+    bool? activeTextPath;
+
     void closeResponse() {
       if (responseEnded) return;
       responseEnded = true;
+      _isStreaming = false;
       _sseSubscription?.cancel();
       _sseSubscription = null;
       if (!controller.isClosed) controller.close();
+      loadSessionInfo();
+      notifyListeners();
     }
 
     void appendReasoning(String reasoning, {String? messageId}) {
@@ -440,8 +732,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
           // Message metadata updates
           case MessageEvent e:
             final info = _extractMessageUpdateInfo(e.payload);
-            final messageId = info?['id'] as String?;
-            final role = info?['role'] as String?;
+            final rawId = info?['id'];
+            final messageId = rawId is String ? rawId : null;
+            final rawRole = info?['role'];
+            final role = rawRole is String ? rawRole : null;
             final timestamp = _parseTimestamp(info?['time'] ?? info?['created']);
 
             if (messageId != null && role != null) {
@@ -458,9 +752,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
             // Handle message.part.updated inside payload
             final partInfo = _extractPartInfo(e.payload);
             if (partInfo != null) {
-              final partId = partInfo['id'] as String?;
-              final partType = partInfo['type'] as String?;
-              final partMessageId = partInfo['messageID'] as String?;
+              final rawPartId = partInfo['id'];
+              final partId = rawPartId is String ? rawPartId : null;
+              final rawPartType = partInfo['type'];
+              final partType = rawPartType is String ? rawPartType : null;
+              final rawPartMsgId = partInfo['messageID'];
+              final partMessageId = rawPartMsgId is String ? rawPartMsgId : null;
               
               if (partId != null && partType != null) {
                 if (partMessageId != null) {
@@ -469,19 +766,6 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
                 if (partType == 'text') {
                   textPartIds.add(partId);
-                  // Processa texto de message.part.updated apenas se for da resposta do assistente
-                  final partText = partInfo['text'] as String?;
-                  if (partText != null && partText.isNotEmpty) {
-                    // Verifica se é mensagem do usuário (eco)
-                    final isUserMessage = partMessageId != null && partMessageId == _lastUserMessageId;
-                    if (isUserMessage) {
-                      debugPrint('[PAI_SSE] Ignoring user message echo: ${partText.substring(0, partText.length > 30 ? 30 : partText.length)}...');
-                    } else {
-                      debugPrint('[PAI_SSE] ✓ Text from assistant message.part.updated: ${partText.substring(0, partText.length > 50 ? 50 : partText.length)}...');
-                      controller.add(partText);
-                      debugPrint('[PAI_SSE] ✓ Added to controller, length: ${partText.length}');
-                    }
-                  }
                 } else if (partType == 'reasoning') {
                   reasoningPartIds.add(partId);
                   if (partMessageId != null) {
@@ -489,6 +773,32 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
                     _bindMessageId(partMessageId, MessageOrigin.llm);
                     _reasoningBuffers.putIfAbsent(partMessageId, () => StringBuffer());
                   }
+                } else if (partType == 'tool') {
+                  final toolName = partInfo['tool'] as String? ?? 'unknown';
+                  final callId = partInfo['callID'] as String? ?? partId;
+                  final stateMap = partInfo['state'] as Map<String, dynamic>?;
+                  final status = stateMap?['status'] as String?;
+                  final toolState = switch (status) {
+                    'completed' => ToolCallState.completed,
+                    'running' => ToolCallState.running,
+                    'error' || 'failed' => ToolCallState.error,
+                    _ => ToolCallState.pending,
+                  };
+                  final input = (stateMap?['input'] as Map<String, dynamic>?) ?? {};
+                  final existing = _toolCallBuffers[callId];
+                  if (existing != null) {
+                    existing.state = toolState;
+                    if (input.isNotEmpty) existing.input.addAll(input);
+                  } else {
+                    _toolCallBuffers[callId] = ToolCallPart(
+                      id: callId,
+                      name: toolName,
+                      state: toolState,
+                      input: Map<String, dynamic>.from(input),
+                      textInsertOffset: _streamedTextLength,
+                    );
+                  }
+                  notifyListeners();
                 }
               }
             }
@@ -496,11 +806,13 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
             // Handle message.part.delta inside payload
             final text = _extractMessagePartDelta(e.payload, textPartIds, reasoningPartIds);
             if (text != null && text.isNotEmpty) {
-              debugPrint('[PAI_SSE] ✓ Text delta extracted: ${text.substring(0, text.length > 50 ? 50 : text.length)}...');
-              controller.add(text);
-              debugPrint('[PAI_SSE] ✓ Added text delta to controller');
-            } else {
-              debugPrint('[PAI_SSE] ✗ No text delta extracted (textPartIds: ${textPartIds.length}, reasoningPartIds: ${reasoningPartIds.length})');
+              if (_awaitingContinuation) activeTextPath = null;
+              activeTextPath ??= false;
+              if (activeTextPath == false) {
+                _endContinuationWait();
+                controller.add(text);
+                _streamedTextLength += text.length;
+              }
             }
             
             final reasoning = _extractReasoningDelta(e.payload, reasoningPartIds);
@@ -515,18 +827,19 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
           // Text streaming
           case TextDeltaEvent e:
             if (e.delta.isNotEmpty) {
-              debugPrint('[PAI_SSE] ✓ TextDeltaEvent: ${e.delta.substring(0, e.delta.length > 50 ? 50 : e.delta.length)}...');
-              controller.add(e.delta);
-              debugPrint('[PAI_SSE] ✓ Added TextDeltaEvent to controller');
-            } else {
-              debugPrint('[PAI_SSE] ✗ TextDeltaEvent with empty delta');
+              if (_awaitingContinuation) activeTextPath = null;
+              activeTextPath ??= true;
+              if (activeTextPath == true) {
+                _endContinuationWait();
+                controller.add(e.delta);
+                _streamedTextLength += e.delta.length;
+              }
             }
             break;
 
           case TextEndedEvent _:
-            // Não fecha se há interações pendentes
-            if (_pendingQuestions.isNotEmpty || _pendingPermissions.isNotEmpty) {
-              debugPrint('[PAI_SSE] TextEnded but pending questions/permissions - keeping stream open');
+            if (_pendingQuestions.isNotEmpty || _pendingPermissions.isNotEmpty || _awaitingContinuation) {
+              debugPrint('[PAI_SSE] TextEnded but pending interactions or awaiting continuation - keeping stream open');
             } else {
               debugPrint('[PAI_SSE] TextEnded, no pending interactions - closing response stream');
               closeResponse();
@@ -551,6 +864,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
               id: e.callId,
               name: e.toolName,
               state: ToolCallState.pending,
+              textInsertOffset: _streamedTextLength,
             );
             notifyListeners();
             break;
@@ -566,6 +880,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
                 name: e.toolName,
                 state: ToolCallState.running,
                 input: e.input,
+                textInsertOffset: _streamedTextLength,
               );
             }
             notifyListeners();
@@ -582,6 +897,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
                 name: 'unknown',
                 state: ToolCallState.completed,
                 content: parseToolContent(e.content),
+                textInsertOffset: _streamedTextLength,
               );
             }
             notifyListeners();
@@ -598,6 +914,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
                 name: 'unknown',
                 state: ToolCallState.error,
                 errorMessage: e.errorMessage,
+                textInsertOffset: _streamedTextLength,
               );
             }
             notifyListeners();
@@ -605,29 +922,30 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
           // Shell commands
           case ShellStartedEvent e:
-            // Shell iniciado - armazena comando
             _shellBuffers[e.callId] = ShellPart(
               callId: e.callId,
               command: e.command,
               output: '',
+              textInsertOffset: _streamedTextLength,
             );
             notifyListeners();
             break;
 
           case ShellEndedEvent e:
-            // Shell finalizado - atualiza com output
             final shell = _shellBuffers[e.callId];
             if (shell != null) {
               _shellBuffers[e.callId] = ShellPart(
                 callId: e.callId,
                 command: shell.command,
                 output: e.output,
+                textInsertOffset: shell.textInsertOffset,
               );
             } else {
               _shellBuffers[e.callId] = ShellPart(
                 callId: e.callId,
                 command: '',
                 output: e.output,
+                textInsertOffset: _streamedTextLength,
               );
             }
             notifyListeners();
@@ -662,12 +980,24 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
           // Status events
           case StatusEvent e:
+            if (e.originalEvent == 'session.error') {
+              final props = e.payload['properties'] as Map<String, dynamic>?;
+              final errMsg = props?['error']?.toString() ?? 'Session error';
+              _lastError = errMsg;
+              _isStreaming = false;
+              notifyListeners();
+            }
+            if (e.originalEvent == 'todo.updated') {
+              loadTodos();
+            }
+            if (e.originalEvent == 'session.next.model.switched' ||
+                e.originalEvent == 'session.next.agent.switched') {
+              loadSessionInfo();
+            }
             final isIdle = _isIdleStatus(e.payload);
             if (isIdle && !responseEnded) {
-              // Não fecha se há interações pendentes (perguntas/permissions)
-              // O agente pode continuar após o usuário responder
-              if (_pendingQuestions.isNotEmpty || _pendingPermissions.isNotEmpty) {
-                debugPrint('[PAI_SSE] Status idle but pending questions/permissions exist - keeping stream open');
+              if (_pendingQuestions.isNotEmpty || _pendingPermissions.isNotEmpty || _awaitingContinuation) {
+                debugPrint('[PAI_SSE] Status idle but pending interactions or awaiting continuation - keeping stream open');
               } else {
                 debugPrint('[PAI_SSE] Status idle, no pending interactions - closing response stream');
                 closeResponse();
@@ -691,6 +1021,8 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
           case ErrorEvent e:
             debugPrint('[PAI_SSE] Error: ${e.message}');
+            _lastError = e.message ?? 'Unknown error';
+            notifyListeners();
             break;
 
           default:
@@ -954,12 +1286,18 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     if (props != null) {
       final part = props['part'] as Map?;
       if (part != null) {
-        return {
+        final result = <String, dynamic>{
           'id': part['id'],
           'type': part['type'],
           'text': part['text'],
           'messageID': part['messageID'] ?? part['messageId'],
         };
+        if (part['tool'] != null) result['tool'] = part['tool'];
+        if (part['callID'] != null) result['callID'] = part['callID'];
+        if (part['state'] is Map) {
+          result['state'] = Map<String, dynamic>.from(part['state'] as Map);
+        }
+        return result;
       }
     }
     
@@ -1056,16 +1394,90 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     notifyListeners();
   }
   
-  /// Recarrega histórico após question/permission para obter resposta completa.
-  void _reopenSSEForContinuation() {
-    debugPrint('[PAI_SSE] Reloading history after question/permission');
-    
-    // Recarrega o histórico da sessão para pegar a nova mensagem do agente
-    loadHistory().then((_) {
-      debugPrint('[PAI_SSE] History reloaded after question/permission');
-    }).catchError((e) {
-      debugPrint('[PAI_SSE] Failed to reload history: $e');
+  void _startContinuationWait() {
+    _awaitingContinuation = true;
+    _continuationTimer?.cancel();
+    _continuationTimer = Timer(const Duration(seconds: 30), () {
+      debugPrint('[PAI_SSE] Continuation wait timeout');
+      _awaitingContinuation = false;
     });
+  }
+
+  void _endContinuationWait() {
+    if (!_awaitingContinuation) return;
+    debugPrint('[PAI_SSE] Continuation received - ending wait');
+    _awaitingContinuation = false;
+    _continuationTimer?.cancel();
+    _continuationTimer = null;
+  }
+
+  Future<void> _persistAnsweredQuestions() async {
+    if (_currentSessionId == null) return;
+    final data = _answeredQuestions.map((k, v) => MapEntry(k, {
+      'answers': v.answers,
+      'msgId': v.associatedMessageId,
+      'offset': v.textInsertOffset,
+      'questions': v.request.questions.map((q) => {
+        'question': q.question,
+        'header': q.header,
+        'options': q.options.map((o) => {'label': o.label, 'description': o.description}).toList(),
+        'multiple': q.multiple,
+        'custom': q.custom,
+      }).toList(),
+      'sessionID': v.request.sessionID,
+    }));
+    await SecureStorageService.write(
+      'answered_$_currentSessionId',
+      jsonEncode(data),
+    );
+  }
+
+  Future<void> _loadPersistedAnsweredQuestions() async {
+    if (_currentSessionId == null) return;
+    final raw = await SecureStorageService.read('answered_$_currentSessionId');
+    if (raw == null) return;
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      for (final entry in map.entries) {
+        final v = entry.value as Map<String, dynamic>;
+        final questionsJson = v['questions'] as List<dynamic>? ?? [];
+        final questions = questionsJson.map((q) {
+          final qMap = q as Map<String, dynamic>;
+          final optionsJson = qMap['options'] as List<dynamic>? ?? [];
+          return QuestionInfo(
+            question: qMap['question'] as String? ?? '',
+            header: qMap['header'] as String? ?? '',
+            options: optionsJson.map((o) {
+              final oMap = o as Map<String, dynamic>;
+              return QuestionOption(
+                label: oMap['label'] as String? ?? '',
+                description: oMap['description'] as String? ?? '',
+              );
+            }).toList(),
+            multiple: qMap['multiple'] as bool? ?? false,
+            custom: qMap['custom'] as bool? ?? false,
+          );
+        }).toList();
+
+        final answersRaw = v['answers'] as List<dynamic>? ?? [];
+        final answers = answersRaw
+            .map((a) => (a as List<dynamic>).cast<String>())
+            .toList();
+
+        _answeredQuestions[entry.key] = AnsweredQuestionData(
+          request: QuestionRequest(
+            id: entry.key,
+            sessionID: v['sessionID'] as String? ?? '',
+            questions: questions,
+          ),
+          answers: answers,
+          associatedMessageId: v['msgId'] as String?,
+          textInsertOffset: v['offset'] as int? ?? 0,
+        );
+      }
+    } catch (e) {
+      debugPrint('[PAI_SSE] Failed to load persisted answered questions: $e');
+    }
   }
 
   /// Reidrata o histórico depois de queda/reconexão do SSE.
@@ -1098,6 +1510,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     _connectivity.removeListener(_onConnectionStateChanged);
     _connectivity.dispose();
     _sseSubscription?.cancel();
+    _continuationTimer?.cancel();
     client.unsubscribe();
     super.dispose();
   }
