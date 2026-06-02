@@ -55,4 +55,17 @@ class SecureStorageService {
         credentials['username'] != null &&
         credentials['password'] != null;
   }
+
+  /// Leitura/escrita genérica para dados auxiliares (ex: question answers).
+  static Future<void> write(String key, String value) async {
+    await _storage.write(key: key, value: value);
+  }
+
+  static Future<String?> read(String key) async {
+    return _storage.read(key: key);
+  }
+
+  static Future<void> delete(String key) async {
+    await _storage.delete(key: key);
+  }
 }

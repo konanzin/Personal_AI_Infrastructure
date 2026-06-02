@@ -94,20 +94,50 @@ class CodeBlockWidget extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(12),
               ),
-              child: HighlightView(
-                code.trimRight(),
-                language: language.isNotEmpty ? language : 'plaintext',
-                theme: atomOneDarkTheme,
-                padding: EdgeInsets.zero,
-                textStyle: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
+              child: _buildHighlightView(),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static const _maxHighlightLength = 5000;
+
+  Widget _buildHighlightView() {
+    final trimmed = code.trimRight();
+
+    if (trimmed.length > _maxHighlightLength) {
+      return _plainText(trimmed);
+    }
+
+    try {
+      final widget = HighlightView(
+        trimmed,
+        language: language.isNotEmpty ? language : 'plaintext',
+        theme: atomOneDarkTheme,
+        padding: EdgeInsets.zero,
+        textStyle: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 13,
+          height: 1.5,
+        ),
+      );
+
+      return widget;
+    } catch (_) {
+      return _plainText(trimmed);
+    }
+  }
+
+  static Widget _plainText(String text) {
+    return SelectableText(
+      text,
+      style: const TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 13,
+        height: 1.5,
+        color: Color(0xffabb2bf),
       ),
     );
   }
@@ -122,3 +152,4 @@ class CodeBlockWidget extends StatelessWidget {
     );
   }
 }
+

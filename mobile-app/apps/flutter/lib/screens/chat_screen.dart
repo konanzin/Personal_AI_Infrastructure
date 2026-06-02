@@ -16,8 +16,7 @@ import '../widgets/date_header.dart';
 import '../widgets/permission_card.dart';
 import '../widgets/question_card.dart';
 import '../widgets/reasoning_message_bubble.dart';
-import '../widgets/shell_command_bubble.dart';
-import '../widgets/tool_call_bubble.dart';
+import '../models/message_part.dart';
 import '../widgets/voice_fab.dart';
 
 // ── Chat list item helper ────────────────────────────────────────────────
@@ -178,6 +177,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.clear();
     FocusScope.of(context).unfocus();
 
+    // Handle slash commands
+    if (_handleSlashCommand(text)) return;
+
     if (_provider!.currentSessionId == null) {
       try {
         await _provider!.createSession();
@@ -226,6 +228,281 @@ class _ChatScreenState extends State<ChatScreen> {
     await _sendMessage();
   }
 
+  // ── Menu actions ────────────────────────────────────────────────────────
+
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'model':
+        _showModelPicker();
+      case 'todos':
+        _showTodosDialog();
+      case 'share':
+        _shareSession();
+      case 'info':
+        _showSessionInfo();
+    }
+  }
+
+  Future<void> _showModelPicker() async {
+    if (_provider == null) return;
+    try {
+      final providers = await _provider!.client.getProviders();
+      if (!mounted) return;
+
+      final allRaw = providers['all'];
+      final allList = allRaw is List ? allRaw : <dynamic>[];
+      final models = <Map<String, String>>[];
+      for (final prov in allList) {
+        if (prov is! Map) continue;
+        final provId = prov['id']?.toString() ?? '';
+        final provModels = prov['models'] as Map<String, dynamic>? ?? {};
+        for (final mId in provModels.keys) {
+          models.add({'providerID': provId, 'modelID': mId});
+        }
+      }
+
+      if (models.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No models available')),
+          );
+        }
+        return;
+      }
+
+      final current = _provider!.modelOverride;
+
+      await showModalBottomSheet(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Select Model',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+              ),
+              ListTile(
+                leading: const Icon(Icons.auto_awesome),
+                title: const Text('Default (server)'),
+                trailing: current == null ? const Icon(Icons.check) : null,
+                onTap: () {
+                  _provider!.modelOverride = null;
+                  Navigator.pop(ctx);
+                },
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: models.length,
+                  itemBuilder: (_, i) {
+                    final m = models[i];
+                    final isSelected = current != null &&
+                        current['providerID'] == m['providerID'] &&
+                        current['modelID'] == m['modelID'];
+                    return ListTile(
+                      title: Text(m['modelID']!),
+                      subtitle: Text(m['providerID']!),
+                      trailing: isSelected ? const Icon(Icons.check) : null,
+                      onTap: () {
+                        _provider!.modelOverride = m;
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load models: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showTodosDialog() async {
+    if (_provider == null) return;
+    await _provider!.loadTodos();
+    if (!mounted) return;
+    final todos = _provider!.todos;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Session Todos',
+                  style: Theme.of(ctx).textTheme.titleMedium),
+            ),
+            if (todos.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Text('No todos in this session'),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: todos.length,
+                  itemBuilder: (_, i) {
+                    final todo = todos[i];
+                    final content = todo['content'] as String? ?? '';
+                    final status = todo['status'] as String? ?? 'pending';
+                    return ListTile(
+                      leading: Icon(
+                        status == 'completed' ? Icons.check_circle
+                            : status == 'in_progress' ? Icons.play_circle
+                            : Icons.circle_outlined,
+                        color: status == 'completed' ? Colors.green
+                            : status == 'in_progress' ? Colors.orange
+                            : null,
+                      ),
+                      title: Text(content),
+                      subtitle: Text(status),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _shareSession() async {
+    if (_provider == null) return;
+    final share = await _provider!.shareSession();
+    if (mounted) {
+      if (share != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Share link: $share')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Share created (check session info)')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showSessionInfo() async {
+    if (_provider == null) return;
+    await _provider!.loadSessionInfo();
+    if (!mounted) return;
+
+    final info = _provider!.sessionInfo;
+    if (info == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No session info available')),
+      );
+      return;
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Session Info', style: Theme.of(ctx).textTheme.titleMedium),
+              const Divider(),
+              _infoRow('Model', _formatModel(info)),
+              _infoRow('Agent', info['agent'] ?? 'default'),
+              if (info['cost'] != null) _infoRow('Cost', '\$${info['cost']}'),
+              if (info['tokens'] != null) _infoRow('Tokens', _formatTokens(info['tokens'])),
+              if (info['share'] != null) _infoRow('Share', '${info['share']}'),
+              _infoRow('ID', info['id'] ?? '-'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatModel(Map<String, dynamic> info) {
+    final m = info['model'];
+    if (m is Map) return '${m['id'] ?? '?'} (${m['providerID'] ?? '?'})';
+    return info['modelID']?.toString() ?? 'default';
+  }
+
+  String _formatTokens(dynamic tokens) {
+    if (tokens is Map) {
+      final input = tokens['input'] ?? 0;
+      final output = tokens['output'] ?? 0;
+      final reasoning = tokens['reasoning'] ?? 0;
+      final cache = tokens['cache'];
+      final cacheRead = cache is Map ? (cache['read'] ?? 0) : 0;
+      final parts = <String>['in: $input', 'out: $output'];
+      if (reasoning != 0) parts.add('reason: $reasoning');
+      if (cacheRead != 0) parts.add('cache: $cacheRead');
+      return parts.join(', ');
+    }
+    return '$tokens';
+  }
+
+  Widget _infoRow(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: Text('$value', style: const TextStyle(fontFamily: 'monospace')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Handles slash commands typed in the input (e.g. /compact, /model).
+  bool _handleSlashCommand(String text) {
+    if (!text.startsWith('/') || _provider == null || _provider!.currentSessionId == null) {
+      return false;
+    }
+    final parts = text.split(RegExp(r'\s+'));
+    final command = parts[0].substring(1);
+    final args = parts.length > 1 ? parts.sublist(1).join(' ') : null;
+
+    _provider!.client.executeCommand(
+      _provider!.currentSessionId!,
+      command,
+      arguments: args,
+    ).then((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Command /$command executed')),
+        );
+      }
+    }).catchError((e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Command failed: $e')),
+        );
+      }
+    });
+
+    return true;
+  }
+
   // ── Date-grouped chat list helpers ───────────────────────────────────────
 
   /// Builds the flat list of [_ChatListItem] with date headers inserted.
@@ -265,9 +542,41 @@ class _ChatScreenState extends State<ChatScreen> {
         ? sessionProvider.findSession(sessionProvider.currentSessionId!)
         : null;
 
+    // Session info subtitle
+    String? subtitle;
+    if (_provider != null) {
+      final info = _provider!.sessionInfo;
+      if (info != null) {
+        final rawModel = info['model'];
+      final model = info['modelID'] as String?
+          ?? (rawModel is Map ? rawModel['id']?.toString() : rawModel?.toString());
+        if (model != null) subtitle = model;
+      }
+      final override = _provider!.modelOverride;
+      if (override != null) {
+        subtitle = '${override['modelID'] ?? ''} (override)';
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(currentSession?.displayName ?? 'PAI Chat'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              currentSession?.displayName ?? 'PAI Chat',
+              style: const TextStyle(fontSize: 16),
+            ),
+            if (subtitle != null)
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -278,13 +587,54 @@ class _ChatScreenState extends State<ChatScreen> {
             AnimatedBuilder(
               animation: _provider!,
               builder: (context, child) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: ConnectionStatusIndicator(
-                    state: _provider!.connectionState,
-                    onReconnect: () => _provider?.reconnect(),
-                    compact: true,
-                  ),
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConnectionStatusIndicator(
+                      state: _provider!.connectionState,
+                      onReconnect: () => _provider?.reconnect(),
+                      compact: true,
+                    ),
+                    const SizedBox(width: 4),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: (value) => _handleMenuAction(value),
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'model',
+                          child: ListTile(
+                            leading: Icon(Icons.auto_awesome),
+                            title: Text('Change Model'),
+                            dense: true, contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'todos',
+                          child: ListTile(
+                            leading: Icon(Icons.checklist),
+                            title: Text('View Todos'),
+                            dense: true, contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'share',
+                          child: ListTile(
+                            leading: Icon(Icons.share),
+                            title: Text('Share Session'),
+                            dense: true, contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'info',
+                          child: ListTile(
+                            leading: Icon(Icons.info_outline),
+                            title: Text('Session Info'),
+                            dense: true, contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 );
               },
             ),
@@ -353,9 +703,25 @@ class _ChatScreenState extends State<ChatScreen> {
         final chatItems = _buildChatItems();
         final pendingPerms = _provider!.pendingPermissions.values.toList();
         final pendingQs = _provider!.pendingQuestions.values.toList();
+        final lastError = _provider!.lastError;
+        final isStreaming = _provider!.isStreaming;
 
         return Column(
           children: [
+            // Error banner
+            if (lastError != null)
+              MaterialBanner(
+                content: Text(lastError, maxLines: 2, overflow: TextOverflow.ellipsis),
+                leading: Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                actions: [
+                  TextButton(
+                    onPressed: () => _provider!.clearError(),
+                    child: const Text('Dismiss'),
+                  ),
+                ],
+              ),
+
             // Messages
             Expanded(
               child: ListView.builder(
@@ -401,6 +767,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
 
+            // Stop button (visible during streaming)
+            if (isStreaming)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: TextButton.icon(
+                  onPressed: () => _provider!.abortSession(),
+                  icon: const Icon(Icons.stop_circle_outlined, size: 20),
+                  label: const Text('Stop'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+
             // Input
             _buildInput(),
           ],
@@ -437,11 +817,60 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         child: GestureDetector(
           onLongPress: () {
-            Clipboard.setData(ClipboardData(text: message.text ?? ''));
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Message copied'),
-                duration: Duration(seconds: 2),
+            final messageId = _provider?.getMessageIdAt(index);
+            showModalBottomSheet(
+              context: context,
+              builder: (ctx) => SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.copy),
+                      title: const Text('Copy'),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: message.text ?? ''));
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
+                        );
+                      },
+                    ),
+                    if (!isUser && messageId != null) ...[
+                      ListTile(
+                        leading: const Icon(Icons.undo),
+                        title: const Text('Revert changes'),
+                        subtitle: const Text('Undo file changes from this message'),
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          final ok = await _provider!.revertMessage(messageId);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(ok ? 'Reverted' : 'Revert failed')),
+                            );
+                          }
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.fork_right),
+                        title: const Text('Fork from here'),
+                        subtitle: const Text('Branch into a new session'),
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          final newId = await _provider!.forkSession(messageId);
+                          if (newId != null && mounted) {
+                            await context.read<SessionProvider>().selectSession(newId);
+                            if (mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ChatScreen()),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ],
+                ),
               ),
             );
           },
@@ -468,8 +897,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       )
                     : MarkdownBody(
-                        key: ValueKey('md-${message.text?.hashCode ?? 0}'),
-                        data: message.text ?? '',
+                        key: ValueKey('md-${_buildDisplayText(message, index).hashCode}'),
+                        data: _buildDisplayText(message, index),
                         builders: {
                           'pre': _CodeBlockBuilder(),
                         },
@@ -558,13 +987,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   },
                 ),
               
-              // Tool call bubbles for assistant messages
-              if (!isUser && _provider != null)
-                ..._buildToolCallBubbles(index),
-              
-              // Shell command bubbles for assistant messages
-              if (!isUser && _provider != null)
-                ..._buildShellCommandBubbles(index),
+              // Tool calls and shell commands are rendered inline via _buildDisplayText
             ],
           ),
         ),
@@ -574,28 +997,71 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Builds tool call bubbles for a message at the given index.
   /// Returns an empty list if no tool calls are associated.
-  List<Widget> _buildToolCallBubbles(int messageIndex) {
-    final messageId = _provider!.getMessageIdAt(messageIndex);
-    if (messageId == null) return const [];
-    
-    final toolCalls = _provider!.getToolCallsForMessage(messageId);
-    if (toolCalls.isEmpty) return const [];
-    
-    return toolCalls.map((toolCall) => ToolCallBubble(toolCall: toolCall)).toList();
+  static const _qaHiddenTools = {'question', 'ask', 'todowrite'};
+
+  String _buildDisplayText(ChatMessage message, int index) {
+    final text = message.text ?? '';
+    if (message.origin != MessageOrigin.llm || _provider == null) return text;
+
+    final messageId = _provider!.getMessageIdAt(index);
+    if (messageId == null) return text;
+
+    // Collect all inline inserts: (offset, formattedBlock, chronologicalOrder)
+    final inserts = <(int, String, int)>[];
+    int seq = 0;
+
+    // Answered questions
+    for (final aq in _provider!.getAnsweredQuestionsForMessage(messageId)) {
+      final q = aq.request.questions
+          .map((q) => q.question).where((q) => q.isNotEmpty).join(' / ');
+      final a = aq.answers
+          .where((a) => a.isNotEmpty).map((a) => a.join(', ')).join(' | ');
+      inserts.add((aq.textInsertOffset, '\n\n`$q`\n`> $a`\n\n', seq++));
+    }
+
+    // Tool calls (excluding question-related tools)
+    for (final tc in _provider!.getToolCallsForMessage(messageId)) {
+      if (_qaHiddenTools.contains(tc.name.toLowerCase())) continue;
+      final status = switch (tc.state) {
+        ToolCallState.pending => '\u23f3',
+        ToolCallState.running => '\u23f3',
+        ToolCallState.completed => '\u2713',
+        ToolCallState.error => '\u2717 ${tc.errorMessage ?? '?'}',
+      };
+      final cmd = tc.input['command'] as String? ??
+          tc.input['description'] as String?;
+      final label = cmd != null
+          ? '\$ ${cmd.length > 50 ? '${cmd.substring(0, 47)}...' : cmd}'
+          : tc.name;
+      inserts.add((tc.textInsertOffset, '\n\n`$label $status`\n\n', seq++));
+    }
+
+    // Shell commands
+    for (final sh in _provider!.getShellCommandsForMessage(messageId)) {
+      final cmd = sh.command.length > 60
+          ? '${sh.command.substring(0, 57)}...' : sh.command;
+      inserts.add((sh.textInsertOffset, '\n\n`\$ $cmd \u2713`\n\n', seq++));
+    }
+
+    if (inserts.isEmpty) return text;
+
+    // Sort descending by offset (insert from end to start).
+    // For equal offsets, sort descending by seq so the earliest item
+    // is inserted last and ends up on top (chronological order).
+    inserts.sort((a, b) {
+      final cmp = b.$1.compareTo(a.$1);
+      if (cmp != 0) return cmp;
+      return b.$3.compareTo(a.$3);
+    });
+    var result = text;
+    for (final (offset, block, _) in inserts) {
+      final pos = offset.clamp(0, result.length);
+      result = result.substring(0, pos) + block + result.substring(pos);
+    }
+    return result;
   }
 
   /// Builds shell command bubbles for a message at the given index.
-  /// Returns an empty list if no shell commands are associated.
-  List<Widget> _buildShellCommandBubbles(int messageIndex) {
-    final messageId = _provider!.getMessageIdAt(messageIndex);
-    if (messageId == null) return const [];
-    
-    final shells = _provider!.getShellCommandsForMessage(messageId);
-    if (shells.isEmpty) return const [];
-    
-    return shells.map((shell) => ShellCommandBubble(shell: shell)).toList();
-  }
-
   String _formatTime(DateTime time) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);

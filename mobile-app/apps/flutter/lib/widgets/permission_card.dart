@@ -113,29 +113,24 @@ class PermissionCard extends StatelessWidget {
 
             // Action buttons row
             Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => onReply(PermissionReply.once),
-                    child: const Text('Allow Once'),
+                TextButton(
+                  onPressed: () => onReply(PermissionReply.reject),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
                   ),
+                  child: const Text('Deny'),
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => onReply(PermissionReply.always),
-                    child: const Text('Always'),
-                  ),
+                OutlinedButton(
+                  onPressed: () => onReply(PermissionReply.once),
+                  child: const Text('Once'),
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: TextButton(
-                    onPressed: () => onReply(PermissionReply.reject),
-                    style: TextButton.styleFrom(
-                      foregroundColor: theme.colorScheme.error,
-                    ),
-                    child: const Text('Deny'),
-                  ),
+                FilledButton(
+                  onPressed: () => onReply(PermissionReply.always),
+                  child: const Text('Always'),
                 ),
               ],
             ),
