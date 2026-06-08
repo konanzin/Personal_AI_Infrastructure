@@ -8,7 +8,6 @@ import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
 import '../models/chat_event.dart';
 import '../models/file_change.dart';
 import '../models/message_part.dart';
-import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding, WidgetsBindingObserver;
 
 import '../services/api_errors.dart';
 import '../services/notification_service.dart';
