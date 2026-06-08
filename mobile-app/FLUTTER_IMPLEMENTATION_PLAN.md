@@ -1,105 +1,121 @@
-# PAI Mobile Flutter — Plano de Implementação Oficial
+# PAI Mobile Flutter - Implementation Status
 
-> **Status:** Pre-alpha spine funcional, Flutter canônico  
-> **Stack:** Flutter + Dart native HTTP streaming + `flutter_ai_toolkit`  
-> **Plataforma-alvo:** Android (`a51`) via Tailscale  
-> **Atualizado:** 2026-05-30
+> Status: functional pre-alpha. Local gates are clean; core live Android smoke passed via ADB reverse. Full alpha still depends on the remaining live flows.
 
-## 1. Contexto
+## Scope
 
-O experimento Flutter virou o trilho canônico porque Dart native `http` streaming removeu a classe inteira de bugs SSE que apareceu no React Native/Expo: polyfills, `XMLHttpRequest`, handshakes instáveis e diferenças Hermes/Android. A implementação ativa vive em `mobile-app/apps/flutter`.
+The active implementation lives in `mobile-app/apps/flutter`. The target platform is Android `a51`, normally over Tailscale; ADB reverse is the local USB smoke path.
 
-React Native/Expo agora é histórico. A próxima energia vai para endurecer o app Flutter, não para manter duas stacks.
+## Implemented
 
-## 2. Estado Atual
+### Settings And Security
 
-### 2.1 Configurações e Segurança
+- [x] Settings screen with server URL, username, and password.
+- [x] `flutter_secure_storage` for credentials.
+- [x] Real connection validation against `/global/health` before saving.
+- [x] No user/password/Basic Auth header logs.
+- [x] Tailscale/MagicDNS guidance text.
+- [ ] Dedicated helper to fill/normalize `http://<host>:4096`.
 
-- [x] Tela de settings com URL do servidor, usuário e senha
-- [x] `flutter_secure_storage` para credenciais
-- [x] Validação real de conexão em `/global/health` antes de salvar
-- [x] Remoção de logs de usuário/senha/header Basic Auth
-- [x] Helper de Tailscale para preencher `http://<host>:4096`
-- [x] Texto explicando que `a51` é cliente Android, não servidor
+### Sessions
 
-### 2.2 Gerenciamento de Sessões
+- [x] List OpenCode sessions.
+- [x] Open existing sessions.
+- [x] Create sessions.
+- [x] Rename/delete sessions.
+- [x] Active session badge/title in the app bar.
+- [x] Local active-session persistence with `shared_preferences`.
 
-- [x] Lista de sessões do OpenCode Server
-- [x] Abrir sessão existente
-- [x] Criar nova sessão
-- [x] Renomear/excluir sessão
-- [x] Badge/título da sessão ativa no app bar
-- [x] Persistência local da sessão ativa com `shared_preferences`
+### Chat, SSE, And Reasoning
 
-### 2.3 Chat, SSE e Reasoning
+- [x] History through `flutter_ai_toolkit`.
+- [x] Assistant messages render in normal flow without a full assistant bubble.
+- [x] User messages render as bubbles.
+- [x] Markdown rendering through `flutter_markdown_plus`.
+- [x] SSE via Dart native `http` streaming.
+- [x] SSE filtering by active session when `sessionID` is present.
+- [x] Visible text deltas from `session.next.text.delta`.
+- [x] Reasoning deltas from `session.next.reasoning.delta`.
+- [x] Alternative `message.part.delta` paths filtered by part type.
+- [x] Reasoning associated by message ID/history index.
+- [x] Inline expandable reasoning below the assistant message.
+- [x] Code blocks with syntax highlighting and copy button.
+- [x] Date headers in the timeline.
+- [x] History rehydration after reconnect.
+- [ ] Pull-to-refresh in chat history.
+- [x] Real device smoke for text streaming and history rehydration.
+- [ ] Real device test for interruption/reconnect.
 
-- [x] Histórico de mensagens via `flutter_ai_toolkit`
-- [x] Renderização básica de Markdown
-- [x] SSE via Dart native `http` streaming
-- [x] Filtro de eventos SSE por sessão ativa quando `sessionID` está presente
-- [x] Deltas de texto visível (`session.next.text.delta`)
-- [x] Deltas de reasoning (`session.next.reasoning.delta`)
-- [x] Deltas alternativos por `message.part.delta` filtrados por tipo de part
-- [x] Reasoning associado por message ID / índice do histórico
-- [x] Reidratação do histórico após queda/reconexão SSE
-- [ ] Pull-to-refresh no histórico
-- [ ] Teste real em dispositivo de interrupção/reconexão
+### Tooling, Permissions, And Questions
 
-### 2.4 Voice-First Loop
+- [x] Typed SSE event models in `models/chat_event.dart`.
+- [x] `ToolCallPart` and `ShellPart` in `models/message_part.dart`.
+- [x] Provider parses `session.next.tool.*`.
+- [x] Provider parses `session.next.shell.*`.
+- [x] Provider parses `permission.asked/replied`.
+- [x] Provider parses `question.asked/replied/rejected`.
+- [x] `PermissionCard` renders pending requests with `Deny`, `Once`, `Always`.
+- [x] `QuestionCard` renders radio/checkbox/custom text.
+- [x] Answered questions appear inline in the assistant text.
+- [x] Tool calls are associated by owning assistant `messageID`.
+- [x] Shell commands are associated by owning assistant `messageID`.
+- [x] `ToolCallBubble` is integrated into the main timeline.
+- [x] `ShellCommandBubble` is integrated into the main timeline.
+- [x] Live `a51` smoke verifies rich `bash` tool rendering against OpenCode.
+- [ ] Live `a51` smoke verifies native `session.next.shell.*` rendering if emitted by the current server.
 
-- [x] Bridge nativa Android com `SpeechRecognizer`
-- [x] Botão de voz com estados visuais: idle/listening/processing/error
-- [x] Transcrição final enviada ao chat como mensagem normal
-- [x] TTS removido desta etapa
-- [ ] Revisão explícita da transcrição antes do envio
-- [ ] Smoke test real de microfone no `a51`
+### Voice
 
-### 2.5 Tema
+- [x] Native Android bridge with `SpeechRecognizer`.
+- [x] Voice button states: idle/listening/processing/error.
+- [x] Final transcript sent to chat as a normal message.
+- [x] TTS is out of scope.
+- [ ] Optional transcript review before send.
+- [ ] Real microphone smoke test on `a51`.
 
-- [ ] Toggle claro/escuro persistente — **deferido para próxima etapa**
-- [ ] Material 3 com seed color do PAI (#3B82F6) — **deferido**
-- [ ] Sistema segue preferência do sistema — **deferido**
+### Resilience
 
-### 2.6 Resiliência
+- [x] Visual connection-state indicator.
+- [x] Manual reconnect rehydrates active session.
+- [x] SSE disconnect/error schedules rehydration with backoff.
+- [x] Active session cached locally.
+- [x] Reopening a live `a51` session rehydrates the streamed text and `bash` tool block.
+- [ ] Recovery validation after background/foreground.
+- [ ] Real network test over Tailscale online/offline transitions.
 
-- [x] Indicador visual de estado da conexão
-- [x] Reconexão manual reidrata sessão ativa
-- [x] SSE disconnect/error agenda reidratação com backoff
-- [x] Cache local da sessão ativa
-- [ ] Recuperação ao voltar do background
-- [ ] Teste de rede real com Tailscale alternando online/offline
-
-### 2.7 Notificações
-
-- [ ] Push para `question.asked` — futuro
-- [ ] Push para `permission.needed` — futuro
-- [ ] Push para sessão completa — futuro
-- [ ] Deep link para sessão específica — futuro
-
-## 3. Arquitetura Atual
+## Architecture
 
 ```text
 apps/flutter/lib/
-  main.dart                         — providers globais e entry point
+  main.dart
   models/
-    event.dart                      — OpenCodeEvent normalizado
+    chat_event.dart
+    event.dart
+    message_part.dart
   services/
-    opencode_client.dart            — REST + SSE + Basic Auth
-    secure_storage.dart             — credenciais no secure storage
-    connectivity_service.dart       — status/backoff/heartbeat
-    voice_service.dart              — STT Android via MethodChannel
+    opencode_client.dart
+    secure_storage.dart
+    connectivity_service.dart
+    voice_service.dart
   providers/
-    settings_provider.dart          — settings + validação real
-    session_provider.dart           — sessões + sessão ativa persistida
-    opencode_provider.dart          — LlmProvider, SSE, history, reasoning
+    settings_provider.dart
+    session_provider.dart
+    opencode_provider.dart
   screens/
-    settings_screen.dart            — URL/auth/Tailscale
-    sessions_screen.dart            — lista e ações de sessão
-    chat_screen.dart                — chat, reasoning modal, voice input
+    settings_screen.dart
+    sessions_screen.dart
+    chat_screen.dart
+    events_screen.dart
   widgets/
+    code_block_widget.dart
     connection_status_indicator.dart
-    voice_fab.dart                  — botão STT-only
-    reasoning_message_bubble.dart   — widget auxiliar legado/não principal
+    date_header.dart
+    permission_card.dart
+    question_card.dart
+    reasoning_message_bubble.dart
+    tool_call_bubble.dart
+    shell_command_bubble.dart
+    voice_fab.dart
 ```
 
 Android bridge:
@@ -108,34 +124,21 @@ Android bridge:
 apps/flutter/android/app/src/main/kotlin/com/example/pai_mobile_flutter/MainActivity.kt
 ```
 
-## 4. Decisões Técnicas
+## How To Run
 
-| Decisão | Justificativa |
-|---------|---------------|
-| Flutter canônico | Streaming SSE nativo no Dart foi mais confiável que RN/Expo |
-| `http` nativo | Sem polyfills; `Stream` é first-class |
-| `flutter_secure_storage` | Credenciais no Keystore Android |
-| `shared_preferences` | Cache simples da sessão ativa |
-| `SpeechRecognizer` Android | STT local/plataforma sem introduzir TTS |
-| Tailscale | Acesso privado ao OpenCode Server sem expor serviço publicamente |
-| Sem TTS nesta etapa | Reduz complexidade; valida primeiro o loop texto/STT |
-| Tema deferido | Evita misturar polish visual com estabilidade de runtime |
-
-## 5. Como Rodar
-
-No host que executa OpenCode:
+On the OpenCode host:
 
 ```bash
-OPENCODE_SERVER_PASSWORD='<senha>' opencode serve --hostname 0.0.0.0 --port 4096
+OPENCODE_SERVER_PASSWORD='<password>' opencode serve --hostname 0.0.0.0 --port 4096
 ```
 
-No app, configure:
+In the Flutter app, configure:
 
 ```text
-http://<ip-ou-magicdns-do-servidor-tailscale>:4096
+http://<server-tailscale-ip-or-magicdns>:4096
 ```
 
-No workspace Flutter:
+In the Flutter workspace:
 
 ```bash
 cd mobile-app/apps/flutter
@@ -145,36 +148,37 @@ flutter test
 flutter run
 ```
 
-## 6. Critérios de Alpha
+## Alpha Criteria
 
-- [x] App conecta ao OpenCode Server via configuração validada
-- [x] Autentica com sucesso contra `/global/health`
-- [x] Lista e abre sessões
-- [x] Cria, renomeia e exclui sessões
-- [x] Persiste a sessão ativa
-- [x] Envia/recebe mensagens via SSE
-- [x] Permite ver reasoning opcionalmente por mensagem
-- [x] Voice input STT envia transcrição ao chat
-- [x] TTS não é inicializado nem chamado
-- [ ] Sobrevive a interrupções reais de rede/background
-- [ ] `flutter analyze` limpo
-- [ ] `flutter test` limpo
-- [ ] Smoke test no `a51` via Tailscale
+- [x] App connects to OpenCode Server through validated settings.
+- [x] Auth validates against `/global/health`.
+- [x] Sessions can be listed/opened/created/renamed/deleted.
+- [x] Active session persists.
+- [x] Messages stream over SSE.
+- [x] Reasoning can be viewed per message.
+- [x] STT sends transcript to chat.
+- [x] TTS is not initialized or called.
+- [x] Permission/question cards work in provider/UI.
+- [x] Tool/shell render as rich timeline blocks.
+- [x] Tool/shell are associated by message ID.
+- [x] `flutter analyze` passes.
+- [x] `flutter test` passes.
+- [x] Core `a51` smoke via ADB reverse validates connection, text streaming, Kimi `k2p6`, rich `bash` tool rendering, and history rehydration.
+- [ ] Survives real network/background interruptions.
+- [ ] Remaining live smoke on `a51`: STT, permission/question continuation, native shell event if emitted, reconnect/background, and attachment picker/send.
 
-## 7. Próximas Etapas
+## Next Steps
 
-1. Instalar/disponibilizar Flutter/Dart CLI neste ambiente.
-2. Rodar `flutter pub get`, `flutter analyze`, `flutter test`.
-3. Corrigir erros estáticos que aparecerem.
-4. Subir OpenCode com `--hostname 0.0.0.0 --port 4096`.
-5. Validar no `a51` com Tailscale.
-6. Testar queda/reconexão e reidratação.
-7. Implementar revisão opcional da transcrição antes do envio, se desejado.
-8. Só depois iniciar etapa de tema/polish.
+1. Smoke-test STT microphone on `a51`.
+2. Validate permission/question continuation on `a51`.
+3. Test network drop/reconnect and background/foreground behavior.
+4. Validate native shell-event rendering if the current OpenCode server emits `session.next.shell.*`.
+5. Validate or remove the primary attachment picker/send UI.
 
-## 8. Histórico
+## History
 
-- 2026-05-28: Documento criado após validação do experimento Flutter.
-- 2026-05-28: Reasoning dropdown adicionado ao plano.
-- 2026-05-30: Flutter promovido a trilho canônico; RN/Expo marcado como legado.
-- 2026-05-30: Tailscale, sessão ativa persistida, SSE por sessão, reasoning estável e STT-only documentados.
+- 2026-05-28: Document created after initial Flutter validation.
+- 2026-05-30: Flutter promoted to the canonical mobile track.
+- 2026-06-07: Documentation cleanup removed obsolete mobile paths.
+- 2026-06-08: Local gates are clean; rich tool/shell timeline and message-level association are implemented.
+- 2026-06-08: Core `a51` smoke via ADB reverse passed for connection, text streaming, Kimi `k2p6`, rich `bash` tool rendering, and history rehydration.

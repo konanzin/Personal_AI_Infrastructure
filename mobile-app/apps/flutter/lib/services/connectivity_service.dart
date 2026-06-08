@@ -131,7 +131,7 @@ class ConnectivityService {
   
   /// Calcula delay de retry com backoff exponencial + jitter
   Duration _calculateRetryDelay() {
-    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
+    // Retry backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
     final exponential = baseRetryDelay * pow(2, _retryCount);
     final clamped = exponential > maxRetryDelay ? maxRetryDelay : exponential;
     

@@ -1,100 +1,117 @@
 # Guia de Testes - PAI Mobile Client
 
+> Atualizado em 2026-06-08. `flutter analyze` e `flutter test` passam localmente. O smoke core no Android `a51` passou via ADB reverse; este guia cobre repetição e os fluxos live restantes.
+
 ## Pré-requisitos
 
-- Servidor opencode rodando: `opencode serve` (porta 4096)
-- Tunnel ADB ativo: `adb reverse tcp:4096 tcp:4096`
-- App instalado no device
+- Servidor OpenCode rodando: `opencode serve --hostname 0.0.0.0 --port 4096` para Tailscale, ou `opencode serve` com ADB reverse.
+- Se usar ADB local: `adb reverse tcp:4096 tcp:4096`.
+- App instalado no device.
 
----
+Se o build Android falhar usando Java 26, rode o build com Java 17 nesta máquina:
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+export PATH="$JAVA_HOME/bin:$PATH"
+flutter build apk --debug
+```
+
+## Último Smoke Live Registrado
+
+- Device: `a51` / SM-A515F, Android 13.
+- Transporte: `adb reverse tcp:4096 tcp:4096`.
+- Servidor: OpenCode `1.16.2`.
+- Modelo: `kimi-for-coding/k2p6`.
+- Prompt: `Run pwd using shell and reply DONE2`.
+- Resultado: resposta `DONE2`, rich block `bash`, reidratação após reabrir sessão e nenhum timeout/erro de envio no logcat.
 
 ## 1. Envio de mensagem básica
 
-- Abra qualquer sessão ou crie uma nova
-- Digite algo simples como "oi" e envie
-- **Verificar**: mensagem aparece, resposta chega, sem crash
+- Abra qualquer sessão ou crie uma nova.
+- Digite algo simples como "oi" e envie.
+- Verificar: mensagem aparece, resposta chega, sem crash.
 
-## 2. Stop button
+## 2. Stop Button
 
-- Envie um prompt que gere resposta longa, ex: "explique detalhadamente como funciona o protocolo TCP/IP"
-- **Verificar**: botão "Stop" aparece abaixo da mensagem durante streaming
-- Toque em Stop
-- **Verificar**: streaming para imediatamente
+- Envie um prompt que gere resposta longa, como "explique detalhadamente como funciona o protocolo TCP/IP".
+- Verificar: botão "Stop" aparece abaixo da mensagem durante streaming.
+- Toque em Stop.
+- Verificar: streaming para imediatamente.
 
-## 3. Menu "..." (canto superior direito)
+## 3. Menu "..."
 
-Abra o menu e teste cada opção:
+Teste cada opção:
 
-### a) Session Info
+- Session Info: bottom sheet com Model, Agent, Cost, Tokens, ID.
+- Change Model: lista de modelos aparece, "Default (server)" com check.
+- View Todos: bottom sheet abre, mesmo vazio.
+- Share Session: snackbar de confirmação aparece.
 
-- **Verificar**: bottom sheet com Model, Agent, Cost, Tokens, ID formatados
+## 4. Long Press Em Mensagem
 
-### b) Change Model
+- Segure pressionado em uma resposta do agente.
+- Verificar: menu com "Copy", "Revert changes", "Fork from here".
+- Teste Copy e Fork.
 
-- **Verificar**: lista de modelos aparece, "Default (server)" com check
-- Selecione outro modelo e envie uma mensagem
-- **Verificar**: subtítulo na AppBar muda para o modelo selecionado
+## 5. Tool Calls Ricos
 
-### c) View Todos
+- Envie: "liste os arquivos do diretório atual".
+- Verificar: tool call aparece como bloco rico na timeline, não como snippet Markdown dentro de uma bolha do agente.
+- Verificar: estados pending/running/completed/error aparecem corretamente.
 
-- Funciona melhor em sessão que tenha gerado TODOs
-- **Verificar**: bottom sheet abre (mesmo que vazio)
+## 6. Shell Commands Ricos
 
-### d) Share Session
+- Envie um prompt que execute shell.
+- Verificar: comando e output aparecem no `ShellCommandBubble`.
+- Verificar: copy do comando/output funciona.
 
-- **Verificar**: snackbar de confirmação aparece
+## 7. Code Blocks Grandes
 
-## 4. Long press em mensagem
+- Envie um prompt que gere um bloco de código grande.
+- Verificar: sem tela vermelha; code blocks renderizam corretamente.
 
-- Segure pressionado em qualquer bolha de resposta do agente
-- **Verificar**: menu com "Copy", "Revert changes", "Fork from here"
-- Teste "Copy" e cole em algum app
-- Teste "Fork from here" — deve criar nova sessão
+## 8. Pergunta Interativa
 
-## 5. Tool calls inline
+- Envie algo que gere pergunta, como "faça um grep recursivo por TODO".
+- Verificar: card de pergunta aparece com opções.
+- Responda.
+- Verificar: resposta fica inline na mensagem do agente e o agente continua respondendo.
 
-- Envie: "liste os arquivos do diretório atual"
-- **Verificar**: tool call aparece inline no balão, ex: `$ ls -la ✓`
-- **Verificar**: ordem cronológica (primeira tool no topo)
+## 9. Permissão
 
-## 6. Code blocks grandes (fix da tela vermelha)
+- Crie um arquivo temporário e envie um prompt que demande alteração/deleção.
+- Verificar: card de permissão aparece com `Deny`, `Once`, `Always`.
+- Responda.
+- Verificar: stream continua após a resposta.
 
-- Abra a sessão "Diretório atual e saudação"
-- **Verificar**: sem tela vermelha, code blocks grandes renderizam como texto plain
+## 10. Slash Commands
 
-## 7. Pergunta interativa (question)
+- No campo de texto, digite `/compact` e envie.
+- Verificar: comando é executado sem crash.
 
-- Envie algo que gere pergunta, ex: "faça um grep recursivo por TODO"
-- O agente deve perguntar qual diretório/padrão
-- **Verificar**: card de pergunta aparece com opções
-- Responda
-- **Verificar**: resposta fica grifada inline no balão, agente continua respondendo
+## 11. Rehydration
 
-## 8. Permissão (permission)
+- Abra uma sessão que tenha tool calls, shell commands e perguntas respondidas.
+- Saia e volte a entrar.
+- Verificar: tool calls, shell commands e respostas continuam visíveis e associados à mensagem correta.
 
-- Envie: "delete o arquivo /tmp/test_delete_me.txt" (crie antes com `touch /tmp/test_delete_me.txt`)
-- **Verificar**: card de permissão aparece com botões em uma linha só
-- Toque "Allow" ou "Deny"
+## 12. Reasoning
 
-## 9. Slash commands
+- Em qualquer mensagem com "Show reasoning", toque.
+- Verificar: texto de reasoning expande/colapsa.
 
-- No campo de texto, digite `/compact` e envie
-- **Verificar**: comando é executado (sem crash), pode aparecer snackbar
+## 13. Conexão Offline/Online
 
-## 10. Rehydration
+- Pare o servidor OpenCode.
+- Verificar: ícone no AppBar muda para offline.
+- Reinicie o servidor.
+- Verificar: reconecta automaticamente.
 
-- Abra uma sessão que tenha tool calls e perguntas respondidas
-- Saia (back) e volte a entrar
-- **Verificar**: tool calls, shell commands e respostas continuam visíveis
+## Comandos Locais
 
-## 11. Show reasoning
-
-- Em qualquer mensagem com "Show reasoning", toque
-- **Verificar**: texto de reasoning expande/colapsa
-
-## 12. Conexão offline/online
-
-- Mate o servidor opencode (Ctrl+C)
-- **Verificar**: ícone no AppBar muda para offline (nuvem vermelha)
-- Reinicie o servidor
-- **Verificar**: reconecta automaticamente, ícone volta a verde
+```bash
+cd mobile-app/apps/flutter
+flutter pub get
+flutter analyze
+flutter test
+```

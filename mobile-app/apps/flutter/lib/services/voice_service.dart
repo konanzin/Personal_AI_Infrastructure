@@ -20,7 +20,6 @@ class VoiceService {
   Function(double level)? onSoundLevel;
 
   bool _isInitialized = false;
-  bool _isListening = false;
 
   VoiceService() {
     _channel.setMethodCallHandler(_handleMethodCall);
@@ -46,7 +45,6 @@ class VoiceService {
     
     try {
       await _channel.invokeMethod('startListening', {'locale': locale});
-      _isListening = true;
     } on PlatformException catch (e) {
       debugPrint('Error starting listening: ${e.message}');
       onSpeechError?.call(e.message ?? 'Unknown error');
@@ -57,7 +55,6 @@ class VoiceService {
   Future<void> stopListening() async {
     try {
       await _channel.invokeMethod('stopListening');
-      _isListening = false;
     } on PlatformException catch (e) {
       debugPrint('Error stopping listening: ${e.message}');
     }
@@ -79,7 +76,6 @@ class VoiceService {
       case 'onSpeechResult':
         final text = call.arguments['text'] as String?;
         if (text != null) {
-          _isListening = false;
           onSpeechResult?.call(text);
         }
         break;
@@ -94,9 +90,6 @@ class VoiceService {
       case 'onSpeechStatus':
         final status = call.arguments['status'] as String?;
         if (status != null) {
-          if (status == 'stopped' || status == 'error') {
-            _isListening = false;
-          }
           onSpeechStatus?.call(status);
         }
         break;
@@ -104,7 +97,6 @@ class VoiceService {
       case 'onSpeechError':
         final error = call.arguments['error'] as String?;
         if (error != null) {
-          _isListening = false;
           onSpeechError?.call(error);
         }
         break;

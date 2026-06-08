@@ -53,7 +53,7 @@ class _EventsScreenState extends State<EventsScreen> {
         _currentSessionId = session['id'] as String;
         _status = 'Session: ${_currentSessionId!.substring(0, 8)}...';
       });
-      print('[PAI_DEBUG] Created session: ${_currentSessionId}');
+      debugPrint('[PAI_DEBUG] Created session: $_currentSessionId');
     } catch (e) {
       setState(() {
         _status = 'Error creating session: $e';
@@ -116,7 +116,7 @@ class _EventsScreenState extends State<EventsScreen> {
       authOk = await _client!.verifyAuth();
     } catch (e) {
       authOk = false;
-      print('[PAI_DEBUG] Auth exception: $e');
+      debugPrint('[PAI_DEBUG] Auth exception: $e');
     }
     
     if (!authOk) {

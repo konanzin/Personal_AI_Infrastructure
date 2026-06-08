@@ -120,7 +120,7 @@ class ToolFileContent implements ToolContent {
 /// Parse a list of tool content from JSON.
 List<ToolContent> parseToolContent(List<dynamic> jsonList) {
   return jsonList.map((item) {
-    if (item is! Map<String, dynamic>) return ToolTextContent(text: '');
+    if (item is! Map<String, dynamic>) return const ToolTextContent(text: '');
     final type = item['type'] as String?;
     if (type == 'file') {
       return ToolFileContent.fromJson(item);

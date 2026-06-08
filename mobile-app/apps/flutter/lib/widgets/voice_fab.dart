@@ -181,7 +181,7 @@ class _VoiceFabState extends State<VoiceFab> with SingleTickerProviderStateMixin
               boxShadow: _state == VoiceState.listening
                   ? [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.4),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.4),
                         blurRadius: 20,
                         spreadRadius: 5,
                       ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:provider/provider.dart';
 
@@ -16,7 +16,8 @@ import '../widgets/date_header.dart';
 import '../widgets/permission_card.dart';
 import '../widgets/question_card.dart';
 import '../widgets/reasoning_message_bubble.dart';
-import '../models/message_part.dart';
+import '../widgets/shell_command_bubble.dart';
+import '../widgets/tool_call_bubble.dart';
 import '../widgets/voice_fab.dart';
 
 // ── Chat list item helper ────────────────────────────────────────────────
@@ -72,7 +73,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   OpenCodeProvider? _provider;
   bool _isLoading = true;
   String? _error;
@@ -84,6 +85,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeChat();
     });
@@ -91,11 +93,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _provider?.dispose();
     _voiceService.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_provider != null && !_provider!.isOnline) {
+        _provider!.reconnect();
+      }
+    }
   }
 
   Future<void> _initializeChat() async {
@@ -104,13 +116,13 @@ class _ChatScreenState extends State<ChatScreen> {
       await sessionProvider.loadPersistedSession();
     }
     if (!mounted) return;
-    
+
     final credentials = await SecureStorageService.loadCredentials();
     if (!mounted) return;
     final serverUrl = credentials['serverUrl'];
     final username = credentials['username'];
     final password = credentials['password'];
-    
+
     if (serverUrl == null || username == null || password == null) {
       setState(() {
         _isLoading = false;
@@ -128,18 +140,22 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     final sessionId = sessionProvider.currentSessionId;
-    
+
     setState(() {
       _provider = OpenCodeProvider(
         client: client,
         sessionId: sessionId,
       );
     });
-    
+
     if (sessionId != null && _provider != null) {
-      await _provider!.loadHistory();
+      try {
+        await _provider!.loadHistory();
+      } catch (e) {
+        debugPrint('Error loading history in chat screen: $e');
+      }
     }
-    
+
     setState(() {
       _isLoading = false;
     });
@@ -147,12 +163,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _createSession() async {
     if (_provider == null) return;
-    
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
-    
+
     try {
       await _provider!.createSession();
       final sessionId = _provider!.currentSessionId;
@@ -173,7 +189,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty || _provider == null) return;
-    
+
     _textController.clear();
     FocusScope.of(context).unfocus();
 
@@ -196,11 +212,12 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
     }
-    
+
     // Escuta o stream de forma não-bloqueante para permitir rebuilds da UI
     _provider!.sendMessageStream(text).listen(
       (chunk) {
-        debugPrint('[PAI_SSE] ChatScreen received chunk: "${chunk.substring(0, chunk.length > 30 ? 30 : chunk.length)}..."');
+        debugPrint(
+            '[PAI_SSE] ChatScreen received chunk: "${chunk.substring(0, chunk.length > 30 ? 30 : chunk.length)}..."');
         // A UI já é atualizada pelo notifyListeners() no provider
       },
       onDone: () {
@@ -362,12 +379,16 @@ class _ChatScreenState extends State<ChatScreen> {
                     final status = todo['status'] as String? ?? 'pending';
                     return ListTile(
                       leading: Icon(
-                        status == 'completed' ? Icons.check_circle
-                            : status == 'in_progress' ? Icons.play_circle
-                            : Icons.circle_outlined,
-                        color: status == 'completed' ? Colors.green
-                            : status == 'in_progress' ? Colors.orange
-                            : null,
+                        status == 'completed'
+                            ? Icons.check_circle
+                            : status == 'in_progress'
+                                ? Icons.play_circle
+                                : Icons.circle_outlined,
+                        color: status == 'completed'
+                            ? Colors.green
+                            : status == 'in_progress'
+                                ? Colors.orange
+                                : null,
                       ),
                       title: Text(content),
                       subtitle: Text(status),
@@ -424,7 +445,8 @@ class _ChatScreenState extends State<ChatScreen> {
               _infoRow('Model', _formatModel(info)),
               _infoRow('Agent', info['agent'] ?? 'default'),
               if (info['cost'] != null) _infoRow('Cost', '\$${info['cost']}'),
-              if (info['tokens'] != null) _infoRow('Tokens', _formatTokens(info['tokens'])),
+              if (info['tokens'] != null)
+                _infoRow('Tokens', _formatTokens(info['tokens'])),
               if (info['share'] != null) _infoRow('Share', '${info['share']}'),
               _infoRow('ID', info['id'] ?? '-'),
             ],
@@ -463,10 +485,12 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           SizedBox(
             width: 80,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(label,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
           Expanded(
-            child: Text('$value', style: const TextStyle(fontFamily: 'monospace')),
+            child:
+                Text('$value', style: const TextStyle(fontFamily: 'monospace')),
           ),
         ],
       ),
@@ -475,18 +499,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Handles slash commands typed in the input (e.g. /compact, /model).
   bool _handleSlashCommand(String text) {
-    if (!text.startsWith('/') || _provider == null || _provider!.currentSessionId == null) {
+    if (!text.startsWith('/') ||
+        _provider == null ||
+        _provider!.currentSessionId == null) {
       return false;
     }
     final parts = text.split(RegExp(r'\s+'));
     final command = parts[0].substring(1);
     final args = parts.length > 1 ? parts.sublist(1).join(' ') : null;
 
-    _provider!.client.executeCommand(
+    _provider!.client
+        .executeCommand(
       _provider!.currentSessionId!,
       command,
       arguments: args,
-    ).then((_) {
+    )
+        .then((_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Command /$command executed')),
@@ -548,8 +576,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final info = _provider!.sessionInfo;
       if (info != null) {
         final rawModel = info['model'];
-      final model = info['modelID'] as String?
-          ?? (rawModel is Map ? rawModel['id']?.toString() : rawModel?.toString());
+        final model = info['modelID'] as String? ??
+            (rawModel is Map
+                ? rawModel['id']?.toString()
+                : rawModel?.toString());
         if (model != null) subtitle = model;
       }
       final override = _provider!.modelOverride;
@@ -605,7 +635,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: ListTile(
                             leading: Icon(Icons.auto_awesome),
                             title: Text('Change Model'),
-                            dense: true, contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                         const PopupMenuItem(
@@ -613,7 +644,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: ListTile(
                             leading: Icon(Icons.checklist),
                             title: Text('View Todos'),
-                            dense: true, contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                         const PopupMenuItem(
@@ -621,7 +653,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: ListTile(
                             leading: Icon(Icons.share),
                             title: Text('Share Session'),
-                            dense: true, contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                         const PopupMenuItem(
@@ -629,7 +662,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: ListTile(
                             leading: Icon(Icons.info_outline),
                             title: Text('Session Info'),
-                            dense: true, contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       ],
@@ -665,7 +699,8 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+              Icon(Icons.error_outline,
+                  size: 48, color: Theme.of(context).colorScheme.error),
               const SizedBox(height: 16),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
@@ -711,8 +746,10 @@ class _ChatScreenState extends State<ChatScreen> {
             // Error banner
             if (lastError != null)
               MaterialBanner(
-                content: Text(lastError, maxLines: 2, overflow: TextOverflow.ellipsis),
-                leading: Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+                content: Text(lastError,
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                leading: Icon(Icons.error_outline,
+                    color: Theme.of(context).colorScheme.error),
                 backgroundColor: Theme.of(context).colorScheme.errorContainer,
                 actions: [
                   TextButton(
@@ -754,14 +791,16 @@ class _ChatScreenState extends State<ChatScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ...pendingPerms.map((req) => PermissionCard(
-                        request: req,
-                        onReply: (reply) => _provider!.replyToPermission(req.id, reply),
-                      )),
+                            request: req,
+                            onReply: (reply) =>
+                                _provider!.replyToPermission(req.id, reply),
+                          )),
                       ...pendingQs.map((req) => QuestionCard(
-                        request: req,
-                        onReply: (answers) => _provider!.replyToQuestion(req.id, answers),
-                        onReject: () => _provider!.rejectQuestion(req.id),
-                      )),
+                            request: req,
+                            onReply: (answers) =>
+                                _provider!.replyToQuestion(req.id, answers),
+                            onReject: () => _provider!.rejectQuestion(req.id),
+                          )),
                     ],
                   ),
                 ),
@@ -792,28 +831,53 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildMessageBubble(ChatMessage message, int index) {
     final isUser = message.origin == MessageOrigin.user;
     final theme = Theme.of(context);
-    
+
+    final messageId = _provider?.getMessageIdAt(index);
+
     // Get timestamp from provider's server data
     DateTime? timestamp;
-    if (_provider != null) {
-      final messageId = _provider!.getMessageIdAt(index);
-      if (messageId != null) {
-        timestamp = _provider!.getMessageTimestamp(messageId);
-      }
+    if (_provider != null && messageId != null) {
+      timestamp = _provider!.getMessageTimestamp(messageId);
     }
-    
+
     // Get reasoning for this message if it's from agent
     String? reasoning;
     if (!isUser) {
       reasoning = _provider!.getReasoningForHistoryIndex(index);
     }
-    
+
+    final displayText = _buildDisplayText(message, index);
+    final agentBlocks = <({int offset, int seq, Widget widget})>[];
+    if (!isUser && _provider != null && messageId != null) {
+      var seq = 0;
+      for (final toolCall in _provider!.getToolCallsForMessage(messageId)) {
+        if (_qaHiddenTools.contains(toolCall.name.toLowerCase())) continue;
+        agentBlocks.add((
+          offset: toolCall.textInsertOffset,
+          seq: seq++,
+          widget: ToolCallBubble(toolCall: toolCall),
+        ));
+      }
+      for (final shell in _provider!.getShellCommandsForMessage(messageId)) {
+        agentBlocks.add((
+          offset: shell.textInsertOffset,
+          seq: seq++,
+          widget: ShellCommandBubble(shell: shell),
+        ));
+      }
+      agentBlocks.sort((a, b) {
+        final cmp = a.offset.compareTo(b.offset);
+        if (cmp != 0) return cmp;
+        return a.seq.compareTo(b.seq);
+      });
+    }
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
+          maxWidth: MediaQuery.of(context).size.width * (isUser ? 0.8 : 0.92),
         ),
         child: GestureDetector(
           onLongPress: () {
@@ -828,10 +892,13 @@ class _ChatScreenState extends State<ChatScreen> {
                       leading: const Icon(Icons.copy),
                       title: const Text('Copy'),
                       onTap: () {
-                        Clipboard.setData(ClipboardData(text: message.text ?? ''));
+                        Clipboard.setData(
+                            ClipboardData(text: message.text ?? ''));
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
+                          const SnackBar(
+                              content: Text('Copied'),
+                              duration: Duration(seconds: 1)),
                         );
                       },
                     ),
@@ -839,13 +906,16 @@ class _ChatScreenState extends State<ChatScreen> {
                       ListTile(
                         leading: const Icon(Icons.undo),
                         title: const Text('Revert changes'),
-                        subtitle: const Text('Undo file changes from this message'),
+                        subtitle:
+                            const Text('Undo file changes from this message'),
                         onTap: () async {
                           Navigator.pop(ctx);
                           final ok = await _provider!.revertMessage(messageId);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(ok ? 'Reverted' : 'Revert failed')),
+                              SnackBar(
+                                  content:
+                                      Text(ok ? 'Reverted' : 'Revert failed')),
                             );
                           }
                         },
@@ -858,11 +928,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           Navigator.pop(ctx);
                           final newId = await _provider!.forkSession(messageId);
                           if (newId != null && mounted) {
-                            await context.read<SessionProvider>().selectSession(newId);
+                            await context
+                                .read<SessionProvider>()
+                                .selectSession(newId);
                             if (mounted) {
                               Navigator.pushReplacement(
                                 context,
-                                MaterialPageRoute(builder: (_) => const ChatScreen()),
+                                MaterialPageRoute(
+                                    builder: (_) => const ChatScreen()),
                               );
                             }
                           }
@@ -875,89 +948,93 @@ class _ChatScreenState extends State<ChatScreen> {
             );
           },
           child: Column(
-            crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment:
+                isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: isUser 
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(20).copyWith(
-                    bottomRight: isUser ? const Radius.circular(4) : null,
-                    bottomLeft: !isUser ? const Radius.circular(4) : null,
+              if (isUser)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(20).copyWith(
+                      bottomRight: const Radius.circular(4),
+                    ),
+                  ),
+                  child: Text(
+                    message.text ?? '',
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimary,
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              else if (displayText.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: MarkdownBody(
+                    key: ValueKey('md-${displayText.hashCode}'),
+                    data: displayText,
+                    builders: {
+                      'pre': _CodeBlockBuilder(),
+                    },
+                    styleSheet: MarkdownStyleSheet(
+                      p: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                      ),
+                      strong: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      em: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      code: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize: 14,
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
+                      ),
+                      codeblockDecoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      listBullet: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                      ),
+                      h1: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      h2: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      h3: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      blockquote: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 16,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      blockquoteDecoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   ),
                 ),
-                child: isUser
-                    ? Text(
-                        message.text ?? '',
-                        style: TextStyle(
-                          color: theme.colorScheme.onPrimary,
-                          fontSize: 16,
-                        ),
-                      )
-                    : MarkdownBody(
-                        key: ValueKey('md-${_buildDisplayText(message, index).hashCode}'),
-                        data: _buildDisplayText(message, index),
-                        builders: {
-                          'pre': _CodeBlockBuilder(),
-                        },
-                        styleSheet: MarkdownStyleSheet(
-                          p: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 16,
-                          ),
-                          strong: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          em: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 16,
-                            fontStyle: FontStyle.italic,
-                          ),
-                          code: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontSize: 14,
-                            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                          ),
-                          codeblockDecoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          listBullet: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 16,
-                          ),
-                          h1: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          h2: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          h3: TextStyle(
-                            color: theme.colorScheme.onSurface,
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          blockquote: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 16,
-                            fontStyle: FontStyle.italic,
-                          ),
-                          blockquoteDecoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-              ),
-              
+
               // Timestamp
               if (timestamp != null)
                 Padding(
@@ -986,8 +1063,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     });
                   },
                 ),
-              
-              // Tool calls and shell commands are rendered inline via _buildDisplayText
+
+              if (!isUser && agentBlocks.isNotEmpty)
+                ...agentBlocks.map((block) => block.widget),
             ],
           ),
         ),
@@ -1013,34 +1091,14 @@ class _ChatScreenState extends State<ChatScreen> {
     // Answered questions
     for (final aq in _provider!.getAnsweredQuestionsForMessage(messageId)) {
       final q = aq.request.questions
-          .map((q) => q.question).where((q) => q.isNotEmpty).join(' / ');
+          .map((q) => q.question)
+          .where((q) => q.isNotEmpty)
+          .join(' / ');
       final a = aq.answers
-          .where((a) => a.isNotEmpty).map((a) => a.join(', ')).join(' | ');
+          .where((a) => a.isNotEmpty)
+          .map((a) => a.join(', '))
+          .join(' | ');
       inserts.add((aq.textInsertOffset, '\n\n`$q`\n`> $a`\n\n', seq++));
-    }
-
-    // Tool calls (excluding question-related tools)
-    for (final tc in _provider!.getToolCallsForMessage(messageId)) {
-      if (_qaHiddenTools.contains(tc.name.toLowerCase())) continue;
-      final status = switch (tc.state) {
-        ToolCallState.pending => '\u23f3',
-        ToolCallState.running => '\u23f3',
-        ToolCallState.completed => '\u2713',
-        ToolCallState.error => '\u2717 ${tc.errorMessage ?? '?'}',
-      };
-      final cmd = tc.input['command'] as String? ??
-          tc.input['description'] as String?;
-      final label = cmd != null
-          ? '\$ ${cmd.length > 50 ? '${cmd.substring(0, 47)}...' : cmd}'
-          : tc.name;
-      inserts.add((tc.textInsertOffset, '\n\n`$label $status`\n\n', seq++));
-    }
-
-    // Shell commands
-    for (final sh in _provider!.getShellCommandsForMessage(messageId)) {
-      final cmd = sh.command.length > 60
-          ? '${sh.command.substring(0, 57)}...' : sh.command;
-      inserts.add((sh.textInsertOffset, '\n\n`\$ $cmd \u2713`\n\n', seq++));
     }
 
     if (inserts.isEmpty) return text;
@@ -1090,15 +1148,25 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _monthName(int month) {
     const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
     return names[month - 1];
   }
 
   Widget _buildInput() {
     final theme = Theme.of(context);
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1121,7 +1189,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            
+
             // Text field
             Expanded(
               child: TextField(
@@ -1148,7 +1216,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
               ),
             ),
-            
+
             // Send button
             IconButton(
               onPressed: _sendMessage,

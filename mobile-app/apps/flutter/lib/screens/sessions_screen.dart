@@ -185,7 +185,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   Icon(
                     Icons.chat_bubble_outline,
                     size: 64,
-                    color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                   ),
                   const SizedBox(height: 24),
                   Text(

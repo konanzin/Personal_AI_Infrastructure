@@ -1,12 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../models/message_part.dart';
 
 /// A compact widget for rendering tool calls in the chat timeline.
-/// 
+///
 /// Displays tool call state with color-coded left border accent:
 /// - Pending: orange pulse icon
 /// - Running: blue spinner
@@ -28,87 +28,86 @@ class ToolCallBubble extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8, left: 8, right: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
       ),
-      child: IntrinsicWidth(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left border accent
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
-                ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left border accent
+          Container(
+            width: 4,
+            constraints: const BoxConstraints(minHeight: 48),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                bottomLeft: Radius.circular(12),
               ),
             ),
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header: icon + tool name + status
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        icon,
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            toolCall.name,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          statusText,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: color,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    // Error message
-                    if (toolCall.state == ToolCallState.error && toolCall.errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
+          ),
+          // Content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header: icon + tool name + status
+                  Row(
+                    children: [
+                      icon,
+                      const SizedBox(width: 8),
+                      Expanded(
                         child: Text(
-                          toolCall.errorMessage!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.error,
+                          toolCall.name,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                       ),
-                    
-                    // Input arguments (expandable)
-                    if (toolCall.input.isNotEmpty)
-                      _ToolCallInputSection(input: toolCall.input),
-                    
-                    // Output content
-                    if (toolCall.state == ToolCallState.completed && toolCall.content.isNotEmpty)
-                      _ToolCallOutputSection(content: toolCall.content),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      Text(
+                        statusText,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Error message
+                  if (toolCall.state == ToolCallState.error &&
+                      toolCall.errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        toolCall.errorMessage!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+
+                  // Input arguments (expandable)
+                  if (toolCall.input.isNotEmpty)
+                    _ToolCallInputSection(input: toolCall.input),
+
+                  // Output content
+                  if (toolCall.state == ToolCallState.completed &&
+                      toolCall.content.isNotEmpty)
+                    _ToolCallOutputSection(content: toolCall.content),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -137,7 +136,7 @@ class ToolCallBubble extends StatelessWidget {
       case ToolCallState.completed:
         return (
           Colors.green,
-          Icon(Icons.check_circle, color: Colors.green, size: 20),
+          const Icon(Icons.check_circle, color: Colors.green, size: 20),
           'Done',
         );
       case ToolCallState.error:
@@ -320,7 +319,8 @@ class _ToolCallOutputSection extends StatelessWidget {
                 item.name ?? 'File',
                 style: theme.textTheme.bodySmall,
               ),
-              backgroundColor: theme.colorScheme.primaryContainer.withOpacity(0.5),
+              backgroundColor:
+                  theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
               side: BorderSide.none,
               padding: EdgeInsets.zero,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

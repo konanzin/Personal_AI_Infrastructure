@@ -20,11 +20,13 @@ class ClientConfig {
 }
 
 /// Unified API client for the OpenCode Server.
-/// 
+///
 /// Uses Dart's native HTTP streaming to consume SSE events.
 /// No polyfills needed — Dart's Stream and http package handle
 /// streaming natively.
 class OpenCodeClient {
+  static const _messageResponseTimeout = Duration(minutes: 5);
+
   final ClientConfig config;
   http.Client? _httpClient;
   StreamSubscription? _sseSubscription;
@@ -33,7 +35,8 @@ class OpenCodeClient {
 
   /// Encode Basic Auth header.
   String _encodeBasicAuth() {
-    final credentials = base64Encode(utf8.encode('${config.username}:${config.password}'));
+    final credentials =
+        base64Encode(utf8.encode('${config.username}:${config.password}'));
     return 'Basic $credentials';
   }
 
@@ -61,17 +64,17 @@ class OpenCodeClient {
   }
 
   /// Subscribe to the OpenCode event stream.
-  /// 
+  ///
   /// Returns a Stream of typed ChatEvent that can be listened to.
   /// The stream emits specific subclasses for each event type.
-  /// 
+  ///
   /// Call [unsubscribe] to close the stream.
   Stream<ChatEvent> subscribeToEvents() {
     final url = Uri.parse('${config.baseUrl}/event');
-    
+
     // Use a persistent client for the SSE connection
     _httpClient = http.Client();
-    
+
     final request = http.Request('GET', url);
     request.headers['Accept'] = 'text/event-stream';
     request.headers['Authorization'] = _encodeBasicAuth();
@@ -100,11 +103,9 @@ class OpenCodeClient {
 
       final utf8Decoder = utf8.decoder;
       const lineSplitter = LineSplitter();
-      
-      _sseSubscription = response.stream
-          .transform(utf8Decoder)
-          .transform(lineSplitter)
-          .listen(
+
+      _sseSubscription =
+          response.stream.transform(utf8Decoder).transform(lineSplitter).listen(
         (line) {
           if (line.startsWith('event: ')) {
             currentEventType = line.substring(7);
@@ -117,7 +118,8 @@ class OpenCodeClient {
             // Empty line means dispatch the event
             if (currentData.isNotEmpty) {
               final rawData = currentData.toString();
-              debugPrint('[PAI_SSE_RAW] Event: $currentEventType | Data: ${rawData.substring(0, rawData.length > 200 ? 200 : rawData.length)}...');
+              debugPrint(
+                  '[PAI_SSE_RAW] Event: $currentEventType | Data: ${rawData.substring(0, rawData.length > 200 ? 200 : rawData.length)}...');
               final event = _buildTypedEvent(
                 currentEventType,
                 rawData,
@@ -320,7 +322,9 @@ class OpenCodeClient {
           return ToolCallProgressEvent(
             callId: props['callID'] as String? ?? '',
             structured: (props['structured'] as Map<String, dynamic>?) ?? {},
-            content: (props['content'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [],
+            content: (props['content'] as List<dynamic>?)
+                    ?.cast<Map<String, dynamic>>() ??
+                [],
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -333,7 +337,9 @@ class OpenCodeClient {
           return ToolCallSuccessEvent(
             callId: props['callID'] as String? ?? '',
             structured: (props['structured'] as Map<String, dynamic>?) ?? {},
-            content: (props['content'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [],
+            content: (props['content'] as List<dynamic>?)
+                    ?.cast<Map<String, dynamic>>() ??
+                [],
             provider: (props['provider'] as Map<String, dynamic>?) ?? {},
             sessionId: sessionId,
             originalEvent: rawType,
@@ -417,8 +423,9 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           final answers = (props['answers'] as List<dynamic>?)
-              ?.map((a) => (a as List<dynamic>).cast<String>())
-              .toList() ?? [];
+                  ?.map((a) => (a as List<dynamic>).cast<String>())
+                  .toList() ??
+              [];
           return QuestionRepliedEvent(
             requestId: props['requestID'] as String? ?? '',
             answers: answers,
@@ -506,6 +513,11 @@ class OpenCodeClient {
     return null;
   }
 
+  @visibleForTesting
+  ChatEvent? buildTypedEventForTest(String eventName, String data) {
+    return _buildTypedEvent(eventName, data);
+  }
+
   /// Extract properties map from event payload.
   Map<String, dynamic>? _extractProperties(Map<String, dynamic>? parsed) {
     if (parsed == null) return null;
@@ -560,14 +572,16 @@ class OpenCodeClient {
   /// Create a new session.
   Future<Map<String, dynamic>> createSession({String? title}) async {
     final url = Uri.parse('${config.baseUrl}/session');
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': _encodeBasicAuth(),
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({if (title != null) 'title': title}),
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .post(
+          url,
+          headers: {
+            'Authorization': _encodeBasicAuth(),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({if (title != null) 'title': title}),
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
       throw Exception('Failed to create session: ${response.statusCode}');
@@ -577,29 +591,32 @@ class OpenCodeClient {
   }
 
   /// Send a message to a session.
-  /// 
+  ///
   /// Uses the correct endpoint: POST /session/{sessionID}/message
   /// Body: { "parts": [{"type": "text", "text": "..."}] }
   Future<void> sendMessage(String sessionId, String text) async {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
-    
+
     final body = jsonEncode({
       'parts': [
         {'type': 'text', 'text': text}
       ]
     });
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': _encodeBasicAuth(),
-        'Content-Type': 'application/json',
-      },
-      body: body,
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .post(
+          url,
+          headers: {
+            'Authorization': _encodeBasicAuth(),
+            'Content-Type': 'application/json',
+          },
+          body: body,
+        )
+        .timeout(_messageResponseTimeout);
 
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Failed to send message: ${response.statusCode} - ${response.body}');
+      throw Exception(
+          'Failed to send message: ${response.statusCode} - ${response.body}');
     }
   }
 
@@ -633,14 +650,16 @@ class OpenCodeClient {
     final body = <String, dynamic>{};
     if (title != null) body['title'] = title;
 
-    final response = await http.patch(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': _encodeBasicAuth(),
-      },
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .patch(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': _encodeBasicAuth(),
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
       throw Exception('Failed to update session: ${response.statusCode}');
@@ -727,30 +746,35 @@ class OpenCodeClient {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
     final body = <String, dynamic>{'parts': parts};
     if (model != null) body['model'] = model;
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': _encodeBasicAuth(),
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 30));
+    final response = await http
+        .post(
+          url,
+          headers: {
+            'Authorization': _encodeBasicAuth(),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(_messageResponseTimeout);
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Failed to send message: ${response.statusCode}');
     }
   }
 
   /// Fork a session at a specific message.
-  Future<Map<String, dynamic>> forkSession(String sessionId, String messageId) async {
+  Future<Map<String, dynamic>> forkSession(
+      String sessionId, String messageId) async {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/fork');
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': _encodeBasicAuth(),
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'messageID': messageId}),
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .post(
+          url,
+          headers: {
+            'Authorization': _encodeBasicAuth(),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'messageID': messageId}),
+        )
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
       throw Exception('Failed to fork session: ${response.statusCode}');
     }
@@ -784,14 +808,16 @@ class OpenCodeClient {
   /// Revert a message (undo file changes).
   Future<void> revertMessage(String sessionId, String messageId) async {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/revert');
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': _encodeBasicAuth(),
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'messageID': messageId}),
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .post(
+          url,
+          headers: {
+            'Authorization': _encodeBasicAuth(),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'messageID': messageId}),
+        )
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
       throw Exception('Failed to revert message: ${response.statusCode}');
     }
@@ -840,18 +866,21 @@ class OpenCodeClient {
   }
 
   /// Execute a slash command.
-  Future<void> executeCommand(String sessionId, String command, {String? arguments}) async {
+  Future<void> executeCommand(String sessionId, String command,
+      {String? arguments}) async {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/command');
     final body = <String, dynamic>{'command': command};
     if (arguments != null) body['arguments'] = arguments;
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': _encodeBasicAuth(),
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 30));
+    final response = await http
+        .post(
+          url,
+          headers: {
+            'Authorization': _encodeBasicAuth(),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Failed to execute command: ${response.statusCode}');
     }
@@ -870,17 +899,20 @@ class OpenCodeClient {
   /// Generic POST request to an endpoint path.
   Future<http.Response> post(String path, {String? body}) async {
     final url = Uri.parse('${config.baseUrl}$path');
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': _encodeBasicAuth(),
-        if (body != null) 'Content-Type': 'application/json',
-      },
-      body: body,
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .post(
+          url,
+          headers: {
+            'Authorization': _encodeBasicAuth(),
+            if (body != null) 'Content-Type': 'application/json',
+          },
+          body: body,
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('POST $path failed: ${response.statusCode} - ${response.body}');
+      throw Exception(
+          'POST $path failed: ${response.statusCode} - ${response.body}');
     }
 
     return response;

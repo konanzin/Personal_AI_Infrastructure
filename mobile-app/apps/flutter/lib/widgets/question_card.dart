@@ -210,36 +210,41 @@ class _QuestionCardState extends State<QuestionCard> {
         }),
       );
     } else {
-      // Única escolha: RadioListTile
-      widgets.addAll(
-        q.options.map((option) {
-          final groupValue = _selectedAnswers[index].isNotEmpty
-              ? _selectedAnswers[index].first
-              : null;
-          return RadioListTile<String>(
-            value: option.label,
-            groupValue: groupValue,
-            onChanged: (value) {
-              setState(() {
-                if (value != null) {
-                  _selectedAnswers[index] = [value];
-                }
-              });
-            },
-            title: Text(option.label),
-            subtitle: option.description.isNotEmpty
-                ? Text(
-                    option.description,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                : null,
-            controlAffinity: ListTileControlAffinity.leading,
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-          );
-        }),
+      // Única escolha: RadioListTile dentro de RadioGroup
+      final groupValue = _selectedAnswers[index].isNotEmpty
+          ? _selectedAnswers[index].first
+          : null;
+      widgets.add(
+        RadioGroup<String>(
+          groupValue: groupValue,
+          onChanged: (value) {
+            setState(() {
+              if (value != null) {
+                _selectedAnswers[index] = [value];
+              }
+            });
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: q.options.map((option) {
+              return RadioListTile<String>(
+                value: option.label,
+                title: Text(option.label),
+                subtitle: option.description.isNotEmpty
+                    ? Text(
+                        option.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    : null,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              );
+            }).toList(),
+          ),
+        ),
       );
     }
 

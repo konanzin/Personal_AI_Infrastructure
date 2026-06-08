@@ -12,27 +12,32 @@ mobile-app/
   FLUTTER_IMPLEMENTATION_PLAN.md
 ```
 
-The previous React Native/Expo workspace is legacy. Do not start new implementation work there unless the project is explicitly re-opened as an archival migration task.
-
 ## Current Status
 
-The Flutter app is a functional pre-alpha spine, not an alpha release yet.
+The Flutter app is the active mobile product. It is a functional pre-alpha client. Local static and test gates pass. A core live smoke on Android `a51` passed through ADB reverse; full alpha still depends on the remaining live mobile flows listed below.
 
-- ✅ Flutter app exists at `apps/flutter`
-- ✅ Settings store credentials with `flutter_secure_storage`
-- ✅ Connection validation uses OpenCode `/global/health`
-- ✅ Session list/open/create/rename/delete exists
-- ✅ Chat streams OpenCode SSE with Dart native HTTP streaming
-- ✅ Active session persists locally with `shared_preferences`
-- ✅ Voice input is STT-only and sends the final transcript to chat
-- 🚧 Runtime verification is blocked in this shell until Flutter/Dart CLI is installed
+- Flutter app exists at `apps/flutter`.
+- Settings store credentials with `flutter_secure_storage`.
+- Connection validation uses OpenCode `/global/health`.
+- Session list/open/create/rename/delete exists.
+- Chat streams OpenCode SSE with Dart native HTTP streaming.
+- Active session persists locally with `shared_preferences`.
+- Voice input is STT-only and sends the final transcript to chat.
+- Reasoning is associated by message ID/history index and rendered inline.
+- Permission and question cards are parsed from SSE and can reply to the server.
+- Tool calls and shell commands are associated by assistant message ID and rendered as rich timeline blocks.
+- Settings has Tailscale guidance text; it does not currently include a dedicated Tailscale URL helper button.
+- `flutter analyze` passes with no issues.
+- `flutter test` passes with 6 tests.
+- Live `a51` smoke over ADB reverse validated session loading, text streaming, Kimi `k2p6`, rich `bash` tool rendering, and history rehydration.
+- Live STT, permission/question continuation, reconnect/background behavior, and the primary attachment UI still need validation.
 
 ## Requirements
 
-- Flutter SDK compatible with the app's `pubspec.yaml`
-- Android device or emulator
-- OpenCode Server reachable from the device
-- Tailscale on the Android device and server host for private remote use
+- Flutter SDK compatible with the app's `pubspec.yaml`.
+- Android device or emulator.
+- OpenCode Server reachable from the device.
+- Tailscale on the Android device and server host for private remote use.
 
 ## Quick Start
 
@@ -44,7 +49,7 @@ flutter test
 flutter run
 ```
 
-## OpenCode Server for Tailscale
+## OpenCode Server For Tailscale
 
 On the Linux machine that runs OpenCode, expose the server on the tailnet interface:
 
@@ -58,11 +63,7 @@ Then, in the Flutter app settings, use the Linux server's Tailscale IP or MagicD
 http://<server-tailnet-ip-or-name>:4096
 ```
 
-Important: `a51` is the Android client in the tailnet. It is not the OpenCode server URL unless you are running OpenCode on the phone, which this app does not do.
-
-## Authentication
-
-OpenCode Server supports Basic Auth when `OPENCODE_SERVER_PASSWORD` is set. The app stores URL, username, and password in Android secure storage. Settings are validated against `/global/health` before saving.
+Important: `a51` is the Android client in the tailnet. It is not the OpenCode server URL unless OpenCode is running on the phone, which this app does not do.
 
 ## Voice Scope
 
@@ -76,36 +77,39 @@ No TTS playback is implemented in this stage.
 
 ## Verification
 
-Use these checks once Flutter is available in the environment:
+Latest local verification:
 
-```bash
-cd mobile-app/apps/flutter
-flutter pub get
-flutter analyze
-flutter test
-```
+- `flutter pub get`: passed
+- `flutter analyze`: passed with no issues
+- `flutter test`: passed with 6 tests
 
-Then smoke-test on `a51`:
+Latest live verification:
+
+- Device: Android `a51` / SM-A515F, Android 13.
+- Server: OpenCode `1.16.2` with `adb reverse tcp:4096 tcp:4096`.
+- Model: `kimi-for-coding/k2p6`.
+- Prompt: `Run pwd using shell and reply DONE2`.
+- Result: streamed `DONE2`, rendered a rich `bash` block, rehydrated correctly after reopening the session, and produced no send-message timeout/error in logcat.
+
+Remaining live smoke on `a51`:
 
 1. Start OpenCode on the Linux host with `--hostname 0.0.0.0 --port 4096`.
-2. Confirm the phone and server are online in Tailscale.
-3. Fill settings with the server tailnet URL.
+2. Confirm the phone and server are online in Tailscale, or configure `adb reverse tcp:4096 tcp:4096` for local USB smoke.
+3. Fill settings with the server tailnet URL, or `http://localhost:4096` when using ADB reverse.
 4. Test connection.
-5. Open an existing session.
-6. Send a text prompt.
-7. Send a voice prompt.
-8. Confirm only the active session receives streamed updates.
-9. Trigger a reasoning-capable response and confirm reasoning appears only on that assistant message.
+5. Send a voice prompt.
+6. Trigger permission and question events and confirm the stream continues after replies.
+7. Trigger native shell events if the current OpenCode server emits `session.next.shell.*`.
+8. Test network drop/reconnect and background/foreground behavior.
+9. Validate the primary attachment picker/send UI or remove it from active scope.
 
 ## Related Files
 
-- `apps/flutter/lib/services/opencode_client.dart` — REST + SSE client
-- `apps/flutter/lib/providers/opencode_provider.dart` — chat stream, history, reasoning, reconnect
-- `apps/flutter/lib/providers/session_provider.dart` — session list and active-session persistence
-- `apps/flutter/lib/screens/settings_screen.dart` — settings, auth validation, Tailscale helper
-- `apps/flutter/lib/widgets/voice_fab.dart` — STT-only voice button
-- `apps/flutter/android/app/src/main/kotlin/com/example/pai_mobile_flutter/MainActivity.kt` — Android SpeechRecognizer bridge
-
-## License
-
-Private — not for distribution.
+- `apps/flutter/lib/services/opencode_client.dart` - REST + SSE client.
+- `apps/flutter/lib/providers/opencode_provider.dart` - chat stream, history, reasoning, tool/shell buffers, permissions/questions, reconnect.
+- `apps/flutter/lib/providers/session_provider.dart` - session list and active-session persistence.
+- `apps/flutter/lib/screens/settings_screen.dart` - settings, auth validation, Tailscale guidance text.
+- `apps/flutter/lib/screens/chat_screen.dart` - chat timeline, Markdown/code blocks, inline reasoning, permission/question cards, rich tool/shell blocks, voice input.
+- `apps/flutter/lib/widgets/voice_fab.dart` - STT-only voice button.
+- `apps/flutter/lib/widgets/tool_call_bubble.dart` - rich tool-call block.
+- `apps/flutter/lib/widgets/shell_command_bubble.dart` - rich shell-command block.
