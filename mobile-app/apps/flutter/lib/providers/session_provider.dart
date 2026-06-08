@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/opencode_client.dart';
-import '../services/secure_storage.dart';
 
 /// Modelo de sessão do OpenCode
 class Session {
@@ -70,11 +69,15 @@ class SessionProvider extends ChangeNotifier {
   String? _currentSessionId;
   bool _isLoading = false;
   String? _error;
+  OpenCodeClient? _sharedClient;
 
   List<Session> get sessions => _sessions;
   String? get currentSessionId => _currentSessionId;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  /// Injects a shared client from ClientProvider.
+  set sharedClient(OpenCodeClient? client) => _sharedClient = client;
 
   /// Restores the last selected session ID from local cache.
   Future<void> loadPersistedSession() async {
@@ -94,26 +97,7 @@ class SessionProvider extends ChangeNotifier {
     await prefs.setString(_activeSessionKey, sessionId);
   }
 
-  /// Cria client baseado nas configurações atuais
-  Future<OpenCodeClient?> _createClient() async {
-    final credentials = await SecureStorageService.loadCredentials();
-    
-    final serverUrl = credentials['serverUrl'];
-    final username = credentials['username'];
-    final password = credentials['password'];
-    
-    if (serverUrl == null || username == null || password == null) {
-      return null;
-    }
-
-    return OpenCodeClient(
-      ClientConfig(
-        baseUrl: serverUrl,
-        username: username,
-        password: password,
-      ),
-    );
-  }
+  OpenCodeClient? get _client => _sharedClient;
 
   /// Carrega lista de sessões do servidor
   Future<void> loadSessions() async {
@@ -122,7 +106,7 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final client = await _createClient();
+      final client = _client;
       if (client == null) {
         _error = 'Server not configured';
         _isLoading = false;
@@ -165,7 +149,7 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final client = await _createClient();
+      final client = _client;
       if (client == null) {
         _error = 'Server not configured';
         _isLoading = false;
@@ -207,7 +191,7 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final client = await _createClient();
+      final client = _client;
       if (client == null) {
         _error = 'Server not configured';
         _isLoading = false;
@@ -247,7 +231,7 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final client = await _createClient();
+      final client = _client;
       if (client == null) {
         _error = 'Server not configured';
         _isLoading = false;

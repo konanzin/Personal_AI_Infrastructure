@@ -95,10 +95,21 @@ class ToolCallBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-                    
-                    // Input arguments (expandable)
-                    if (toolCall.input.isNotEmpty)
-                      _ToolCallInputSection(input: toolCall.input),
+
+                    // Progress indicator
+                    if (toolCall.input.containsKey('_progress'))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: _ProgressIndicator(
+                          progress: toolCall.input['_progress'] as Map<String, dynamic>,
+                        ),
+                      ),
+
+                    // Input arguments (expandable, excluding internal keys)
+                    if (toolCall.input.keys.any((k) => !k.startsWith('_')))
+                      _ToolCallInputSection(input: Map.fromEntries(
+                        toolCall.input.entries.where((e) => !e.key.startsWith('_')),
+                      )),
                     
                     // Output content
                     if (toolCall.state == ToolCallState.completed && toolCall.content.isNotEmpty)
@@ -329,6 +340,63 @@ class _ToolCallOutputSection extends StatelessWidget {
           return const SizedBox.shrink();
         }).toList(),
       ),
+    );
+  }
+}
+
+/// Shows progress from ToolCallProgressEvent structured data.
+class _ProgressIndicator extends StatelessWidget {
+  final Map<String, dynamic> progress;
+  const _ProgressIndicator({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = progress['label'] as String? ??
+        progress['message'] as String? ??
+        progress['status'] as String?;
+    final current = progress['current'] as num?;
+    final total = progress['total'] as num?;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (current != null && total != null && total > 0)
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: (current / total).clamp(0.0, 1.0),
+                minHeight: 4,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        if (label != null) ...[
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

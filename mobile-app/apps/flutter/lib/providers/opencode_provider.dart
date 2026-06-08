@@ -1,11 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
 
 import '../models/chat_event.dart';
+import '../models/file_change.dart';
 import '../models/message_part.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding, WidgetsBindingObserver;
+
+import '../services/api_errors.dart';
+import '../services/notification_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/opencode_client.dart';
 import '../services/secure_storage.dart';
@@ -34,9 +40,23 @@ class AnsweredQuestionData {
 /// - Streaming de respostas via SSE
 /// - Histórico de mensagens
 /// - Tool calls (futuro)
+class _LifecycleObserver with WidgetsBindingObserver {
+  bool isInForeground = true;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    isInForeground = state == AppLifecycleState.resumed;
+  }
+}
+
 class OpenCodeProvider extends LlmProvider with ChangeNotifier {
-  final OpenCodeClient client;
+  OpenCodeClient? _client;
+  OpenCodeClient? get clientOrNull => _client;
+  OpenCodeClient get client => _client!;
+  final _lifecycleObserver = _LifecycleObserver();
+  bool get _isInForeground => _lifecycleObserver.isInForeground;
   String? _currentSessionId;
+  String? _directory;
   StreamSubscription? _sseSubscription;
   
   final List<ChatMessage> _history = [];
@@ -69,6 +89,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Mapa de callID -> ShellPart para shell commands.
   final Map<String, ShellPart> _shellBuffers = {};
 
+  /// Mapa de callID -> messageID para associar tool/shell calls à mensagem correta.
+  final Map<String, String> _callMessageIds = {};
+
+  /// File changes indexed by messageID (from session.diff / file.edited events).
+  final Map<String, List<FileChange>> _fileChanges = {};
+
   int _localMessageCounter = 0;
 
   /// Flag que impede o fechamento prematuro do stream SSE após
@@ -76,6 +102,22 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// de texto chegam, indicando que a continuação começou.
   bool _awaitingContinuation = false;
   Timer? _continuationTimer;
+
+  /// Throttled notifyListeners for streaming — ~20fps to avoid rebuild storms.
+  Timer? _notifyThrottle;
+  bool _notifyPending = false;
+
+  void _throttledNotify() {
+    _notifyPending = true;
+    if (_notifyThrottle != null) return;
+    _notifyThrottle = Timer(const Duration(milliseconds: 50), () {
+      _notifyThrottle = null;
+      if (_notifyPending) {
+        _notifyPending = false;
+        notifyListeners();
+      }
+    });
+  }
 
   /// Contagem de caracteres já emitidos no stream da resposta atual.
   /// Usado para posicionar Q&A inline no texto.
@@ -103,20 +145,67 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   final ConnectivityService _connectivity = ConnectivityService();
   
   OpenCodeProvider({
-    required this.client,
+    OpenCodeClient? client,
     String? sessionId,
     Iterable<ChatMessage>? history,
-  }) : _currentSessionId = sessionId {
+  }) : _client = client, _currentSessionId = sessionId {
     if (history != null) {
       _history.addAll(history);
       _historyMessageIds.addAll(List<String?>.filled(_history.length, null));
     }
     _connectivity.addListener(_onConnectionStateChanged);
     _connectivity.startMonitoring();
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
+  }
+
+  /// Updates the HTTP client (called when credentials/timeout change).
+  void updateClient(OpenCodeClient newClient) {
+    _sseSubscription?.cancel();
+    _client?.unsubscribe();
+    _client = newClient;
+    notifyListeners();
+  }
+
+  /// Switches to a different session, reloading history.
+  Future<void> switchSession(String? sessionId) async {
+    if (sessionId == _currentSessionId) return;
+    _sseSubscription?.cancel();
+    _client?.unsubscribe();
+    _currentSessionId = sessionId;
+    _clearBuffers();
+    if (sessionId != null) {
+      await loadHistory();
+    }
+    notifyListeners();
+  }
+
+  void _clearBuffers() {
+    _history.clear();
+    _historyMessageIds.clear();
+    _reasoningBuffers.clear();
+    _toolCallBuffers.clear();
+    _shellBuffers.clear();
+    _callMessageIds.clear();
+    _fileChanges.clear();
+    _pendingPermissions.clear();
+    _pendingQuestions.clear();
+    _answeredQuestions.clear();
+    _messageTimestamps.clear();
+    _partMessageIds.clear();
+    _streamedTextLength = 0;
+    _isStreaming = false;
+    _lastError = null;
+    _sessionInfo = null;
+    _todos = [];
   }
   
   /// ID da sessão atual do OpenCode
   String? get currentSessionId => _currentSessionId;
+  String? get directory => _directory;
+  set directory(String? d) {
+    _directory = d;
+    notifyListeners();
+  }
   
   /// Retorna o reasoning de uma mensagem específica
   String? getReasoningForMessage(String messageId) {
@@ -149,12 +238,17 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     return getReasoningForMessage(messageId);
   }
 
-  /// Returns all tool calls associated with a message
-  ///
-  /// For now, returns all buffered tool calls since the server
-  /// does not yet provide message-level association.
+  /// Returns tool calls associated with a specific message.
   List<ToolCallPart> getToolCallsForMessage(String messageId) {
-    return _toolCallBuffers.values.toList();
+    final ids = _callMessageIds.entries
+        .where((e) => e.value == messageId)
+        .map((e) => e.key)
+        .toSet();
+    if (ids.isEmpty) return const [];
+    return _toolCallBuffers.entries
+        .where((e) => ids.contains(e.key))
+        .map((e) => e.value)
+        .toList();
   }
 
   /// Returns all pending or running tool calls
@@ -194,9 +288,22 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Todos os shell commands
   Map<String, ShellPart> get shellCommands => Map.unmodifiable(_shellBuffers);
 
-  /// Retorna shell commands associados a uma mensagem
+  /// Returns shell commands associated with a specific message.
   List<ShellPart> getShellCommandsForMessage(String messageId) {
-    return _shellBuffers.values.toList();
+    final ids = _callMessageIds.entries
+        .where((e) => e.value == messageId)
+        .map((e) => e.key)
+        .toSet();
+    if (ids.isEmpty) return const [];
+    return _shellBuffers.entries
+        .where((e) => ids.contains(e.key))
+        .map((e) => e.value)
+        .toList();
+  }
+
+  /// Returns file changes associated with a specific message.
+  List<FileChange> getFileChangesForMessage(String messageId) {
+    return _fileChanges[messageId] ?? const [];
   }
 
   /// Whether the agent is currently streaming.
@@ -241,6 +348,9 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     if (_currentSessionId == null) return;
     try {
       _sessionInfo = await client.getSession(_currentSessionId!);
+      if (_sessionInfo?['directory'] is String) {
+        _directory = _sessionInfo!['directory'] as String;
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('[PAI_SSE] Failed to load session info: $e');
@@ -318,6 +428,27 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('[PAI_SSE] Unrevert failed: $e');
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> summarizeSession() async {
+    if (_currentSessionId == null) return null;
+    final info = _sessionInfo;
+    final rawModel = info?['model'];
+    final modelId = rawModel is Map ? rawModel['id']?.toString() : null;
+    final providerId = rawModel is Map ? rawModel['providerID']?.toString() : null;
+    if (modelId == null || providerId == null) return null;
+    try {
+      return await client.summarizeSession(
+        _currentSessionId!,
+        modelId: modelId,
+        providerId: providerId,
+      );
+    } catch (e) {
+      debugPrint('[PAI] Summarize failed: $e');
+      _lastError = e.toString();
+      notifyListeners();
+      return null;
     }
   }
 
@@ -403,6 +534,8 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       _answeredQuestions.clear();
       _toolCallBuffers.clear();
       _shellBuffers.clear();
+      _callMessageIds.clear();
+      _fileChanges.clear();
 
       // Tool calls and reasoning from tool-only assistant messages are
       // associated with the NEXT text-bearing assistant message.
@@ -496,9 +629,11 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
           for (final tc in pendingToolCalls) {
             _toolCallBuffers[tc.id] = tc;
+            if (messageId != null) _callMessageIds[tc.id] = messageId;
           }
           for (final tc in msgToolCalls) {
             _toolCallBuffers[tc.id] = tc;
+            if (messageId != null) _callMessageIds[tc.id] = messageId;
           }
           pendingToolCalls = [];
           pendingReasoning = StringBuffer();
@@ -521,14 +656,30 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       loadTodos();
     } catch (e) {
       debugPrint('Error loading history: $e');
+      _lastError = 'Failed to load history: $e';
+      notifyListeners();
     }
   }
 
   /// Flushes any pending tool calls into the buffers even when there's
-  /// no subsequent text message to associate them with.
+  /// no subsequent text message to associate them with. Associates them
+  /// with the last assistant message if one exists.
   void _flushPendingToolCalls(List<ToolCallPart> pending) {
+    if (pending.isEmpty) return;
+    String? lastAssistantMsgId;
+    for (int i = _historyMessageIds.length - 1; i >= 0; i--) {
+      if (_historyMessageIds[i] != null &&
+          i < _history.length &&
+          _history.elementAt(i).origin != MessageOrigin.user) {
+        lastAssistantMsgId = _historyMessageIds[i];
+        break;
+      }
+    }
     for (final tc in pending) {
       _toolCallBuffers[tc.id] = tc;
+      if (lastAssistantMsgId != null) {
+        _callMessageIds[tc.id] = lastAssistantMsgId;
+      }
     }
   }
   
@@ -594,34 +745,20 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     ];
     for (final att in attachments) {
       if (att is FileAttachment) {
+        final b64 = base64Encode(att.bytes);
+        final dataUri = 'data:${att.mimeType};base64,$b64';
         parts.add({
           'type': 'file',
-          'url': att.name,
+          'url': dataUri,
           'mime': att.mimeType,
           'filename': att.name,
         });
       }
     }
 
-    // Send with optional model override
+    // Send with retry (up to 2 retries with exponential backoff)
     final model = _modelOverride;
-    if (model != null || parts.length > 1) {
-      client.sendMessageAdvanced(
-        _currentSessionId!,
-        parts: parts,
-        model: model,
-      ).catchError((e) {
-        debugPrint('[PAI_SSE] Error sending message: $e');
-        _lastError = e.toString();
-        notifyListeners();
-      });
-    } else {
-      client.sendMessage(_currentSessionId!, prompt).catchError((e) {
-        debugPrint('[PAI_SSE] Error sending message: $e');
-        _lastError = e.toString();
-        notifyListeners();
-      });
-    }
+    _sendWithRetry(parts, model, maxRetries: 2);
     
     // Repassa chunks do SSE
     await for (final chunk in responseStream) {
@@ -647,13 +784,56 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     final response = generateStream(prompt, attachments: attachments);
     
     return response.map((chunk) {
-      debugPrint('[PAI_SSE] Chunk received in stream: "${chunk.substring(0, chunk.length > 30 ? 30 : chunk.length)}..." | Current text length: ${llmMessage.text?.length ?? 0}');
       llmMessage.append(chunk);
-      notifyListeners();
+      _throttledNotify();
       return chunk;
     });
   }
   
+  static final _rng = math.Random();
+
+  Future<void> _sendWithRetry(
+    List<Map<String, dynamic>> parts,
+    Map<String, String>? model, {
+    int maxRetries = 2,
+  }) async {
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (model != null || parts.length > 1) {
+          await client.sendMessageAdvanced(
+            _currentSessionId!,
+            parts: parts,
+            model: model,
+            directory: _directory,
+          );
+        } else {
+          final textPart = parts.first['text'] as String;
+          await client.sendMessage(_currentSessionId!, textPart, directory: _directory);
+        }
+        return;
+      } catch (e) {
+        debugPrint('[PAI_SSE] Send attempt ${attempt + 1} failed: $e');
+
+        final isRetryable = e is ApiError ? e.isRetryable : (e is ApiTimeoutError || e is ApiConnectionError);
+        if (!isRetryable || attempt >= maxRetries) {
+          _lastError = e.toString();
+          notifyListeners();
+          return;
+        }
+
+        Duration delay;
+        if (e is ApiError && e.retryAfter != null) {
+          delay = e.retryAfter!;
+        } else {
+          final base = math.min(0.5 * math.pow(2, attempt), 8.0);
+          final jitter = 0.75 + _rng.nextDouble() * 0.25;
+          delay = Duration(milliseconds: (base * jitter * 1000).round());
+        }
+        await Future.delayed(delay);
+      }
+    }
+  }
+
   /// Escuta eventos SSE e extrai texto da resposta
   Stream<String> _listenForResponse() {
     // Fecha qualquer conexão SSE anterior
@@ -708,14 +888,14 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       activeAssistantMessageId = targetId;
       _reasoningBuffers.putIfAbsent(targetId, () => StringBuffer());
       _reasoningBuffers[targetId]!.write(reasoning);
-      notifyListeners();
+      _throttledNotify();
     }
     
     // Marca como conectando
     _connectivity.markOnline();
     
     // Inscreve no SSE
-    final stream = client.subscribeToEvents();
+    final stream = client.subscribeToEvents(directory: _directory);
     _sseSubscription = stream.listen(
       (event) {
         // Heartbeat - qualquer evento indica conexão ativa
@@ -798,7 +978,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
                       textInsertOffset: _streamedTextLength,
                     );
                   }
-                  notifyListeners();
+                  _throttledNotify();
                 }
               }
             }
@@ -866,7 +1046,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
               state: ToolCallState.pending,
               textInsertOffset: _streamedTextLength,
             );
-            notifyListeners();
+            if (activeAssistantMessageId != null) {
+              _callMessageIds[e.callId] = activeAssistantMessageId!;
+            }
+            _throttledNotify();
             break;
 
           case ToolCallCalledEvent e:
@@ -883,7 +1066,37 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
                 textInsertOffset: _streamedTextLength,
               );
             }
-            notifyListeners();
+            _throttledNotify();
+            break;
+
+          case ToolCallInputDeltaEvent e:
+            final tool = _toolCallBuffers[e.callId];
+            if (tool != null) {
+              final current = tool.input['_inputStream'] as String? ?? '';
+              tool.input['_inputStream'] = current + e.delta;
+            }
+            break;
+
+          case ToolCallInputEndedEvent e:
+            final tool = _toolCallBuffers[e.callId];
+            if (tool != null) {
+              tool.input.remove('_inputStream');
+              try {
+                final parsed = json.decode(e.text) as Map<String, dynamic>;
+                tool.input.addAll(parsed);
+              } catch (_) {
+                tool.input['_rawInput'] = e.text;
+              }
+              _throttledNotify();
+            }
+            break;
+
+          case ToolCallProgressEvent e:
+            final tool = _toolCallBuffers[e.callId];
+            if (tool != null) {
+              tool.input['_progress'] = e.structured;
+              _throttledNotify();
+            }
             break;
 
           case ToolCallSuccessEvent e:
@@ -928,7 +1141,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
               output: '',
               textInsertOffset: _streamedTextLength,
             );
-            notifyListeners();
+            if (activeAssistantMessageId != null) {
+              _callMessageIds[e.callId] = activeAssistantMessageId!;
+            }
+            _throttledNotify();
             break;
 
           case ShellEndedEvent e:
@@ -955,6 +1171,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
           case PermissionAskedEvent e:
             _pendingPermissions[e.request.id] = e.request;
             notifyListeners();
+            if (!_isInForeground && _currentSessionId != null) {
+              NotificationService.showPermissionNeeded(
+                sessionId: _currentSessionId!,
+                permissionName: e.request.permission,
+              );
+            }
             break;
 
           case PermissionRepliedEvent e:
@@ -966,6 +1188,15 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
           case QuestionAskedEvent e:
             _pendingQuestions[e.request.id] = e.request;
             notifyListeners();
+            if (!_isInForeground && _currentSessionId != null) {
+              final firstQ = e.request.questions.isNotEmpty
+                  ? e.request.questions.first.question
+                  : null;
+              NotificationService.showQuestionAsked(
+                sessionId: _currentSessionId!,
+                questionText: firstQ,
+              );
+            }
             break;
 
           case QuestionRepliedEvent e:
@@ -993,6 +1224,18 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
             if (e.originalEvent == 'session.next.model.switched' ||
                 e.originalEvent == 'session.next.agent.switched') {
               loadSessionInfo();
+            }
+            if (e.originalEvent == 'session.diff' || e.originalEvent == 'file.edited') {
+              final msgId = activeAssistantMessageId;
+              if (msgId != null) {
+                final props = e.payload['properties'] as Map<String, dynamic>? ?? e.payload;
+                final changeType = e.originalEvent == 'session.diff'
+                    ? FileChangeType.diff
+                    : FileChangeType.edited;
+                _fileChanges.putIfAbsent(msgId, () => []);
+                _fileChanges[msgId]!.add(FileChange.fromJson(props, changeType));
+                _throttledNotify();
+              }
             }
             final isIdle = _isIdleStatus(e.payload);
             if (isIdle && !responseEnded) {
@@ -1486,7 +1729,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
     _sseSubscription?.cancel();
     _sseSubscription = null;
-    client.unsubscribe();
+    _client?.unsubscribe();
 
     if (_currentSessionId == null) {
       _connectivity.markOnline();
@@ -1507,11 +1750,13 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     _connectivity.removeListener(_onConnectionStateChanged);
     _connectivity.dispose();
     _sseSubscription?.cancel();
     _continuationTimer?.cancel();
-    client.unsubscribe();
+    _notifyThrottle?.cancel();
+    _client?.unsubscribe();
     super.dispose();
   }
 }

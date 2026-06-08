@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/opencode_client.dart';
 import '../services/secure_storage.dart';
@@ -9,12 +10,14 @@ class AppSettings {
   final String username;
   final String password;
   final bool isConfigured;
+  final int requestTimeoutSeconds;
 
   const AppSettings({
     this.serverUrl = 'http://localhost:4096',
     this.username = 'opencode',
     this.password = 'pai-mobile',
     this.isConfigured = false,
+    this.requestTimeoutSeconds = 30,
   });
 
   AppSettings copyWith({
@@ -22,12 +25,14 @@ class AppSettings {
     String? username,
     String? password,
     bool? isConfigured,
+    int? requestTimeoutSeconds,
   }) {
     return AppSettings(
       serverUrl: serverUrl ?? this.serverUrl,
       username: username ?? this.username,
       password: password ?? this.password,
       isConfigured: isConfigured ?? this.isConfigured,
+      requestTimeoutSeconds: requestTimeoutSeconds ?? this.requestTimeoutSeconds,
     );
   }
 }
@@ -50,6 +55,8 @@ class SettingsProvider extends ChangeNotifier {
 
     try {
       final credentials = await SecureStorageService.loadCredentials();
+      final prefs = await SharedPreferences.getInstance();
+      final timeout = prefs.getInt('request_timeout_seconds') ?? 30;
       
       if (credentials['serverUrl'] != null) {
         _settings = AppSettings(
@@ -57,6 +64,7 @@ class SettingsProvider extends ChangeNotifier {
           username: credentials['username'] ?? 'opencode',
           password: credentials['password'] ?? '',
           isConfigured: true,
+          requestTimeoutSeconds: timeout,
         );
       }
     } catch (e) {
@@ -72,6 +80,7 @@ class SettingsProvider extends ChangeNotifier {
     required String serverUrl,
     required String username,
     required String password,
+    int? requestTimeoutSeconds,
   }) async {
     _isLoading = true;
     _error = null;
@@ -84,11 +93,16 @@ class SettingsProvider extends ChangeNotifier {
         password: password,
       );
 
+      final timeout = requestTimeoutSeconds ?? _settings.requestTimeoutSeconds;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('request_timeout_seconds', timeout);
+
       _settings = AppSettings(
         serverUrl: serverUrl,
         username: username,
         password: password,
         isConfigured: true,
+        requestTimeoutSeconds: timeout,
       );
     } catch (e) {
       _error = 'Failed to save settings: $e';
@@ -143,6 +157,28 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> clearSettings() async {
     await SecureStorageService.clearCredentials();
     _settings = const AppSettings();
+    notifyListeners();
+  }
+
+  // ── Theme ─────────────────────────────────────────────────────────────
+  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode get themeMode => _themeMode;
+
+  Future<void> loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString('theme_mode') ?? 'system';
+    _themeMode = switch (value) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_mode', mode.name);
     notifyListeners();
   }
 }

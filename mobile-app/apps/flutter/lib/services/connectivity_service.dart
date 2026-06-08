@@ -13,9 +13,7 @@ enum ConnectionStatus {
 class ConnectivityService {
   ConnectionStatus _state = ConnectionStatus.offline;
   
-  // Retry config
   int _retryCount = 0;
-  static const int maxRetries = 10;
   static const Duration baseRetryDelay = Duration(seconds: 1);
   static const Duration maxRetryDelay = Duration(seconds: 30);
   
@@ -112,11 +110,6 @@ class ConnectivityService {
   
   /// Inicia reconexão com backoff exponencial
   void startReconnect(Function() onReconnect) {
-    if (_retryCount >= maxRetries) {
-      _setState(ConnectionStatus.error);
-      return;
-    }
-    
     _setState(ConnectionStatus.connecting);
     
     // Calcula delay com jitter
