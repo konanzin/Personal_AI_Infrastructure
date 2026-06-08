@@ -13,12 +13,21 @@ class SessionsScreen extends StatefulWidget {
 }
 
 class _SessionsScreenState extends State<SessionsScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SessionProvider>().loadSessions();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _createNewSession() async {
@@ -133,6 +142,36 @@ class _SessionsScreenState extends State<SessionsScreen> {
             onPressed: () => Navigator.pushNamed(context, '/settings'),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search chats...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+            ),
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createNewSession,
@@ -206,14 +245,20 @@ class _SessionsScreenState extends State<SessionsScreen> {
             );
           }
 
+          final filtered = _searchQuery.isEmpty
+              ? provider.sessions
+              : provider.sessions.where((s) =>
+                  s.displayName.toLowerCase().contains(_searchQuery) ||
+                  (s.directory ?? '').toLowerCase().contains(_searchQuery)).toList();
+
           return RefreshIndicator(
             onRefresh: provider.loadSessions,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: provider.sessions.length,
+              itemCount: filtered.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final session = provider.sessions[index];
+                final session = filtered[index];
                 final isActive = session.id == provider.currentSessionId;
 
                 return InkWell(

@@ -61,13 +61,7 @@ class SecureStorageService {
     await _storage.write(key: key, value: value);
   }
 
-  /// Test-only override for `read`. When non-null, used instead of
-  /// the real FlutterSecureStorage implementation.
-  static Future<String?> Function(String)? readOverride;
-
   static Future<String?> read(String key) async {
-    final override = readOverride;
-    if (override != null) return override(key);
     return _storage.read(key: key);
   }
 

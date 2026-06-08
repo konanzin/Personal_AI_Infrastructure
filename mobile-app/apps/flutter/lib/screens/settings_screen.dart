@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/client_provider.dart';
 import '../providers/settings_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _urlController;
   late TextEditingController _usernameController;
   late TextEditingController _passwordController;
+  late TextEditingController _timeoutController;
   bool _obscurePassword = true;
 
   @override
@@ -24,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _urlController = TextEditingController(text: settings.serverUrl);
     _usernameController = TextEditingController(text: settings.username);
     _passwordController = TextEditingController(text: settings.password);
+    _timeoutController = TextEditingController(text: '${settings.requestTimeoutSeconds}');
   }
 
   @override
@@ -31,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _timeoutController.dispose();
     super.dispose();
   }
 
@@ -62,12 +66,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       serverUrl: _urlController.text.trim(),
       username: _usernameController.text.trim(),
       password: _passwordController.text,
+      requestTimeoutSeconds: int.tryParse(_timeoutController.text) ?? 30,
     );
 
     if (mounted && provider.error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings saved successfully')),
-      );
+      await context.read<ClientProvider>().refreshCredentials();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved successfully')),
+        );
+      }
     }
   }
 
@@ -177,6 +185,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+
+                  // Timeout
+                  TextFormField(
+                    controller: _timeoutController,
+                    decoration: const InputDecoration(
+                      labelText: 'Request Timeout (seconds)',
+                      hintText: '30',
+                      prefixIcon: Icon(Icons.timer_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      final n = int.tryParse(value ?? '');
+                      if (n == null || n < 5 || n > 300) {
+                        return 'Enter a value between 5 and 300';
+                      }
+                      return null;
+                    },
+                  ),
+
                   const SizedBox(height: 24),
 
                   // Error message
@@ -220,6 +249,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Theme
+                  const Text('Appearance',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                  const SizedBox(height: 8),
+                  SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(value: ThemeMode.system, label: Text('System'), icon: Icon(Icons.brightness_auto)),
+                      ButtonSegment(value: ThemeMode.light, label: Text('Light'), icon: Icon(Icons.light_mode)),
+                      ButtonSegment(value: ThemeMode.dark, label: Text('Dark'), icon: Icon(Icons.dark_mode)),
+                    ],
+                    selected: {provider.themeMode},
+                    onSelectionChanged: (s) => provider.setThemeMode(s.first),
                   ),
 
                   const SizedBox(height: 24),

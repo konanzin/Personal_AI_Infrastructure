@@ -5,38 +5,55 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/chat_event.dart';
+import 'api_errors.dart';
 
 /// Configuration for the OpenCode client.
 class ClientConfig {
   final String baseUrl;
   final String username;
   final String password;
+  final int connectTimeoutSeconds;
+  final int requestTimeoutSeconds;
+  final int sseHeartbeatSeconds;
 
   ClientConfig({
     required this.baseUrl,
     required this.username,
     required this.password,
+    this.connectTimeoutSeconds = 10,
+    this.requestTimeoutSeconds = 30,
+    this.sseHeartbeatSeconds = 90,
   });
+
+  Duration get connectTimeout => Duration(seconds: connectTimeoutSeconds);
+  Duration get requestTimeout => Duration(seconds: requestTimeoutSeconds);
+  Duration get sseHeartbeatTimeout => Duration(seconds: sseHeartbeatSeconds);
 }
 
 /// Unified API client for the OpenCode Server.
-///
+/// 
 /// Uses Dart's native HTTP streaming to consume SSE events.
 /// No polyfills needed — Dart's Stream and http package handle
 /// streaming natively.
 class OpenCodeClient {
-  static const _messageResponseTimeout = Duration(minutes: 5);
-
   final ClientConfig config;
   http.Client? _httpClient;
   StreamSubscription? _sseSubscription;
 
   OpenCodeClient(this.config);
 
+  /// Throw a typed [ApiError] from an HTTP response.
+  Never _throwForStatus(http.Response response, String context) {
+    throw ApiError.fromResponse(
+      response.statusCode,
+      response.body,
+      headers: response.headers,
+    );
+  }
+
   /// Encode Basic Auth header.
   String _encodeBasicAuth() {
-    final credentials =
-        base64Encode(utf8.encode('${config.username}:${config.password}'));
+    final credentials = base64Encode(utf8.encode('${config.username}:${config.password}'));
     return 'Basic $credentials';
   }
 
@@ -53,7 +70,7 @@ class OpenCodeClient {
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          throw Exception('Connection timeout - server unreachable');
+          throw const ApiTimeoutError(message: 'Connection timeout - server unreachable');
         },
       );
 
@@ -64,17 +81,18 @@ class OpenCodeClient {
   }
 
   /// Subscribe to the OpenCode event stream.
-  ///
+  /// 
   /// Returns a Stream of typed ChatEvent that can be listened to.
   /// The stream emits specific subclasses for each event type.
-  ///
+  /// 
   /// Call [unsubscribe] to close the stream.
-  Stream<ChatEvent> subscribeToEvents() {
-    final url = Uri.parse('${config.baseUrl}/event');
-
+  Stream<ChatEvent> subscribeToEvents({String? directory}) {
+    var url = Uri.parse('${config.baseUrl}/event');
+    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
+    
     // Use a persistent client for the SSE connection
     _httpClient = http.Client();
-
+    
     final request = http.Request('GET', url);
     request.headers['Accept'] = 'text/event-stream';
     request.headers['Authorization'] = _encodeBasicAuth();
@@ -85,28 +103,42 @@ class OpenCodeClient {
 
     final controller = StreamController<ChatEvent>();
 
+    Timer? heartbeatTimer;
+
+    void resetHeartbeat() {
+      heartbeatTimer?.cancel();
+      heartbeatTimer = Timer(config.sseHeartbeatTimeout, () {
+        debugPrint('[PAI_SSE] Heartbeat timeout - no data for ${config.sseHeartbeatSeconds}s');
+        controller.add(const DisconnectedEvent());
+        controller.close();
+        unsubscribe();
+      });
+    }
+
     responseFuture.then((response) {
       if (response.statusCode != 200) {
         controller.addError(
-          Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}'),
+          ApiError.fromResponse(response.statusCode, response.reasonPhrase ?? ''),
         );
         controller.close();
         return;
       }
 
-      // Emit connected event immediately
       controller.add(const ConnectedEvent());
+      resetHeartbeat();
 
-      // Parse the SSE stream line by line
       var currentEventType = '';
       var currentData = StringBuffer();
 
       final utf8Decoder = utf8.decoder;
       const lineSplitter = LineSplitter();
-
-      _sseSubscription =
-          response.stream.transform(utf8Decoder).transform(lineSplitter).listen(
+      
+      _sseSubscription = response.stream
+          .transform(utf8Decoder)
+          .transform(lineSplitter)
+          .listen(
         (line) {
+          resetHeartbeat();
           if (line.startsWith('event: ')) {
             currentEventType = line.substring(7);
           } else if (line.startsWith('data: ')) {
@@ -115,11 +147,9 @@ class OpenCodeClient {
             }
             currentData.write(line.substring(6));
           } else if (line.isEmpty) {
-            // Empty line means dispatch the event
             if (currentData.isNotEmpty) {
               final rawData = currentData.toString();
-              debugPrint(
-                  '[PAI_SSE_RAW] Event: $currentEventType | Data: ${rawData.substring(0, rawData.length > 200 ? 200 : rawData.length)}...');
+              debugPrint('[PAI_SSE_RAW] Event: $currentEventType | Data: ${rawData.substring(0, rawData.length > 200 ? 200 : rawData.length)}...');
               final event = _buildTypedEvent(
                 currentEventType,
                 rawData,
@@ -133,17 +163,20 @@ class OpenCodeClient {
           }
         },
         onError: (error) {
+          heartbeatTimer?.cancel();
           controller.add(ErrorEvent(
             error: error,
             message: error.toString(),
           ));
         },
         onDone: () {
+          heartbeatTimer?.cancel();
           controller.add(const DisconnectedEvent());
           controller.close();
         },
       );
     }).catchError((error) {
+      heartbeatTimer?.cancel();
       controller.add(ErrorEvent(
         error: error,
         message: error.toString(),
@@ -207,19 +240,22 @@ class OpenCodeClient {
   ChatEvent? _buildTypedEvent(String eventName, String data) {
     if (eventName.isEmpty && data.isEmpty) return null;
 
-    String rawType = eventName;
     Map<String, dynamic>? parsed;
+    String rawType = '';
 
     if (data.isNotEmpty) {
       try {
         parsed = jsonDecode(data) as Map<String, dynamic>;
-        if (rawType.isEmpty && parsed['type'] is String) {
+        if (parsed['type'] is String) {
           rawType = parsed['type'] as String;
         }
       } catch (_) {
         // Data is not JSON, treat as plain string
       }
     }
+
+    // Fallback to SSE event: header if JSON had no type field
+    if (rawType.isEmpty) rawType = eventName;
 
     final sessionId = parsed != null ? _extractSessionId(parsed) : null;
 
@@ -322,9 +358,7 @@ class OpenCodeClient {
           return ToolCallProgressEvent(
             callId: props['callID'] as String? ?? '',
             structured: (props['structured'] as Map<String, dynamic>?) ?? {},
-            content: (props['content'] as List<dynamic>?)
-                    ?.cast<Map<String, dynamic>>() ??
-                [],
+            content: (props['content'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [],
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -337,9 +371,7 @@ class OpenCodeClient {
           return ToolCallSuccessEvent(
             callId: props['callID'] as String? ?? '',
             structured: (props['structured'] as Map<String, dynamic>?) ?? {},
-            content: (props['content'] as List<dynamic>?)
-                    ?.cast<Map<String, dynamic>>() ??
-                [],
+            content: (props['content'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [],
             provider: (props['provider'] as Map<String, dynamic>?) ?? {},
             sessionId: sessionId,
             originalEvent: rawType,
@@ -423,9 +455,8 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           final answers = (props['answers'] as List<dynamic>?)
-                  ?.map((a) => (a as List<dynamic>).cast<String>())
-                  .toList() ??
-              [];
+              ?.map((a) => (a as List<dynamic>).cast<String>())
+              .toList() ?? [];
           return QuestionRepliedEvent(
             requestId: props['requestID'] as String? ?? '',
             answers: answers,
@@ -513,11 +544,6 @@ class OpenCodeClient {
     return null;
   }
 
-  @visibleForTesting
-  ChatEvent? buildTypedEventForTest(String eventName, String data) {
-    return _buildTypedEvent(eventName, data);
-  }
-
   /// Extract properties map from event payload.
   Map<String, dynamic>? _extractProperties(Map<String, dynamic>? parsed) {
     if (parsed == null) return null;
@@ -572,67 +598,60 @@ class OpenCodeClient {
   /// Create a new session.
   Future<Map<String, dynamic>> createSession({String? title}) async {
     final url = Uri.parse('${config.baseUrl}/session');
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Authorization': _encodeBasicAuth(),
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({if (title != null) 'title': title}),
-        )
-        .timeout(const Duration(seconds: 10));
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({if (title != null) 'title': title}),
+    ).timeout(config.requestTimeout);
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to create session: ${response.statusCode}');
-    }
+    if (response.statusCode != 200) _throwForStatus(response, 'create session');
 
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   /// Send a message to a session.
-  ///
+  /// 
   /// Uses the correct endpoint: POST /session/{sessionID}/message
   /// Body: { "parts": [{"type": "text", "text": "..."}] }
-  Future<void> sendMessage(String sessionId, String text) async {
-    final url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
-
+  Future<void> sendMessage(String sessionId, String text, {String? directory}) async {
+    var url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
+    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
+    
     final body = jsonEncode({
       'parts': [
         {'type': 'text', 'text': text}
       ]
     });
 
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Authorization': _encodeBasicAuth(),
-            'Content-Type': 'application/json',
-          },
-          body: body,
-        )
-        .timeout(_messageResponseTimeout);
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: body,
+    ).timeout(config.requestTimeout);
 
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception(
-          'Failed to send message: ${response.statusCode} - ${response.body}');
+      _throwForStatus(response, 'send message');
     }
   }
 
   /// List all sessions.
-  Future<List<dynamic>> listSessions() async {
-    final url = Uri.parse('${config.baseUrl}/session');
+  Future<List<dynamic>> listSessions({String? directory}) async {
+    var url = Uri.parse('${config.baseUrl}/session');
+    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
     final response = await http.get(
       url,
       headers: {
         'Authorization': _encodeBasicAuth(),
       },
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(config.requestTimeout);
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to list sessions: ${response.statusCode}');
-    }
+    if (response.statusCode != 200) _throwForStatus(response, 'list sessions');
 
     final data = jsonDecode(response.body);
     if (data is Map && data.containsKey('items')) {
@@ -650,20 +669,16 @@ class OpenCodeClient {
     final body = <String, dynamic>{};
     if (title != null) body['title'] = title;
 
-    final response = await http
-        .patch(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': _encodeBasicAuth(),
-          },
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 10));
+    final response = await http.patch(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': _encodeBasicAuth(),
+      },
+      body: jsonEncode(body),
+    ).timeout(config.requestTimeout);
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to update session: ${response.statusCode}');
-    }
+    if (response.statusCode != 200) _throwForStatus(response, 'update session');
   }
 
   /// Delete a session.
@@ -674,10 +689,10 @@ class OpenCodeClient {
       headers: {
         'Authorization': _encodeBasicAuth(),
       },
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(config.requestTimeout);
 
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Failed to delete session: ${response.statusCode}');
+      _throwForStatus(response, 'delete session');
     }
   }
 
@@ -689,11 +704,9 @@ class OpenCodeClient {
       headers: {
         'Authorization': _encodeBasicAuth(),
       },
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(config.requestTimeout);
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to get messages: ${response.statusCode}');
-    }
+    if (response.statusCode != 200) _throwForStatus(response, 'get messages');
 
     final data = jsonDecode(response.body);
     if (data is List) {
@@ -708,7 +721,7 @@ class OpenCodeClient {
     await http.post(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(config.requestTimeout);
   }
 
   /// Get session details (model, cost, tokens, etc).
@@ -717,67 +730,77 @@ class OpenCodeClient {
     final response = await http.get(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to get session: ${response.statusCode}');
-    }
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'get session');
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   /// List available providers and models.
+  /// Tries `/config/providers` (SDK standard) first, falls back to `/provider`.
   Future<Map<String, dynamic>> getProviders() async {
-    final url = Uri.parse('${config.baseUrl}/provider');
-    final response = await http.get(
-      url,
-      headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to get providers: ${response.statusCode}');
+    for (final path in ['/config/providers', '/provider']) {
+      final url = Uri.parse('${config.baseUrl}$path');
+      try {
+        final response = await http.get(
+          url,
+          headers: {'Authorization': _encodeBasicAuth()},
+        ).timeout(config.requestTimeout);
+        if (response.statusCode == 200) {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        }
+      } catch (_) {
+        // Try next endpoint
+      }
     }
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    throw const ApiError(statusCode: 404, message: 'No providers endpoint found');
   }
 
-  /// Send a message with optional model/parts override.
+  /// Send a message with optional model/parts override and advanced fields.
   Future<void> sendMessageAdvanced(
     String sessionId, {
     required List<Map<String, dynamic>> parts,
     Map<String, String>? model,
+    String? agent,
+    String? system,
+    Map<String, bool>? tools,
+    bool? noReply,
+    String? messageId,
+    String? directory,
   }) async {
-    final url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
+    var url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
+    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
     final body = <String, dynamic>{'parts': parts};
     if (model != null) body['model'] = model;
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Authorization': _encodeBasicAuth(),
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        )
-        .timeout(_messageResponseTimeout);
+    if (agent != null) body['agent'] = agent;
+    if (system != null) body['system'] = system;
+    if (tools != null) body['tools'] = tools;
+    if (noReply != null) body['noReply'] = noReply;
+    if (messageId != null) body['messageID'] = messageId;
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    ).timeout(config.requestTimeout);
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Failed to send message: ${response.statusCode}');
+      _throwForStatus(response, 'send message advanced');
     }
   }
 
   /// Fork a session at a specific message.
-  Future<Map<String, dynamic>> forkSession(
-      String sessionId, String messageId) async {
+  Future<Map<String, dynamic>> forkSession(String sessionId, String messageId) async {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/fork');
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Authorization': _encodeBasicAuth(),
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'messageID': messageId}),
-        )
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to fork session: ${response.statusCode}');
-    }
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'messageID': messageId}),
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'fork session');
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
@@ -787,10 +810,8 @@ class OpenCodeClient {
     final response = await http.post(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to share session: ${response.statusCode}');
-    }
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'share session');
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
@@ -799,28 +820,24 @@ class OpenCodeClient {
     final response = await http.delete(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(config.requestTimeout);
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Failed to unshare session: ${response.statusCode}');
+      _throwForStatus(response, 'unshare session');
     }
   }
 
   /// Revert a message (undo file changes).
   Future<void> revertMessage(String sessionId, String messageId) async {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/revert');
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Authorization': _encodeBasicAuth(),
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'messageID': messageId}),
-        )
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to revert message: ${response.statusCode}');
-    }
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'messageID': messageId}),
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'revert message');
   }
 
   /// Unrevert messages in a session.
@@ -829,10 +846,8 @@ class OpenCodeClient {
     final response = await http.post(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to unrevert: ${response.statusCode}');
-    }
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'unrevert');
   }
 
   /// Get session todos.
@@ -841,10 +856,8 @@ class OpenCodeClient {
     final response = await http.get(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to get todos: ${response.statusCode}');
-    }
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'get todos');
     final data = jsonDecode(response.body);
     if (data is List) return data;
     return [];
@@ -856,34 +869,97 @@ class OpenCodeClient {
     final response = await http.get(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to get commands: ${response.statusCode}');
-    }
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'get commands');
     final data = jsonDecode(response.body);
     if (data is List) return data;
     return [];
   }
 
+  /// Search for files/directories by fuzzy name match.
+  Future<List<String>> findFiles(String query, {int limit = 15, String? directory}) async {
+    final params = <String, String>{
+      'query': query,
+      'limit': '$limit',
+    };
+    if (directory != null) params['directory'] = directory;
+    final url = Uri.parse('${config.baseUrl}/find/file').replace(queryParameters: params);
+    final response = await http.get(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'find files');
+    final data = jsonDecode(response.body);
+    if (data is List) return data.cast<String>();
+    return [];
+  }
+
   /// Execute a slash command.
-  Future<void> executeCommand(String sessionId, String command,
-      {String? arguments}) async {
+  Future<void> executeCommand(String sessionId, String command, {String? arguments}) async {
     final url = Uri.parse('${config.baseUrl}/session/$sessionId/command');
     final body = <String, dynamic>{'command': command};
     if (arguments != null) body['arguments'] = arguments;
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Authorization': _encodeBasicAuth(),
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 30));
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    ).timeout(config.requestTimeout);
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Failed to execute command: ${response.statusCode}');
+      _throwForStatus(response, 'execute command');
     }
+  }
+
+  /// Summarize a session.
+  Future<Map<String, dynamic>> summarizeSession(
+    String sessionId, {
+    required String modelId,
+    required String providerId,
+  }) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/summarize');
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'modelID': modelId, 'providerID': providerId}),
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'summarize session');
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Initialize a session (AGENTS.md).
+  Future<void> initSession(
+    String sessionId, {
+    required String modelId,
+    required String providerId,
+  }) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/init');
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'modelID': modelId, 'providerID': providerId}),
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'init session');
+  }
+
+  /// Get child sessions (forked from this session).
+  Future<List<dynamic>> getSessionChildren(String sessionId) async {
+    final url = Uri.parse('${config.baseUrl}/session/$sessionId/children');
+    final response = await http.get(
+      url,
+      headers: {'Authorization': _encodeBasicAuth()},
+    ).timeout(config.requestTimeout);
+    if (response.statusCode != 200) _throwForStatus(response, 'get session children');
+    final data = jsonDecode(response.body);
+    if (data is List) return data;
+    return [];
   }
 
   /// Generic GET request.
@@ -892,27 +968,24 @@ class OpenCodeClient {
     final response = await http.get(
       url,
       headers: {'Authorization': _encodeBasicAuth()},
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(config.requestTimeout);
     return response;
   }
 
   /// Generic POST request to an endpoint path.
   Future<http.Response> post(String path, {String? body}) async {
     final url = Uri.parse('${config.baseUrl}$path');
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Authorization': _encodeBasicAuth(),
-            if (body != null) 'Content-Type': 'application/json',
-          },
-          body: body,
-        )
-        .timeout(const Duration(seconds: 10));
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': _encodeBasicAuth(),
+        if (body != null) 'Content-Type': 'application/json',
+      },
+      body: body,
+    ).timeout(config.requestTimeout);
 
     if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception(
-          'POST $path failed: ${response.statusCode} - ${response.body}');
+      _throwForStatus(response, 'POST $path');
     }
 
     return response;
