@@ -82,7 +82,7 @@ class _EventsScreenState extends State<EventsScreen> {
   void _disconnect({bool updateState = true}) {
     _subscription?.cancel();
     _subscription = null;
-    _client?.unsubscribe();
+    _client?.close();
     _client = null;
     if (updateState && mounted) {
       setState(() {

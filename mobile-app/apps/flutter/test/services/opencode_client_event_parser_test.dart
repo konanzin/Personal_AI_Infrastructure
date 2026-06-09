@@ -1,8 +1,32 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:pai_mobile_flutter/models/chat_event.dart';
+import 'package:pai_mobile_flutter/services/api_errors.dart';
 import 'package:pai_mobile_flutter/services/opencode_client.dart';
+
+class _FakeStreamClient extends http.BaseClient {
+  bool closed = false;
+  int sendCount = 0;
+  StreamController<List<int>>? controller;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    sendCount++;
+    controller = StreamController<List<int>>();
+    return http.StreamedResponse(controller!.stream, 200);
+  }
+
+  @override
+  void close() {
+    closed = true;
+    unawaited(controller?.close());
+    super.close();
+  }
+}
 
 void main() {
   late OpenCodeClient client;
@@ -129,5 +153,194 @@ void main() {
     expect(repliedEvent.answers, [
       ['Yes']
     ]);
+  });
+
+  group('OpenCodeClient transport', () {
+    test('normalizes server URLs before requests', () {
+      final config = ClientConfig(
+        baseUrl: 'localhost:4096/',
+        username: 'test',
+        password: 'test',
+      );
+
+      expect(config.baseUrl, 'http://localhost:4096');
+    });
+
+    test('sendMessage sends auth, JSON body, directory and applies timeout',
+        () async {
+      late http.Request capturedRequest;
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+          requestTimeoutSeconds: 1,
+        ),
+        httpClient: MockClient((request) async {
+          capturedRequest = request;
+          return http.Response('', 204);
+        }),
+      );
+
+      await client.sendMessage('sess-1', 'hello', directory: '/tmp/work');
+
+      expect(capturedRequest.method, 'POST');
+      expect(capturedRequest.url.path, '/session/sess-1/message');
+      expect(capturedRequest.url.queryParameters['directory'], '/tmp/work');
+      expect(capturedRequest.headers['Authorization'], startsWith('Basic '));
+      expect(capturedRequest.headers['Content-Type'],
+          contains('application/json'));
+      expect(jsonDecode(capturedRequest.body), {
+        'parts': [
+          {'type': 'text', 'text': 'hello'}
+        ]
+      });
+    });
+
+    test('sendMessageAdvanced preserves model override contract', () async {
+      late Map<String, dynamic> body;
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+        ),
+        httpClient: MockClient((request) async {
+          body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('', 200);
+        }),
+      );
+
+      await client.sendMessageAdvanced(
+        'sess-1',
+        parts: [
+          {'type': 'text', 'text': 'hello'}
+        ],
+        model: {'providerID': 'kimi-for-coding', 'modelID': 'k2p6'},
+      );
+
+      expect(body['model'], {
+        'providerID': 'kimi-for-coding',
+        'modelID': 'k2p6',
+      });
+      expect(body['parts'], [
+        {'type': 'text', 'text': 'hello'}
+      ]);
+    });
+
+    test('sendMessage timeout is surfaced as ApiTimeoutError', () async {
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+          requestTimeoutSeconds: 0,
+        ),
+        httpClient: MockClient((request) => Completer<http.Response>().future),
+      );
+
+      await expectLater(
+        client.sendMessage('sess-1', 'hello'),
+        throwsA(isA<ApiTimeoutError>()),
+      );
+    });
+
+    test('checkConnection returns auth-specific diagnostics', () async {
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'bad',
+        ),
+        httpClient: MockClient((request) async => http.Response('nope', 401)),
+      );
+
+      final result = await client.checkConnection();
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('Authentication failed'));
+      expect(result.error, isA<AuthenticationError>());
+    });
+
+    test('getProviders falls back from config providers to provider endpoint',
+        () async {
+      final paths = <String>[];
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+        ),
+        httpClient: MockClient((request) async {
+          paths.add(request.url.path);
+          if (request.url.path == '/config/providers') {
+            return http.Response('missing', 404);
+          }
+          return http.Response(
+            jsonEncode({
+              'kimi-for-coding': {
+                'models': ['k2p6']
+              }
+            }),
+            200,
+          );
+        }),
+      );
+
+      final providers = await client.getProviders();
+
+      expect(paths, ['/config/providers', '/provider']);
+      expect(providers.keys, contains('kimi-for-coding'));
+    });
+
+    test('listSessionRecords exposes typed session data', () async {
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+        ),
+        httpClient: MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'items': [
+                {
+                  'id': 'sess-1',
+                  'title': 'Mobile smoke',
+                  'directory': '/tmp/work',
+                }
+              ]
+            }),
+            200,
+          );
+        }),
+      );
+
+      final sessions = await client.listSessionRecords();
+
+      expect(sessions.single.id, 'sess-1');
+      expect(sessions.single.title, 'Mobile smoke');
+      expect(sessions.single.directory, '/tmp/work');
+      expect(sessions.single.raw['id'], 'sess-1');
+    });
+
+    test('SSE subscription cancellation closes stream client', () async {
+      final streamClient = _FakeStreamClient();
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+        ),
+        streamClientFactory: () => streamClient,
+      );
+
+      final subscription = client.subscribeToEvents().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+      await subscription.cancel();
+
+      expect(streamClient.sendCount, 1);
+      expect(streamClient.closed, isTrue);
+    });
   });
 }

@@ -87,8 +87,9 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final normalizedUrl = ClientConfig.normalizeBaseUrl(serverUrl);
       await SecureStorageService.saveCredentials(
-        serverUrl: serverUrl,
+        serverUrl: normalizedUrl,
         username: username,
         password: password,
       );
@@ -98,7 +99,7 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.setInt('request_timeout_seconds', timeout);
 
       _settings = AppSettings(
-        serverUrl: serverUrl,
+        serverUrl: normalizedUrl,
         username: username,
         password: password,
         isConfigured: true,
@@ -136,15 +137,15 @@ class SettingsProvider extends ChangeNotifier {
         password: pass,
       );
       final client = OpenCodeClient(config);
-      final success = await client.verifyAuth();
+      final result = await client.checkConnection().whenComplete(client.close);
 
-      if (!success) {
-        _error = 'Authentication failed. Check URL, username, and password.';
+      if (!result.success) {
+        _error = result.message;
       }
 
       _isLoading = false;
       notifyListeners();
-      return success;
+      return result.success;
     } catch (e) {
       _error = 'Connection failed: $e';
       _isLoading = false;

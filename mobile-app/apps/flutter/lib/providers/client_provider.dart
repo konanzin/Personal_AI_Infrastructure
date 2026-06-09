@@ -80,8 +80,10 @@ class ClientProvider extends ChangeNotifier {
   }
 
   void _rebuildClient() {
+    final previousClient = _client;
     if (_baseUrl == null || _username == null || _password == null) {
       _client = null;
+      previousClient?.close();
       notifyListeners();
       return;
     }
@@ -94,6 +96,15 @@ class ClientProvider extends ChangeNotifier {
         requestTimeoutSeconds: _requestTimeoutSeconds,
       ),
     );
+    if (previousClient != _client) {
+      previousClient?.close();
+    }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _client?.close();
+    super.dispose();
   }
 }

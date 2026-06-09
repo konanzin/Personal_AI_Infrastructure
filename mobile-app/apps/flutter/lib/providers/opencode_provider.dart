@@ -160,7 +160,9 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Updates the HTTP client (called when credentials/timeout change).
   void updateClient(OpenCodeClient newClient) {
     _sseSubscription?.cancel();
-    _client?.unsubscribe();
+    if (_client != newClient) {
+      _client?.close();
+    }
     _client = newClient;
     notifyListeners();
   }
