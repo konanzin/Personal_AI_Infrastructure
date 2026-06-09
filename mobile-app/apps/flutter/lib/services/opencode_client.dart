@@ -633,7 +633,7 @@ class OpenCodeClient {
         'Content-Type': 'application/json',
       },
       body: body,
-    ).timeout(config.requestTimeout);
+    );
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       _throwForStatus(response, 'send message');
@@ -783,7 +783,7 @@ class OpenCodeClient {
         'Content-Type': 'application/json',
       },
       body: jsonEncode(body),
-    ).timeout(config.requestTimeout);
+    );
     if (response.statusCode != 200 && response.statusCode != 204) {
       _throwForStatus(response, 'send message advanced');
     }
@@ -973,16 +973,17 @@ class OpenCodeClient {
   }
 
   /// Generic POST request to an endpoint path.
-  Future<http.Response> post(String path, {String? body}) async {
+  Future<http.Response> post(String path, {String? body, Duration? timeout}) async {
     final url = Uri.parse('${config.baseUrl}$path');
-    final response = await http.post(
+    var future = http.post(
       url,
       headers: {
         'Authorization': _encodeBasicAuth(),
         if (body != null) 'Content-Type': 'application/json',
       },
       body: body,
-    ).timeout(config.requestTimeout);
+    );
+    final response = timeout != null ? await future.timeout(timeout) : await future;
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       _throwForStatus(response, 'POST $path');

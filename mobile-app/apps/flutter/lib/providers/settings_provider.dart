@@ -181,4 +181,21 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString('theme_mode', mode.name);
     notifyListeners();
   }
+
+  // ── Show Thinking ────────────────────────────────────────────────────
+  bool _showThinking = true;
+  bool get showThinking => _showThinking;
+
+  Future<void> loadShowThinking() async {
+    final prefs = await SharedPreferences.getInstance();
+    _showThinking = prefs.getBool('show_thinking') ?? true;
+    notifyListeners();
+  }
+
+  Future<void> setShowThinking(bool value) async {
+    _showThinking = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('show_thinking', value);
+    notifyListeners();
+  }
 }

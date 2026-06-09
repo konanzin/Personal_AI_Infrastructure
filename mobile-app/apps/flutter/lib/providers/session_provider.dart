@@ -142,6 +142,12 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clears the current session selection (for lazy creation).
+  void clearCurrentSession() {
+    _currentSessionId = null;
+    notifyListeners();
+  }
+
   /// Cria uma nova sessão e adiciona à lista
   Future<Session?> createSession({String? title}) async {
     _isLoading = true;

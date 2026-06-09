@@ -17,6 +17,7 @@ class VoiceFab extends StatefulWidget {
   final Function(String text)? onSpeechResult;
   final VoidCallback? onStartListening;
   final VoidCallback? onStopListening;
+  final bool compact;
 
   const VoiceFab({
     super.key,
@@ -24,6 +25,7 @@ class VoiceFab extends StatefulWidget {
     this.onSpeechResult,
     this.onStartListening,
     this.onStopListening,
+    this.compact = false,
   });
 
   @override
@@ -142,6 +144,19 @@ class _VoiceFabState extends State<VoiceFab> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (widget.compact) {
+      return GestureDetector(
+        onTap: _toggleListening,
+        child: Icon(
+          _state == VoiceState.listening ? Icons.stop : Icons.mic,
+          size: 22,
+          color: _state == VoiceState.listening
+              ? theme.colorScheme.error
+              : theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
     
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -11,6 +12,7 @@ import 'file_diff_card.dart';
 import 'reasoning_message_bubble.dart';
 import 'shell_command_bubble.dart';
 import 'tool_call_bubble.dart';
+import '../providers/opencode_provider.dart';
 
 class _CodeBlockBuilder extends MarkdownElementBuilder {
   @override
@@ -29,22 +31,77 @@ class _CodeBlockBuilder extends MarkdownElementBuilder {
   }
 }
 
-/// Self-contained widget for a single chat message bubble.
-/// Wrapped in RepaintBoundary to isolate repaint from siblings.
+/// Trims incomplete markdown tokens from the end of streaming text so that
+/// partial syntax like `**word` doesn't flash as raw text before closing.
+String _sanitizeStreamingMarkdown(String text) {
+  if (text.isEmpty) return text;
+
+  // Find the last newline — only analyze the last line for trailing tokens.
+  final lastNl = text.lastIndexOf('\n');
+  final tail = lastNl >= 0 ? text.substring(lastNl + 1) : text;
+  final head = lastNl >= 0 ? text.substring(0, lastNl + 1) : '';
+
+  // Check for unclosed fenced code block (odd number of ```)
+  final fenceMatches = RegExp(r'```').allMatches(text);
+  if (fenceMatches.length.isOdd) {
+    // Inside a code block — render everything up to the opening fence as-is,
+    // and append the code block content as plain preformatted text.
+    return text;
+  }
+
+  // Check for unclosed inline markers in the tail.
+  var safeTail = tail;
+
+  // Bold/italic: count unmatched ** or * at the end
+  final lastDoubleStar = safeTail.lastIndexOf('**');
+  if (lastDoubleStar >= 0) {
+    final after = safeTail.substring(lastDoubleStar + 2);
+    // If there's no closing ** after the last opening **, trim there
+    if (!after.contains('**')) {
+      safeTail = safeTail.substring(0, lastDoubleStar);
+    }
+  } else {
+    // Single * (italic)
+    final stars = '*'.allMatches(safeTail).length;
+    if (stars.isOdd) {
+      final lastStar = safeTail.lastIndexOf('*');
+      safeTail = safeTail.substring(0, lastStar);
+    }
+  }
+
+  // Unclosed inline code backtick
+  final backticks = '`'.allMatches(safeTail).length;
+  if (backticks.isOdd) {
+    final lastBt = safeTail.lastIndexOf('`');
+    safeTail = safeTail.substring(0, lastBt);
+  }
+
+  // Unclosed link: [ without ]
+  final lastBracket = safeTail.lastIndexOf('[');
+  if (lastBracket >= 0 && !safeTail.substring(lastBracket).contains(']')) {
+    safeTail = safeTail.substring(0, lastBracket);
+  }
+
+  return head + safeTail;
+}
+
+/// Self-contained widget for a single chat message.
+/// User messages render as a colored bubble (right-aligned).
+/// Agent messages render as plain markdown content (left-aligned, no bubble).
 class ChatMessageTile extends StatelessWidget {
   final ChatMessage message;
   final int historyIndex;
   final String displayText;
   final DateTime? timestamp;
   final String? reasoning;
-  final bool isReasoningExpanded;
-  final VoidCallback? onToggleReasoning;
   final VoidCallback? onLongPress;
+  final VoidCallback? onRegenerate;
   final bool isStreaming;
   final MarkdownStyleSheet? markdownStyleSheet;
   final List<ToolCallPart> toolCalls;
   final List<ShellPart> shellCommands;
   final List<FileChange> fileChanges;
+  final List<AnsweredQuestionData> answeredQuestions;
 
   const ChatMessageTile({
     super.key,
@@ -53,14 +110,14 @@ class ChatMessageTile extends StatelessWidget {
     required this.displayText,
     this.timestamp,
     this.reasoning,
-    this.isReasoningExpanded = false,
-    this.onToggleReasoning,
     this.onLongPress,
+    this.onRegenerate,
     this.isStreaming = false,
     this.markdownStyleSheet,
     this.toolCalls = const [],
     this.shellCommands = const [],
     this.fileChanges = const [],
+    this.answeredQuestions = const [],
   });
 
   @override
@@ -68,99 +125,150 @@ class ChatMessageTile extends StatelessWidget {
     final isUser = message.origin == MessageOrigin.user;
     final theme = Theme.of(context);
 
+    if (isUser) {
+      return _buildUserBubble(context, theme);
+    }
+    return _buildAgentMessage(context, theme);
+  }
+
+  Widget _buildUserBubble(BuildContext context, ThemeData theme) {
     return RepaintBoundary(
       child: Align(
-        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+        alignment: Alignment.centerRight,
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.8,
           ),
-          child: GestureDetector(
-            onLongPress: onLongPress,
-            child: Column(
-              crossAxisAlignment:
-                  isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isUser
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(20).copyWith(
-                      bottomRight:
-                          isUser ? const Radius.circular(4) : null,
-                      bottomLeft:
-                          !isUser ? const Radius.circular(4) : null,
-                    ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(20).copyWith(
+                    bottomRight: const Radius.circular(4),
                   ),
-                  child: isUser
-                      ? Text(
-                          message.text ?? '',
-                          style: TextStyle(
-                            color: theme.colorScheme.onPrimary,
-                            fontSize: 16,
-                          ),
-                        )
-                      : isStreaming
-                          ? SelectableText(
-                              displayText,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface,
-                                fontSize: 16,
-                              ),
-                            )
-                          : MarkdownBody(
-                              key: ValueKey('md-$historyIndex'),
-                              data: displayText,
-                              builders: {'pre': _CodeBlockBuilder()},
-                              onTapLink: (text, href, title) {
-                                if (href != null) {
-                                  launchUrl(Uri.parse(href),
-                                      mode: LaunchMode.externalApplication);
-                                }
-                              },
-                              styleSheet: markdownStyleSheet,
-                            ),
                 ),
-                // Tool calls, shell commands, and file changes as rich widgets
-                if (!isUser && (toolCalls.isNotEmpty || shellCommands.isNotEmpty || fileChanges.isNotEmpty))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final tc in toolCalls)
-                          ToolCallBubble(toolCall: tc),
-                        for (final sh in shellCommands)
-                          ShellCommandBubble(shell: sh),
-                        for (final fc in fileChanges)
-                          FileDiffCard(change: fc),
-                      ],
+                child: Text(
+                  message.text ?? '',
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimary,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              if (timestamp != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 8),
+                  child: Text(
+                    _formatTime(timestamp!),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                if (timestamp != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 8, right: 8),
-                    child: Text(
-                      _formatTime(timestamp!),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: theme.colorScheme.onSurfaceVariant,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgentMessage(BuildContext context, ThemeData theme) {
+    return RepaintBoundary(
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (toolCalls.isNotEmpty || shellCommands.isNotEmpty || fileChanges.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final tc in toolCalls)
+                        ToolCallBubble(toolCall: tc),
+                      for (final sh in shellCommands)
+                        ShellCommandBubble(shell: sh),
+                      for (final fc in fileChanges)
+                        FileDiffCard(change: fc),
+                    ],
+                  ),
+                ),
+              if (answeredQuestions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final aq in answeredQuestions)
+                        _AnsweredQuestionBubble(data: aq),
+                    ],
+                  ),
+                ),
+              if (reasoning != null && reasoning!.isNotEmpty)
+                ReasoningMessageBubble(reasoning: reasoning!),
+              if (displayText.isNotEmpty)
+                MarkdownBody(
+                  key: ValueKey('md-$historyIndex-${isStreaming ? displayText.length : 0}'),
+                  data: isStreaming ? _sanitizeStreamingMarkdown(displayText) : displayText,
+                  selectable: !isStreaming,
+                  builders: {'pre': _CodeBlockBuilder()},
+                  onTapLink: (text, href, title) {
+                    if (href != null) {
+                      launchUrl(Uri.parse(href),
+                          mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  styleSheet: markdownStyleSheet,
+                ),
+              if (timestamp != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _formatTime(timestamp!),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              if (!isStreaming && displayText.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _ActionIconButton(
+                        icon: Icons.content_copy,
+                        tooltip: 'Copy',
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: displayText));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
+                          );
+                        },
                       ),
-                    ),
+                      if (onRegenerate != null)
+                        _ActionIconButton(
+                          icon: Icons.undo,
+                          tooltip: 'Undo',
+                          onTap: onRegenerate!,
+                        ),
+                    ],
                   ),
-                if (!isUser && reasoning != null && reasoning!.isNotEmpty)
-                  ReasoningMessageBubble(
-                    reasoning: reasoning!,
-                    isExpanded: isReasoningExpanded,
-                    onToggle: onToggleReasoning ?? () {},
-                  ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -194,5 +302,147 @@ class ChatMessageTile extends StatelessWidget {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return names[month - 1];
+  }
+}
+
+class _ActionIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _ActionIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            size: 18,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnsweredQuestionBubble extends StatefulWidget {
+  final AnsweredQuestionData data;
+  const _AnsweredQuestionBubble({required this.data});
+
+  @override
+  State<_AnsweredQuestionBubble> createState() => _AnsweredQuestionBubbleState();
+}
+
+class _AnsweredQuestionBubbleState extends State<_AnsweredQuestionBubble> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final questions = widget.data.request.questions;
+    final answers = widget.data.answers;
+
+    final questionText = questions
+        .map((q) => q.question)
+        .where((q) => q.isNotEmpty)
+        .join(' / ');
+    final answerText = answers
+        .where((a) => a.isNotEmpty)
+        .map((a) => a.join(', '))
+        .join(' | ');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withAlpha(20),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.chat_bubble_outline, size: 14, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Question',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Answered',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Container(
+              margin: const EdgeInsets.only(top: 4, left: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withAlpha(50),
+                borderRadius: BorderRadius.circular(8),
+                border: Border(
+                  left: BorderSide(color: theme.colorScheme.primary.withAlpha(80), width: 2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    questionText,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '→ $answerText',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

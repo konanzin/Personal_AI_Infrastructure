@@ -1,96 +1,91 @@
 import 'package:flutter/material.dart';
 
-/// Widget that shows an expandable reasoning section below an assistant message.
-class ReasoningMessageBubble extends StatelessWidget {
-  final String? reasoning;
-  final bool isExpanded;
-  final VoidCallback onToggle;
+/// Compact reasoning indicator inspired by OpenCode's TUI style.
+/// Self-contained StatefulWidget that manages its own expand/collapse state.
+class ReasoningMessageBubble extends StatefulWidget {
+  final String reasoning;
 
   const ReasoningMessageBubble({
     super.key,
-    this.reasoning,
-    required this.isExpanded,
-    required this.onToggle,
+    required this.reasoning,
   });
+
+  @override
+  State<ReasoningMessageBubble> createState() => _ReasoningMessageBubbleState();
+}
+
+class _ReasoningMessageBubbleState extends State<ReasoningMessageBubble> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasReasoning = reasoning != null && reasoning!.isNotEmpty;
+    const accentColor = Color(0xFFE5A52B);
 
-    if (!hasReasoning) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Toggle button
-        TextButton.icon(
-          onPressed: onToggle,
-          icon: Icon(
-            isExpanded ? Icons.expand_less : Icons.psychology,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
-          label: Text(
-            isExpanded ? 'Hide reasoning' : 'Show reasoning',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-
-        // Expanded reasoning content
-        if (isExpanded)
-          Container(
-            margin: const EdgeInsets.only(top: 4, left: 8, right: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: accentColor.withAlpha(15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _expanded ? Icons.remove : Icons.add,
+                    size: 14,
+                    color: accentColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Thought',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: accentColor,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: accentColor.withAlpha(180),
+                  ),
+                ],
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.psychology,
-                      size: 14,
-                        color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Agent Reasoning',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  reasoning!,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
           ),
-      ],
+          if (_expanded)
+            Container(
+              margin: const EdgeInsets.only(top: 4, left: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withAlpha(50),
+                borderRadius: BorderRadius.circular(8),
+                border: Border(
+                  left: BorderSide(color: accentColor.withAlpha(80), width: 2),
+                ),
+              ),
+              child: Text(
+                widget.reasoning,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

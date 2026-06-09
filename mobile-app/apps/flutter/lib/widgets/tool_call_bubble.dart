@@ -5,14 +5,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../models/message_part.dart';
 
-/// A compact widget for rendering tool calls in the chat timeline.
-/// 
-/// Displays tool call state with color-coded left border accent:
-/// - Pending: orange pulse icon
-/// - Running: blue spinner
-/// - Completed: green check with input/output
-/// - Error: red error icon with message
-class ToolCallBubble extends StatelessWidget {
+class ToolCallBubble extends StatefulWidget {
   final ToolCallPart toolCall;
 
   const ToolCallBubble({
@@ -21,382 +14,184 @@ class ToolCallBubble extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (color, icon, statusText) = _getStateConfig(theme);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8, left: 8, right: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
-        ),
-      ),
-      child: IntrinsicWidth(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left border accent
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
-                ),
-              ),
-            ),
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header: icon + tool name + status
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        icon,
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            toolCall.name,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          statusText,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: color,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    // Error message
-                    if (toolCall.state == ToolCallState.error && toolCall.errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          toolCall.errorMessage!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.error,
-                          ),
-                        ),
-                      ),
-
-                    // Progress indicator
-                    if (toolCall.input.containsKey('_progress'))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: _ProgressIndicator(
-                          progress: toolCall.input['_progress'] as Map<String, dynamic>,
-                        ),
-                      ),
-
-                    // Input arguments (expandable, excluding internal keys)
-                    if (toolCall.input.keys.any((k) => !k.startsWith('_')))
-                      _ToolCallInputSection(input: Map.fromEntries(
-                        toolCall.input.entries.where((e) => !e.key.startsWith('_')),
-                      )),
-                    
-                    // Output content
-                    if (toolCall.state == ToolCallState.completed && toolCall.content.isNotEmpty)
-                      _ToolCallOutputSection(content: toolCall.content),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  (Color, Widget, String) _getStateConfig(ThemeData theme) {
-    switch (toolCall.state) {
-      case ToolCallState.pending:
-        return (
-          Colors.orange,
-          const _PulsingIcon(icon: Icons.pending, color: Colors.orange),
-          'Preparing...',
-        );
-      case ToolCallState.running:
-        return (
-          theme.colorScheme.primary,
-          SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          'Running...',
-        );
-      case ToolCallState.completed:
-        return (
-          Colors.green,
-          Icon(Icons.check_circle, color: Colors.green, size: 20),
-          'Done',
-        );
-      case ToolCallState.error:
-        return (
-          theme.colorScheme.error,
-          Icon(Icons.error, color: theme.colorScheme.error, size: 20),
-          'Failed',
-        );
-    }
-  }
+  State<ToolCallBubble> createState() => _ToolCallBubbleState();
 }
 
-/// Animated pulsing icon for pending state
-class _PulsingIcon extends StatefulWidget {
-  final IconData icon;
-  final Color color;
-
-  const _PulsingIcon({required this.icon, required this.color});
-
-  @override
-  State<_PulsingIcon> createState() => _PulsingIconState();
-}
-
-class _PulsingIconState extends State<_PulsingIcon>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _animation.value,
-          child: Icon(widget.icon, color: widget.color, size: 20),
-        );
-      },
-    );
-  }
-}
-
-/// Expandable section for tool call input arguments
-class _ToolCallInputSection extends StatefulWidget {
-  final Map<String, dynamic> input;
-
-  const _ToolCallInputSection({required this.input});
-
-  @override
-  State<_ToolCallInputSection> createState() => _ToolCallInputSectionState();
-}
-
-class _ToolCallInputSectionState extends State<_ToolCallInputSection> {
+class _ToolCallBubbleState extends State<ToolCallBubble> {
   bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final prettyJson = const JsonEncoder.withIndent('  ').convert(widget.input);
+    final (color, icon, statusText) = _getStateConfig(theme);
+    final hasExpandableContent = _hasContent();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+            onTap: hasExpandableContent ? () => setState(() => _expanded = !_expanded) : null,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
+                  icon,
+                  const SizedBox(width: 8),
                   Text(
-                    _expanded ? 'Hide input' : 'Show input',
+                    widget.toolCall.name,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  Text(
+                    statusText,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                    ),
+                  ),
+                  if (hasExpandableContent) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      _expanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
-          if (_expanded)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: SelectableText(
-                prettyJson,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
+          if (_expanded) _buildExpandedContent(theme),
         ],
       ),
     );
   }
-}
 
-/// Section for rendering tool call output content
-class _ToolCallOutputSection extends StatelessWidget {
-  final List<ToolContent> content;
+  bool _hasContent() {
+    if (widget.toolCall.state == ToolCallState.error && widget.toolCall.errorMessage != null) return true;
+    if (widget.toolCall.input.keys.any((k) => !k.startsWith('_'))) return true;
+    if (widget.toolCall.state == ToolCallState.completed && widget.toolCall.content.isNotEmpty) return true;
+    return false;
+  }
 
-  const _ToolCallOutputSection({required this.content});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
+  Widget _buildExpandedContent(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.only(top: 4, left: 12),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(50),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(color: theme.colorScheme.outline.withAlpha(80), width: 2),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: content.map((item) {
-          if (item is ToolTextContent) {
-            return Container(
-              margin: const EdgeInsets.only(bottom: 4),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: MarkdownBody(
-                data: item.text,
-                styleSheet: MarkdownStyleSheet(
-                  p: TextStyle(
-                    fontSize: 13,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  code: TextStyle(
-                    fontSize: 12,
-                    color: theme.colorScheme.primary,
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  ),
-                ),
-              ),
-            );
-          } else if (item is ToolFileContent) {
-            return Chip(
-              avatar: Icon(
-                Icons.insert_drive_file,
-                size: 16,
-                color: theme.colorScheme.primary,
-              ),
-              label: Text(
-                item.name ?? 'File',
-                style: theme.textTheme.bodySmall,
-              ),
-              backgroundColor: theme.colorScheme.primaryContainer.withOpacity(0.5),
-              side: BorderSide.none,
-              padding: EdgeInsets.zero,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            );
-          }
-          return const SizedBox.shrink();
-        }).toList(),
+        children: [
+          if (widget.toolCall.state == ToolCallState.error && widget.toolCall.errorMessage != null)
+            Text(
+              widget.toolCall.errorMessage!,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+            ),
+          if (widget.toolCall.input.keys.any((k) => !k.startsWith('_')))
+            _buildInput(theme),
+          if (widget.toolCall.state == ToolCallState.completed && widget.toolCall.content.isNotEmpty)
+            _buildOutput(theme),
+        ],
       ),
     );
   }
-}
 
-/// Shows progress from ToolCallProgressEvent structured data.
-class _ProgressIndicator extends StatelessWidget {
-  final Map<String, dynamic> progress;
-  const _ProgressIndicator({required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final label = progress['label'] as String? ??
-        progress['message'] as String? ??
-        progress['status'] as String?;
-    final current = progress['current'] as num?;
-    final total = progress['total'] as num?;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (current != null && total != null && total > 0)
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: (current / total).clamp(0.0, 1.0),
-                minHeight: 4,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          )
-        else
-          SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-        if (label != null) ...[
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 11,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ],
+  Widget _buildInput(ThemeData theme) {
+    final filtered = Map.fromEntries(
+      widget.toolCall.input.entries.where((e) => !e.key.startsWith('_')),
     );
+    final prettyJson = const JsonEncoder.withIndent('  ').convert(filtered);
+    return SelectableText(
+      prettyJson,
+      style: TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 11,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+
+  Widget _buildOutput(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: widget.toolCall.content.map((item) {
+        if (item is ToolTextContent) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: MarkdownBody(
+              data: item.text,
+              styleSheet: MarkdownStyleSheet(
+                p: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                code: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.primary,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                ),
+              ),
+            ),
+          );
+        } else if (item is ToolFileContent) {
+          return Chip(
+            avatar: Icon(Icons.insert_drive_file, size: 14, color: theme.colorScheme.primary),
+            label: Text(item.name ?? 'File', style: theme.textTheme.bodySmall),
+            backgroundColor: theme.colorScheme.primaryContainer.withAlpha(80),
+            side: BorderSide.none,
+            padding: EdgeInsets.zero,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          );
+        }
+        return const SizedBox.shrink();
+      }).toList(),
+    );
+  }
+
+  (Color, Widget, String) _getStateConfig(ThemeData theme) {
+    switch (widget.toolCall.state) {
+      case ToolCallState.pending:
+        return (
+          Colors.orange,
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.orange)),
+          'Preparing...',
+        );
+      case ToolCallState.running:
+        return (
+          theme.colorScheme.primary,
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: theme.colorScheme.primary)),
+          'Running...',
+        );
+      case ToolCallState.completed:
+        return (
+          Colors.green,
+          Icon(Icons.check_circle, color: Colors.green, size: 16),
+          'Done',
+        );
+      case ToolCallState.error:
+        return (
+          theme.colorScheme.error,
+          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 16),
+          'Failed',
+        );
+    }
   }
 }

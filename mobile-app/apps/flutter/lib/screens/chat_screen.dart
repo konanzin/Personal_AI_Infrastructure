@@ -12,13 +12,14 @@ import 'package:provider/provider.dart';
 import '../providers/client_provider.dart';
 import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/voice_service.dart';
-import '../widgets/connection_status_indicator.dart';
 import '../widgets/date_header.dart';
 import '../widgets/chat_permission_area.dart';
 import '../models/file_change.dart';
 import '../models/message_part.dart';
 import '../widgets/autocomplete_overlay.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/chat_message_tile.dart';
 
@@ -54,7 +55,6 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final VoiceService _voiceService = VoiceService();
-  final Set<int> _expandedReasoningIndices = {};
   final List<File> _pendingAttachments = [];
   bool _showScrollToBottom = false;
   StreamSubscription? _sendSubscription;
@@ -80,6 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // Memoized chat items — rebuilt only when history length changes
   List<_ChatListItem>? _cachedChatItems;
   int _cachedHistoryLength = -1;
+  String? _cachedSessionId;
 
   @override
   void initState() {
@@ -101,6 +102,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _textController.removeListener(_onTextChanged);
+    try {
+      context.read<ClientProvider>().removeListener(_onClientReady);
+    } catch (_) {}
     _sendSubscription?.cancel();
     _dismissOverlay();
     _voiceService.dispose();
@@ -115,6 +119,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final clientProvider = context.read<ClientProvider>();
 
     if (clientProvider.client == null) {
+      // Client may still be initializing — listen for changes
+      clientProvider.addListener(_onClientReady);
       setState(() {
         _isLoading = false;
         _error = 'Server not configured. Please go to Settings.';
@@ -122,6 +128,19 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    _doInitialize(provider, clientProvider);
+  }
+
+  void _onClientReady() {
+    final clientProvider = context.read<ClientProvider>();
+    if (clientProvider.client != null) {
+      clientProvider.removeListener(_onClientReady);
+      final provider = context.read<OpenCodeProvider>();
+      _doInitialize(provider, clientProvider);
+    }
+  }
+
+  Future<void> _doInitialize(OpenCodeProvider provider, ClientProvider clientProvider) async {
     if (provider.clientOrNull != clientProvider.client) {
       provider.updateClient(clientProvider.client!);
     }
@@ -133,43 +152,23 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
 
     final sessionId = sessionProvider.currentSessionId;
-    if (sessionId != null && sessionId != provider.currentSessionId) {
-      await provider.switchSession(sessionId);
+    if (sessionId != null) {
+      if (sessionId != provider.currentSessionId) {
+        await provider.switchSession(sessionId);
+      } else if (provider.history.isEmpty) {
+        await provider.loadHistory();
+      }
     }
 
-    // Reset cached chat items when entering a new session
     _cachedChatItems = null;
     _cachedHistoryLength = -1;
+    _cachedSessionId = null;
 
     setState(() {
       _provider = provider;
       _isLoading = false;
-    });
-  }
-
-  Future<void> _createSession() async {
-    if (_provider == null) return;
-    
-    setState(() {
-      _isLoading = true;
       _error = null;
     });
-    
-    try {
-      await _provider!.createSession();
-      final sessionId = _provider!.currentSessionId;
-      if (sessionId != null && mounted) {
-        await context.read<SessionProvider>().selectSession(sessionId);
-      }
-      setState(() {
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'Failed to create session: $e';
-        _isLoading = false;
-      });
-    }
   }
 
   Future<void> _sendMessage() async {
@@ -314,6 +313,37 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // ── Menu actions ────────────────────────────────────────────────────────
 
+  String _getModelDisplayName() {
+    if (_provider == null) return 'PAI';
+    final override = _provider!.modelOverride;
+    if (override != null) {
+      return override['modelID'] ?? 'Custom';
+    }
+    final info = _provider!.sessionInfo;
+    if (info != null) {
+      final model = info['model'];
+      if (model is Map) return model['id']?.toString() ?? 'PAI';
+      if (model is String) return model;
+    }
+    return 'PAI';
+  }
+
+  Future<void> _createNewChat() async {
+    final sessionProvider = context.read<SessionProvider>();
+    final openCodeProvider = context.read<OpenCodeProvider>();
+    // Lazy: just clear state without creating a server-side session.
+    // The session will be created when the user sends their first message.
+    openCodeProvider.clearSession();
+    sessionProvider.clearCurrentSession();
+    if (_provider == null) {
+      setState(() => _provider = openCodeProvider);
+    }
+    _cachedChatItems = null;
+    _cachedHistoryLength = -1;
+    _cachedSessionId = null;
+    setState(() {});
+  }
+
   void _handleMenuAction(String action) {
     switch (action) {
       case 'model':
@@ -343,18 +373,34 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _showModelPicker() async {
     if (_provider == null) return;
     try {
-      final providers = await _provider!.client.getProviders();
+      final clientProvider = context.read<ClientProvider>();
+      final providers = await clientProvider.getProviders();
       if (!mounted) return;
 
-      final allRaw = providers['all'];
-      final allList = allRaw is List ? allRaw : <dynamic>[];
+      final allRaw = providers['all'] ?? providers['providers'];
+      final List allList;
+      if (allRaw is List) {
+        allList = allRaw;
+      } else if (providers.values.any((v) => v is List)) {
+        allList = providers.values.whereType<List>().expand((l) => l).toList();
+      } else {
+        allList = [];
+      }
+
       final models = <Map<String, String>>[];
       for (final prov in allList) {
         if (prov is! Map) continue;
-        final provId = prov['id']?.toString() ?? '';
-        final provModels = prov['models'] as Map<String, dynamic>? ?? {};
-        for (final mId in provModels.keys) {
-          models.add({'providerID': provId, 'modelID': mId});
+        final provId = prov['id']?.toString() ?? prov['name']?.toString() ?? '';
+        final provModels = prov['models'];
+        if (provModels is Map) {
+          for (final mId in provModels.keys) {
+            models.add({'providerID': provId, 'modelID': mId.toString()});
+          }
+        } else if (provModels is List) {
+          for (final m in provModels) {
+            final mId = m is Map ? (m['id']?.toString() ?? m['name']?.toString() ?? '') : m.toString();
+            if (mId.isNotEmpty) models.add({'providerID': provId, 'modelID': mId});
+          }
         }
       }
 
@@ -369,50 +415,85 @@ class _ChatScreenState extends State<ChatScreen> {
 
       final current = _provider!.modelOverride;
 
+      // Group models by provider
+      final grouped = <String, List<Map<String, String>>>{};
+      for (final m in models) {
+        grouped.putIfAbsent(m['providerID']!, () => []).add(m);
+      }
+
       await showModalBottomSheet(
         context: context,
-        builder: (ctx) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('Select Model',
-                    style: Theme.of(ctx).textTheme.titleMedium),
-              ),
-              ListTile(
-                leading: const Icon(Icons.auto_awesome),
-                title: const Text('Default (server)'),
-                trailing: current == null ? const Icon(Icons.check) : null,
-                onTap: () {
-                  _provider!.modelOverride = null;
-                  Navigator.pop(ctx);
-                },
-              ),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: models.length,
-                  itemBuilder: (_, i) {
-                    final m = models[i];
-                    final isSelected = current != null &&
-                        current['providerID'] == m['providerID'] &&
-                        current['modelID'] == m['modelID'];
-                    return ListTile(
-                      title: Text(m['modelID']!),
-                      subtitle: Text(m['providerID']!),
-                      trailing: isSelected ? const Icon(Icons.check) : null,
-                      onTap: () {
-                        _provider!.modelOverride = m;
-                        Navigator.pop(ctx);
-                      },
-                    );
+        isScrollControlled: true,
+        builder: (ctx) {
+          final theme = Theme.of(ctx);
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5,
+            maxChildSize: 0.85,
+            minChildSize: 0.3,
+            expand: false,
+            builder: (ctx, scrollController) => Column(
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 32, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[600],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Select Model', style: theme.textTheme.titleMedium),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome),
+                  title: const Text('Default (server)'),
+                  trailing: current == null
+                      ? Icon(Icons.check, color: theme.colorScheme.primary)
+                      : null,
+                  onTap: () {
+                    _provider!.modelOverride = null;
+                    Navigator.pop(ctx);
                   },
                 ),
-              ),
-            ],
-          ),
-        ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    children: [
+                      for (final entry in grouped.entries) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Text(
+                            entry.key.toUpperCase(),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        for (final m in entry.value)
+                          ListTile(
+                            dense: true,
+                            title: Text(m['modelID']!),
+                            trailing: (current != null &&
+                                    current['providerID'] == m['providerID'] &&
+                                    current['modelID'] == m['modelID'])
+                                ? Icon(Icons.check, color: theme.colorScheme.primary, size: 20)
+                                : null,
+                            onTap: () {
+                              _provider!.modelOverride = m;
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       );
     } catch (e) {
       if (mounted) {
@@ -789,7 +870,10 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_provider == null) return [];
 
     final currentLength = _provider!.history.length;
-    if (_cachedChatItems != null && _cachedHistoryLength == currentLength) {
+    final currentSessionId = _provider!.currentSessionId;
+    if (_cachedChatItems != null &&
+        _cachedHistoryLength == currentLength &&
+        _cachedSessionId == currentSessionId) {
       return _cachedChatItems!;
     }
 
@@ -814,6 +898,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _cachedChatItems = items.reversed.toList();
     _cachedHistoryLength = currentLength;
+    _cachedSessionId = currentSessionId;
     return _cachedChatItems!;
   }
 
@@ -876,64 +961,36 @@ class _ChatScreenState extends State<ChatScreen> {
       _cachedMarkdownStyleSheet = _buildMarkdownStyleSheet(theme);
     }
 
-    final sessionProvider = context.watch<SessionProvider>();
-    final currentSession = sessionProvider.currentSessionId != null
-        ? sessionProvider.findSession(sessionProvider.currentSessionId!)
-        : null;
-
-    // Session info subtitle
-    String? subtitle;
-    if (_provider != null) {
-      final info = _provider!.sessionInfo;
-      if (info != null) {
-        final rawModel = info['model'];
-      final model = info['modelID'] as String?
-          ?? (rawModel is Map ? rawModel['id']?.toString() : rawModel?.toString());
-        if (model != null) subtitle = model;
-      }
-      final override = _provider!.modelOverride;
-      if (override != null) {
-        subtitle = '${override['modelID'] ?? ''} (override)';
-      }
-    }
-
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
         title: _isSearching
             ? _buildChatSearchField()
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    currentSession?.displayName ?? 'PAI Chat',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  if (subtitle != null)
+            : GestureDetector(
+                onTap: () => _showModelPicker(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                      _getModelDisplayName(),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
-                ],
+                    const SizedBox(width: 4),
+                    const Icon(Icons.expand_more, size: 20),
+                  ],
+                ),
               ),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        leading: IconButton(
-          icon: Icon(_isSearching ? Icons.close : Icons.arrow_back),
-          onPressed: _isSearching
-              ? () => setState(() {
-                    _isSearching = false;
-                    _chatSearchController.clear();
-                    _searchMatchIndices = [];
-                    _currentSearchMatch = -1;
-                  })
-              : () => Navigator.pushReplacementNamed(context, '/sessions'),
-        ),
+        centerTitle: false,
         actions: [
           if (!_isSearching)
             IconButton(
-              icon: const Icon(Icons.search),
+              icon: const Icon(Icons.search, size: 22),
               onPressed: () => setState(() => _isSearching = true),
             ),
           if (_isSearching && _searchMatchIndices.isNotEmpty) ...[
@@ -952,69 +1009,66 @@ class _ChatScreenState extends State<ChatScreen> {
                   : null,
             ),
           ],
-          if (_provider != null && !_isSearching)
-            AnimatedBuilder(
-              animation: _provider!,
-              builder: (context, child) {
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ConnectionStatusIndicator(
-                      state: _provider!.connectionState,
-                      onReconnect: () => _provider?.reconnect(),
-                      compact: true,
-                    ),
-                    const SizedBox(width: 4),
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert),
-                      onSelected: (value) => _handleMenuAction(value),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'model',
-                          child: ListTile(
-                            leading: Icon(Icons.auto_awesome),
-                            title: Text('Change Model'),
-                            dense: true, contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'todos',
-                          child: ListTile(
-                            leading: Icon(Icons.checklist),
-                            title: Text('View Todos'),
-                            dense: true, contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'share',
-                          child: ListTile(
-                            leading: Icon(Icons.share),
-                            title: Text('Share Session'),
-                            dense: true, contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'info',
-                          child: ListTile(
-                            leading: Icon(Icons.info_outline),
-                            title: Text('Session Info'),
-                            dense: true, contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'summarize',
-                          child: ListTile(
-                            leading: Icon(Icons.summarize),
-                            title: Text('Summarize'),
-                            dense: true, contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
+          if (_isSearching)
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() {
+                _isSearching = false;
+                _chatSearchController.clear();
+                _searchMatchIndices = [];
+                _currentSearchMatch = -1;
+              }),
             ),
+          if (!_isSearching) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_square, size: 22),
+              onPressed: _createNewChat,
+            ),
+            if (_provider != null)
+              AnimatedBuilder(
+                animation: _provider!,
+                builder: (context, child) {
+                  return PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 22),
+                    onSelected: (value) => _handleMenuAction(value),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'todos',
+                        child: ListTile(
+                          leading: Icon(Icons.checklist),
+                          title: Text('Todos'),
+                          dense: true, contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'share',
+                        child: ListTile(
+                          leading: Icon(Icons.share),
+                          title: Text('Share'),
+                          dense: true, contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'info',
+                        child: ListTile(
+                          leading: Icon(Icons.info_outline),
+                          title: Text('Session Info'),
+                          dense: true, contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'summarize',
+                        child: ListTile(
+                          leading: Icon(Icons.summarize),
+                          title: Text('Summarize'),
+                          dense: true, contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+          ],
         ],
       ),
       body: _buildBody(),
@@ -1109,20 +1163,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (_provider == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('No session selected'),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _createSession,
-              icon: const Icon(Icons.add),
-              label: const Text('Start New Chat'),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyState(context);
     }
 
     return AnimatedBuilder(
@@ -1160,22 +1201,25 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: Stack(
                 children: [
-                  ListView.builder(
-                    controller: _scrollController,
-                    reverse: true,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: chatItems.length,
-                    itemBuilder: (context, index) {
-                      final item = chatItems[index];
-                      if (item.isDateHeader) {
-                        return DateHeader(date: item.date!);
-                      }
-                      return _buildMessageBubble(
-                        item.message!,
-                        item.historyIndex!,
-                      );
-                    },
-                  ),
+                  if (chatItems.isEmpty && !isStreaming)
+                    _buildEmptyState(context)
+                  else
+                    ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: chatItems.length,
+                      itemBuilder: (context, index) {
+                        final item = chatItems[index];
+                        if (item.isDateHeader) {
+                          return DateHeader(date: item.date!);
+                        }
+                        return _buildMessageBubble(
+                          item.message!,
+                          item.historyIndex!,
+                        );
+                      },
+                    ),
                   if (_showScrollToBottom)
                     Positioned(
                       right: 12,
@@ -1239,6 +1283,36 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildEmptyState(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.psychology,
+            size: 64,
+            color: theme.colorScheme.primary.withAlpha(180),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Como posso ajudar?',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Envie uma mensagem para começar',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withAlpha(180),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageBubble(ChatMessage message, int index) {
     final isUser = message.origin == MessageOrigin.user;
     final messageId = _provider?.getMessageIdAt(index);
@@ -1252,6 +1326,7 @@ class _ChatScreenState extends State<ChatScreen> {
     List<ToolCallPart> toolCalls = const [];
     List<ShellPart> shellCommands = const [];
     List<FileChange> fileChanges = const [];
+    List<AnsweredQuestionData> answeredQuestions = const [];
     if (!isUser && messageId != null) {
       reasoning = _provider!.getReasoningForHistoryIndex(index);
       toolCalls = _provider!.getToolCallsForMessage(messageId)
@@ -1259,7 +1334,11 @@ class _ChatScreenState extends State<ChatScreen> {
           .toList();
       shellCommands = _provider!.getShellCommandsForMessage(messageId);
       fileChanges = _provider!.getFileChangesForMessage(messageId);
+      answeredQuestions = _provider!.getAnsweredQuestionsForMessage(messageId);
     }
+
+    final showThinking = context.read<SettingsProvider>().showThinking;
+    if (!showThinking) reasoning = null;
 
     final isLastMessage = index == _provider!.history.length - 1;
     final isActivelyStreaming = !isUser && _provider!.isStreaming && isLastMessage;
@@ -1270,22 +1349,13 @@ class _ChatScreenState extends State<ChatScreen> {
       displayText: _buildDisplayText(message, index),
       timestamp: timestamp,
       reasoning: reasoning,
-      isReasoningExpanded: _expandedReasoningIndices.contains(index),
-      onToggleReasoning: () {
-        setState(() {
-          if (_expandedReasoningIndices.contains(index)) {
-            _expandedReasoningIndices.remove(index);
-          } else {
-            _expandedReasoningIndices.add(index);
-          }
-        });
-      },
       onLongPress: () => _showMessageActions(message, index),
       isStreaming: isActivelyStreaming,
       markdownStyleSheet: _cachedMarkdownStyleSheet,
       toolCalls: toolCalls,
       shellCommands: shellCommands,
       fileChanges: fileChanges,
+      answeredQuestions: answeredQuestions,
     );
   }
 
@@ -1357,41 +1427,7 @@ class _ChatScreenState extends State<ChatScreen> {
   static const _qaHiddenTools = {'question', 'ask', 'todowrite'};
 
   String _buildDisplayText(ChatMessage message, int index) {
-    final text = message.text ?? '';
-    if (message.origin != MessageOrigin.llm || _provider == null) return text;
-
-    final messageId = _provider!.getMessageIdAt(index);
-    if (messageId == null) return text;
-
-    // Only Q&A inline inserts remain — tool calls and shell commands
-    // are rendered as rich widgets via ChatMessageTile
-    final inserts = <(int, String, int)>[];
-    int seq = 0;
-
-    for (final aq in _provider!.getAnsweredQuestionsForMessage(messageId)) {
-      final q = aq.request.questions
-          .map((q) => q.question).where((q) => q.isNotEmpty).join(' / ');
-      final a = aq.answers
-          .where((a) => a.isNotEmpty).map((a) => a.join(', ')).join(' | ');
-      inserts.add((aq.textInsertOffset, '\n\n`$q`\n`> $a`\n\n', seq++));
-    }
-
-    if (inserts.isEmpty) return text;
-
-    // Sort descending by offset (insert from end to start).
-    // For equal offsets, sort descending by seq so the earliest item
-    // is inserted last and ends up on top (chronological order).
-    inserts.sort((a, b) {
-      final cmp = b.$1.compareTo(a.$1);
-      if (cmp != 0) return cmp;
-      return b.$3.compareTo(a.$3);
-    });
-    var result = text;
-    for (final (offset, block, _) in inserts) {
-      final pos = offset.clamp(0, result.length);
-      result = result.substring(0, pos) + block + result.substring(pos);
-    }
-    return result;
+    return message.text ?? '';
   }
 
   Widget _buildInput() {

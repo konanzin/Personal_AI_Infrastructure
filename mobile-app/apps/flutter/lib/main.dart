@@ -6,10 +6,10 @@ import 'providers/opencode_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/session_provider.dart';
 import 'screens/chat_screen.dart';
-import 'screens/sessions_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/notification_service.dart';
 import 'services/permission_service.dart';
+import 'theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +25,7 @@ class PaiMobileApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => SettingsProvider()..loadSettings()..loadThemeMode(),
+          create: (_) => SettingsProvider()..loadSettings()..loadThemeMode()..loadShowThinking(),
         ),
         ChangeNotifierProvider(
           create: (_) => ClientProvider(),
@@ -120,26 +120,13 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
       title: 'PAI — OpenCode AI',
       debugShowCheckedModeBanner: false,
       themeMode: settingsProvider.themeMode,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF3B82F6),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF3B82F6),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
       home: settings.isConfigured
-          ? const SessionsScreen()
+          ? const ChatScreen()
           : const _WelcomeScreen(),
       routes: {
         '/settings': (context) => const SettingsScreen(),
-        '/sessions': (context) => const SessionsScreen(),
         '/chat': (context) => const ChatScreen(),
       },
     );

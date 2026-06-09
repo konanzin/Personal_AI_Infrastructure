@@ -14,8 +14,31 @@ class ClientProvider extends ChangeNotifier {
   String? _password;
   int _requestTimeoutSeconds = 30;
 
+  Map<String, dynamic>? _cachedProviders;
+  DateTime? _providersCacheTime;
+  static const _providersCacheDuration = Duration(minutes: 5);
+
   OpenCodeClient? get client => _client;
   bool get isConfigured => _client != null;
+
+  /// Returns cached providers or fetches from server.
+  Future<Map<String, dynamic>> getProviders({bool forceRefresh = false}) async {
+    if (!forceRefresh &&
+        _cachedProviders != null &&
+        _providersCacheTime != null &&
+        DateTime.now().difference(_providersCacheTime!) < _providersCacheDuration) {
+      return _cachedProviders!;
+    }
+    if (_client == null) return {};
+    _cachedProviders = await _client!.getProviders();
+    _providersCacheTime = DateTime.now();
+    return _cachedProviders!;
+  }
+
+  void invalidateProviderCache() {
+    _cachedProviders = null;
+    _providersCacheTime = null;
+  }
 
   /// Initializes the client from stored credentials.
   Future<void> initialize({int requestTimeoutSeconds = 30}) async {

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/client_provider.dart';
 import '../providers/settings_provider.dart';
+import 'provider_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -102,7 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Consumer<SettingsProvider>(
         builder: (context, provider, child) {
@@ -267,6 +267,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                     selected: {provider.themeMode},
                     onSelectionChanged: (s) => provider.setThemeMode(s.first),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  SwitchListTile(
+                    title: const Text('Show thinking'),
+                    subtitle: const Text('Display agent reasoning steps'),
+                    value: provider.showThinking,
+                    onChanged: (v) => provider.setShowThinking(v),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Providers
+                  ListTile(
+                    leading: const Icon(Icons.hub_outlined),
+                    title: const Text('Manage Providers'),
+                    subtitle: const Text('View AI providers and models'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProviderScreen()),
+                    ),
                   ),
 
                   const SizedBox(height: 24),
