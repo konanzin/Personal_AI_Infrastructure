@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:pai_mobile_flutter/models/chat_event.dart';
 import 'package:pai_mobile_flutter/providers/opencode_provider.dart';
 import 'package:pai_mobile_flutter/services/connectivity_service.dart';
+import 'package:pai_mobile_flutter/services/api_errors.dart';
 import 'package:pai_mobile_flutter/services/opencode_client.dart';
 
 class _FakeOpenCodeClient extends OpenCodeClient {
@@ -46,9 +47,16 @@ class _FakeOpenCodeClient extends OpenCodeClient {
   Stream<ChatEvent> subscribeToEvents({String? directory}) =>
       const Stream.empty();
 
+  Object? sendMessageError;
+  int sendMessageCallCount = 0;
   @override
   Future<void> sendMessage(String sessionId, String text,
-      {String? directory}) async {}
+      {String? directory}) async {
+    sendMessageCallCount++;
+    if (sendMessageError != null) {
+      throw sendMessageError!;
+    }
+  }
 
   @override
   Future<http.Response> post(String path,
@@ -140,6 +148,18 @@ void main() {
 
       expect(provider.connectionState, isNot(ConnectionStatus.online));
       expect(fakeClient.getSessionMessagesCallCount, greaterThan(0));
+    });
+
+    test('send timeout does not retry non-idempotent message post', () async {
+      fakeClient.sendMessageError =
+          const ApiTimeoutError(message: 'send message timed out');
+
+      final subscription = provider.sendMessageStream('hello').listen((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      await subscription.cancel();
+
+      expect(fakeClient.sendMessageCallCount, 1);
+      expect(provider.lastError, contains('send message timed out'));
     });
   });
 

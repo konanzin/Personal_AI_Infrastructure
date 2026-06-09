@@ -886,7 +886,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
     // Fire message in background — response arrives via SSE.
     final model = _modelOverride;
-    _sendInBackground(parts, model, maxRetries: 2);
+    _sendInBackground(parts, model);
     
     // Repassa chunks do SSE
     await for (final chunk in responseStream) {
@@ -926,7 +926,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   void _sendInBackground(
     List<Map<String, dynamic>> parts,
     Map<String, String>? model, {
-    int maxRetries = 2,
+    int maxRetries = 0,
   }) {
     _doSend(parts, model, maxRetries: maxRetries);
   }
@@ -934,9 +934,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   Future<void> _doSend(
     List<Map<String, dynamic>> parts,
     Map<String, String>? model, {
-    int maxRetries = 2,
+    int maxRetries = 0,
   }) async {
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      final userMessageIdBeforeSend = _lastUserMessageId;
       try {
         if (model != null || parts.length > 1) {
           await client.sendMessageAdvanced(
@@ -953,8 +954,26 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       } catch (e) {
         debugPrint('[PAI_SSE] Send attempt ${attempt + 1} failed: $e');
 
-        final isRetryable = e is ApiError ? e.isRetryable : (e is ApiTimeoutError || e is ApiConnectionError);
-        if (!isRetryable || attempt >= maxRetries) {
+        final serverAcceptedMessage = _lastUserMessageId != null &&
+            _lastUserMessageId != userMessageIdBeforeSend;
+        if (serverAcceptedMessage &&
+            (e is ApiTimeoutError || e is ApiConnectionError)) {
+          debugPrint(
+            '[PAI_SSE] Send failed after server accepted message; not retrying',
+          );
+          return;
+        }
+
+        // Message POSTs are not idempotent. Retrying transport-level failures
+        // can create duplicate user messages when the server accepted the first
+        // request but the HTTP response timed out or disconnected.
+        final retryableError = e is ApiError &&
+                e is! ApiTimeoutError &&
+                e is! ApiConnectionError &&
+                e.isRetryable
+            ? e
+            : null;
+        if (retryableError == null || attempt >= maxRetries) {
           _lastError = e.toString();
           _isStreaming = false;
           notifyListeners();
@@ -962,8 +981,8 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
         }
 
         Duration delay;
-        if (e is ApiError && e.retryAfter != null) {
-          delay = e.retryAfter!;
+        if (retryableError.retryAfter != null) {
+          delay = retryableError.retryAfter!;
         } else {
           final base = math.min(0.5 * math.pow(2, attempt), 8.0);
           final jitter = 0.75 + _rng.nextDouble() * 0.25;
