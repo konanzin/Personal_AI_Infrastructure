@@ -58,19 +58,24 @@ class ClientProvider extends ChangeNotifier {
   }
 
   /// Forces a reload of credentials (e.g. after settings change).
-  Future<void> refreshCredentials() async {
+  Future<void> refreshCredentials({int? requestTimeoutSeconds}) async {
     final credentials = await SecureStorageService.loadCredentials();
     final newUrl = credentials['serverUrl'];
     final newUser = credentials['username'];
     final newPass = credentials['password'];
+    final newTimeout = requestTimeoutSeconds ?? _requestTimeoutSeconds;
 
-    if (newUrl == _baseUrl && newUser == _username && newPass == _password) {
+    if (newUrl == _baseUrl &&
+        newUser == _username &&
+        newPass == _password &&
+        newTimeout == _requestTimeoutSeconds) {
       return;
     }
 
     _baseUrl = newUrl;
     _username = newUser;
     _password = newPass;
+    _requestTimeoutSeconds = newTimeout;
     _rebuildClient();
   }
 

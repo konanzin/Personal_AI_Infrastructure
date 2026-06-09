@@ -88,7 +88,9 @@ class OpenCodeClient {
   /// Call [unsubscribe] to close the stream.
   Stream<ChatEvent> subscribeToEvents({String? directory}) {
     var url = Uri.parse('${config.baseUrl}/event');
-    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
+    if (directory != null) {
+      url = url.replace(queryParameters: {'directory': directory});
+    }
     
     // Use a persistent client for the SSE connection
     _httpClient = http.Client();
@@ -234,6 +236,12 @@ class OpenCodeClient {
     }
 
     return null;
+  }
+
+  /// Build a typed ChatEvent from raw SSE event data.
+  @visibleForTesting
+  ChatEvent? buildTypedEventForTest(String eventName, String data) {
+    return _buildTypedEvent(eventName, data);
   }
 
   /// Build a typed ChatEvent from raw SSE event data.
@@ -618,7 +626,9 @@ class OpenCodeClient {
   /// Body: { "parts": [{"type": "text", "text": "..."}] }
   Future<void> sendMessage(String sessionId, String text, {String? directory}) async {
     var url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
-    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
+    if (directory != null) {
+      url = url.replace(queryParameters: {'directory': directory});
+    }
     
     final body = jsonEncode({
       'parts': [
@@ -643,7 +653,9 @@ class OpenCodeClient {
   /// List all sessions.
   Future<List<dynamic>> listSessions({String? directory}) async {
     var url = Uri.parse('${config.baseUrl}/session');
-    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
+    if (directory != null) {
+      url = url.replace(queryParameters: {'directory': directory});
+    }
     final response = await http.get(
       url,
       headers: {
@@ -768,7 +780,9 @@ class OpenCodeClient {
     String? directory,
   }) async {
     var url = Uri.parse('${config.baseUrl}/session/$sessionId/message');
-    if (directory != null) url = url.replace(queryParameters: {'directory': directory});
+    if (directory != null) {
+      url = url.replace(queryParameters: {'directory': directory});
+    }
     final body = <String, dynamic>{'parts': parts};
     if (model != null) body['model'] = model;
     if (agent != null) body['agent'] = agent;
@@ -927,7 +941,9 @@ class OpenCodeClient {
       },
       body: jsonEncode({'modelID': modelId, 'providerID': providerId}),
     ).timeout(config.requestTimeout);
-    if (response.statusCode != 200) _throwForStatus(response, 'summarize session');
+    if (response.statusCode != 200) {
+      _throwForStatus(response, 'summarize session');
+    }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
@@ -956,7 +972,9 @@ class OpenCodeClient {
       url,
       headers: {'Authorization': _encodeBasicAuth()},
     ).timeout(config.requestTimeout);
-    if (response.statusCode != 200) _throwForStatus(response, 'get session children');
+    if (response.statusCode != 200) {
+      _throwForStatus(response, 'get session children');
+    }
     final data = jsonDecode(response.body);
     if (data is List) return data;
     return [];

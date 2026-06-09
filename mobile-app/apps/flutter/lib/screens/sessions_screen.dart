@@ -161,7 +161,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(28),

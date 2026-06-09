@@ -153,13 +153,25 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final sessionId = sessionProvider.currentSessionId;
     if (sessionId != null) {
-      if (sessionId != provider.currentSessionId) {
-        await provider.switchSession(sessionId);
-      } else if (provider.history.isEmpty) {
-        await provider.loadHistory();
+      try {
+        if (sessionId != provider.currentSessionId) {
+          await provider.switchSession(sessionId);
+        } else if (provider.history.isEmpty) {
+          await provider.loadHistory();
+        }
+      } catch (e) {
+        debugPrint('[PAI_UI] Failed to load session history: $e');
+        if (mounted) {
+          setState(() {
+            _error = 'Failed to load session history: $e';
+            _isLoading = false;
+          });
+          return;
+        }
       }
     }
 
+    if (!mounted) return;
     _cachedChatItems = null;
     _cachedHistoryLength = -1;
     _cachedSessionId = null;
@@ -185,6 +197,7 @@ class _ChatScreenState extends State<ChatScreen> {
         bytes: await f.readAsBytes(),
       ));
     }
+    if (!mounted) return;
     setState(() => _pendingAttachments.clear());
     FocusScope.of(context).unfocus();
 
@@ -1185,9 +1198,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 actions: [
                   if (lastError.contains('load history'))
                     TextButton(
-                      onPressed: () {
+                      onPressed: () async {
                         _provider!.clearError();
-                        _provider!.loadHistory();
+                        try {
+                          await _provider!.loadHistory();
+                        } catch (e) {
+                          debugPrint('[PAI_UI] Retry loadHistory failed: $e');
+                        }
                       },
                       child: const Text('Retry'),
                     ),
@@ -1484,7 +1501,7 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
                     shape: BoxShape.circle,
                   ),
                 ),

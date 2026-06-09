@@ -470,12 +470,16 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     notifyListeners();
 
     // Fire POST in background — SSE delivers the continuation.
-    client.post(
-      '/permission/$requestId/reply',
-      body: jsonEncode({'reply': replyValue}),
-    ).catchError((e) {
-      debugPrint('[PAI_SSE] replyToPermission: POST failed (non-blocking): $e');
-    });
+    unawaited((() async {
+      try {
+        await client.post(
+          '/permission/$requestId/reply',
+          body: jsonEncode({'reply': replyValue}),
+        );
+      } catch (e) {
+        debugPrint('[PAI_SSE] replyToPermission: POST failed (non-blocking): $e');
+      }
+    })());
   }
 
   /// Responde a uma pergunta
@@ -608,9 +612,9 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
               if (qInput != null && qOutput != null) {
                 final questionsRaw = qInput['questions'] as List? ?? [];
                 final questions = questionsRaw.map((q) {
-                  if (q is! Map) return QuestionInfo(question: '', header: '', options: [], multiple: false, custom: false);
+                  if (q is! Map) return const QuestionInfo(question: '', header: '', options: [], multiple: false, custom: false);
                   final opts = (q['options'] as List? ?? []).map((o) {
-                    if (o is! Map) return QuestionOption(label: '', description: '');
+                    if (o is! Map) return const QuestionOption(label: '', description: '');
                     return QuestionOption(
                       label: o['label']?.toString() ?? '',
                       description: o['description']?.toString() ?? '',
@@ -767,10 +771,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       // Load session metadata and todos in background
       loadSessionInfo();
       loadTodos();
+      _connectivity.markOnline();
     } catch (e) {
       debugPrint('Error loading history: $e');
       _lastError = 'Failed to load history: $e';
       notifyListeners();
+      rethrow;
     }
   }
 
@@ -1012,7 +1018,9 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       if (!controller.isClosed) controller.close();
       loadSessionInfo();
       // Reload history to get accurate tool states from server
-      loadHistory();
+      unawaited(loadHistory().catchError((e) {
+        debugPrint('[PAI_SSE] closeResponse loadHistory failed: $e');
+      }));
     }
 
     void appendReasoning(String reasoning, {String? messageId}) {

@@ -171,7 +171,7 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
       case ToolCallState.pending:
         return (
           Colors.orange,
-          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.orange)),
+          const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.orange)),
           'Preparing...',
         );
       case ToolCallState.running:
@@ -183,7 +183,7 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
       case ToolCallState.completed:
         return (
           Colors.green,
-          Icon(Icons.check_circle, color: Colors.green, size: 16),
+          const Icon(Icons.check_circle, color: Colors.green, size: 16),
           'Done',
         );
       case ToolCallState.error:

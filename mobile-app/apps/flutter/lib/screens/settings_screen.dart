@@ -71,7 +71,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (mounted && provider.error == null) {
-      await context.read<ClientProvider>().refreshCredentials();
+      await context.read<ClientProvider>().refreshCredentials(
+        requestTimeoutSeconds: int.tryParse(_timeoutController.text) ?? 30,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Settings saved successfully')),
