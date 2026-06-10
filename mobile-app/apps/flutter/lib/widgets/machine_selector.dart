@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/machine_store.dart';
+import '../providers/opencode_provider.dart';
+import '../providers/session_provider.dart';
 import '../screens/machines_screen.dart';
 
 /// Chip showing the active machine name. Tap opens a bottom sheet for switching.
@@ -41,8 +43,10 @@ class MachineSelector extends StatelessWidget {
                   TextButton.icon(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const MachinesScreen()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const MachinesScreen()));
                     },
                     icon: const Icon(Icons.settings, size: 18),
                     label: const Text('Manage'),
@@ -55,9 +59,7 @@ class MachineSelector extends StatelessWidget {
               final isActive = m.id == store.activeMachineId;
               return ListTile(
                 leading: Icon(Icons.dns,
-                    color: isActive
-                        ? Theme.of(ctx).colorScheme.primary
-                        : null),
+                    color: isActive ? Theme.of(ctx).colorScheme.primary : null),
                 title: Text(m.name,
                     style: TextStyle(
                         fontWeight:
@@ -68,8 +70,17 @@ class MachineSelector extends StatelessWidget {
                     ? Icon(Icons.check_circle,
                         color: Theme.of(ctx).colorScheme.primary, size: 20)
                     : null,
-                onTap: () {
-                  store.switchMachine(m.id);
+                onTap: () async {
+                  await store.switchMachine(m.id);
+                  if (!context.mounted) return;
+                  final openCodeProvider = context.read<OpenCodeProvider>();
+                  openCodeProvider.clearSession();
+                  openCodeProvider.directory = m.defaultDirectory;
+                  await context.read<SessionProvider>().loadPersistedSession(
+                        machineId: m.id,
+                        directory: m.defaultDirectory,
+                      );
+                  if (!context.mounted) return;
                   Navigator.pop(ctx);
                 },
               );

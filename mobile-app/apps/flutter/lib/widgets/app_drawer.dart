@@ -19,7 +19,9 @@ class _AppDrawerState extends State<AppDrawer> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SessionProvider>().loadSessions();
+      context
+          .read<SessionProvider>()
+          .loadSessions(directory: context.read<OpenCodeProvider>().directory);
     });
   }
 
@@ -28,15 +30,25 @@ class _AppDrawerState extends State<AppDrawer> {
     final openCodeProvider = context.read<OpenCodeProvider>();
     // Lazy: clear state, session will be created on first message send
     openCodeProvider.clearSession();
-    sessionProvider.clearCurrentSession();
+    await sessionProvider.clearCurrentSession(
+      machineId: context.read<MachineStore>().activeMachineId,
+      directory: openCodeProvider.directory,
+    );
     if (mounted) Navigator.pop(context);
   }
 
-  Future<void> _openSession(String sessionId) async {
+  Future<void> _openSession(Session session) async {
     final sessionProvider = context.read<SessionProvider>();
     final openCodeProvider = context.read<OpenCodeProvider>();
-    await sessionProvider.selectSession(sessionId);
-    await openCodeProvider.switchSession(sessionId);
+    if (session.directory != null) {
+      openCodeProvider.directory = session.directory;
+    }
+    await sessionProvider.selectSession(
+      session.id,
+      machineId: context.read<MachineStore>().activeMachineId,
+      directory: session.directory ?? openCodeProvider.directory,
+    );
+    await openCodeProvider.switchSession(session.id);
     if (mounted) Navigator.pop(context);
   }
 
@@ -53,13 +65,18 @@ class _AppDrawerState extends State<AppDrawer> {
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Save')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('Save')),
         ],
       ),
     );
     if (result != null && result.trim().isNotEmpty && mounted) {
-      await context.read<SessionProvider>().renameSession(sessionId, result.trim());
+      await context
+          .read<SessionProvider>()
+          .renameSession(sessionId, result.trim());
     }
     controller.dispose();
   }
@@ -71,10 +88,13 @@ class _AppDrawerState extends State<AppDrawer> {
         title: const Text('Delete?'),
         content: Text('"$name" will be permanently deleted.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
             child: const Text('Delete'),
           ),
         ],
@@ -82,8 +102,9 @@ class _AppDrawerState extends State<AppDrawer> {
     );
     if (confirmed == true && mounted) {
       final provider = context.read<SessionProvider>();
+      final directory = context.read<OpenCodeProvider>().directory;
       await provider.deleteSession(sessionId);
-      await provider.loadSessions();
+      await provider.loadSessions(directory: directory);
     }
   }
 
@@ -95,22 +116,31 @@ class _AppDrawerState extends State<AppDrawer> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
-            Container(width: 32, height: 4, decoration: BoxDecoration(color: Colors.grey[600], borderRadius: BorderRadius.circular(2))),
+            Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey[600],
+                    borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: const Text('Rename'),
               onTap: () {
                 Navigator.pop(ctx);
-                Future.microtask(() => _renameSession(session.id, session.displayName));
+                Future.microtask(
+                    () => _renameSession(session.id, session.displayName));
               },
             ),
             ListTile(
-              leading: Icon(Icons.delete_outline, color: Theme.of(ctx).colorScheme.error),
-              title: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              leading: Icon(Icons.delete_outline,
+                  color: Theme.of(ctx).colorScheme.error),
+              title: Text('Delete',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
               onTap: () {
                 Navigator.pop(ctx);
-                Future.microtask(() => _deleteSession(session.id, session.displayName));
+                Future.microtask(
+                    () => _deleteSession(session.id, session.displayName));
               },
             ),
           ],
@@ -197,8 +227,10 @@ class _AppDrawerState extends State<AppDrawer> {
                   label: const Text('New chat'),
                   style: TextButton.styleFrom(
                     alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -219,7 +251,8 @@ class _AppDrawerState extends State<AppDrawer> {
             // Sessions list
             Expanded(
               child: sessionProvider.isLoading && sessions.isEmpty
-                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       itemCount: sessions.length,
@@ -236,22 +269,27 @@ class _AppDrawerState extends State<AppDrawer> {
                             borderRadius: BorderRadius.circular(10),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(10),
-                              onTap: () => _openSession(session.id),
+                              onTap: () => _openSession(session),
                               onLongPress: () => _showSessionActions(session),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
                                 child: Row(
                                   children: [
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             session.displayName,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: theme.textTheme.bodyMedium?.copyWith(
-                                              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(
+                                              fontWeight: isActive
+                                                  ? FontWeight.w600
+                                                  : FontWeight.normal,
                                               color: isActive
                                                   ? theme.colorScheme.primary
                                                   : theme.colorScheme.onSurface,
@@ -259,12 +297,19 @@ class _AppDrawerState extends State<AppDrawer> {
                                           ),
                                           if (session.directory != null)
                                             Text(
-                                              session.directory!.split('/').lastWhere((s) => s.isNotEmpty, orElse: () => session.directory!),
+                                              session.directory!
+                                                  .split('/')
+                                                  .lastWhere(
+                                                      (s) => s.isNotEmpty,
+                                                      orElse: () =>
+                                                          session.directory!),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: theme.textTheme.bodySmall?.copyWith(
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
                                                 fontSize: 11,
-                                                color: theme.colorScheme.onSurfaceVariant,
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant,
                                               ),
                                             ),
                                         ],
@@ -273,8 +318,10 @@ class _AppDrawerState extends State<AppDrawer> {
                                     const SizedBox(width: 8),
                                     Text(
                                       _formatDate(session.updated),
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
                                         fontSize: 11,
                                       ),
                                     ),

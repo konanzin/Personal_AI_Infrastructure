@@ -76,8 +76,8 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
       return;
     }
 
-    final hasActiveContext = provider.currentSessionId != null &&
-        provider.history.isNotEmpty;
+    final hasActiveContext =
+        provider.currentSessionId != null && provider.history.isNotEmpty;
     final isStreaming = provider.isStreaming;
 
     if (isStreaming || hasActiveContext) {
@@ -89,8 +89,12 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
       await provider.abortSession();
     }
 
+    final previousDirectory = provider.directory;
     provider.clearSession();
-    sessionProvider.clearCurrentSession();
+    await sessionProvider.clearCurrentSession(
+      machineId: _machineId,
+      directory: previousDirectory,
+    );
     provider.directory = path;
 
     final machineId = _machineId;
@@ -229,12 +233,16 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
                     Consumer<WorkspaceProvider>(
                       builder: (_, wp, __) {
                         final recents = wp.getRecents(machineId);
-                        final favPaths =
-                            wp.getFavorites(machineId).map((w) => w.path).toSet();
+                        final favPaths = wp
+                            .getFavorites(machineId)
+                            .map((w) => w.path)
+                            .toSet();
                         final nonFavRecents = recents
                             .where((w) => !favPaths.contains(w.path))
                             .toList();
-                        if (nonFavRecents.isEmpty) return const SizedBox.shrink();
+                        if (nonFavRecents.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -334,8 +342,7 @@ class _WorkspaceTile extends StatelessWidget {
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
             color: isActive ? theme.colorScheme.primary : null,
           )),
-      subtitle:
-          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: trailing,
       onTap: onTap,
     );

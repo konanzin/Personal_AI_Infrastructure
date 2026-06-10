@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,7 +31,7 @@ class Session {
     // O JSON do servidor tem time no nível raiz, não dentro de info
     final time = json['time'] as Map<String, dynamic>?;
     final tokens = json['tokens'] as Map<String, dynamic>?;
-    
+
     DateTime? parseTimestamp(dynamic value) {
       if (value == null) return null;
       if (value is int) {
@@ -45,7 +47,7 @@ class Session {
       }
       return null;
     }
-    
+
     return Session(
       id: json['id'] ?? '',
       slug: json['slug'] ?? '',
@@ -63,10 +65,12 @@ class Session {
 
 /// Provider que gerencia sessões do OpenCode
 class SessionProvider extends ChangeNotifier {
-  static const _activeSessionKey = 'active_session_id';
+  static const _legacyActiveSessionKey = 'active_session_id';
+  static const _activeSessionKeyPrefix = 'active_session_id_v2_';
 
   List<Session> _sessions = [];
   String? _currentSessionId;
+  String? _activeSessionStorageKey;
   bool _isLoading = false;
   String? _error;
   OpenCodeClient? _sharedClient;
@@ -79,28 +83,57 @@ class SessionProvider extends ChangeNotifier {
   /// Injects a shared client from ClientProvider.
   set sharedClient(OpenCodeClient? client) => _sharedClient = client;
 
-  /// Restores the last selected session ID from local cache.
-  Future<void> loadPersistedSession() async {
+  static String activeSessionStorageKey({
+    String? machineId,
+    String? directory,
+  }) {
+    if (machineId == null && directory == null) {
+      return _legacyActiveSessionKey;
+    }
+    final scope = '${machineId ?? ''}\n${directory ?? ''}';
+    return '$_activeSessionKeyPrefix${base64Url.encode(utf8.encode(scope))}';
+  }
+
+  String _storageKeyFor({String? machineId, String? directory}) {
+    if (machineId == null && directory == null) {
+      return _activeSessionStorageKey ?? _legacyActiveSessionKey;
+    }
+    return activeSessionStorageKey(machineId: machineId, directory: directory);
+  }
+
+  /// Restores the selected session ID for a machine + directory scope.
+  Future<void> loadPersistedSession({
+    String? machineId,
+    String? directory,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    final sessionId = prefs.getString(_activeSessionKey);
-    if (sessionId == null || sessionId.isEmpty) return;
-    _currentSessionId = sessionId;
+    _activeSessionStorageKey =
+        activeSessionStorageKey(machineId: machineId, directory: directory);
+    final sessionId = prefs.getString(_activeSessionStorageKey!);
+    _currentSessionId =
+        sessionId == null || sessionId.isEmpty ? null : sessionId;
     notifyListeners();
   }
 
-  Future<void> _persistCurrentSession(String? sessionId) async {
+  Future<void> _persistCurrentSession(
+    String? sessionId, {
+    String? machineId,
+    String? directory,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
+    final key = _storageKeyFor(machineId: machineId, directory: directory);
+    _activeSessionStorageKey = key;
     if (sessionId == null || sessionId.isEmpty) {
-      await prefs.remove(_activeSessionKey);
+      await prefs.remove(key);
       return;
     }
-    await prefs.setString(_activeSessionKey, sessionId);
+    await prefs.setString(key, sessionId);
   }
 
   OpenCodeClient? get _client => _sharedClient;
 
   /// Carrega lista de sessões do servidor
-  Future<void> loadSessions() async {
+  Future<void> loadSessions({String? directory}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -114,12 +147,12 @@ class SessionProvider extends ChangeNotifier {
         return;
       }
 
-      final response = await client.listSessions();
+      final response = await client.listSessions(directory: directory);
       _sessions = response
           .whereType<Map<String, dynamic>>()
           .map((json) => Session.fromJson(json))
           .toList();
-      
+
       // Ordena por updated mais recente (descendente)
       _sessions.sort((a, b) {
         if (a.updated == null && b.updated == null) return 0;
@@ -136,20 +169,40 @@ class SessionProvider extends ChangeNotifier {
   }
 
   /// Seleciona uma sessão como atual
-  Future<void> selectSession(String sessionId) async {
+  Future<void> selectSession(
+    String sessionId, {
+    String? machineId,
+    String? directory,
+  }) async {
     _currentSessionId = sessionId;
-    await _persistCurrentSession(sessionId);
+    await _persistCurrentSession(
+      sessionId,
+      machineId: machineId,
+      directory: directory,
+    );
     notifyListeners();
   }
 
   /// Clears the current session selection (for lazy creation).
-  void clearCurrentSession() {
+  Future<void> clearCurrentSession({
+    String? machineId,
+    String? directory,
+  }) async {
     _currentSessionId = null;
+    await _persistCurrentSession(
+      null,
+      machineId: machineId,
+      directory: directory,
+    );
     notifyListeners();
   }
 
   /// Cria uma nova sessão e adiciona à lista
-  Future<Session?> createSession({String? title, String? directory}) async {
+  Future<Session?> createSession({
+    String? title,
+    String? directory,
+    String? machineId,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -168,11 +221,15 @@ class SessionProvider extends ChangeNotifier {
         directory: directory,
       );
       final session = Session.fromJson(response);
-      
+
       _sessions.insert(0, session);
       _currentSessionId = session.id;
-      await _persistCurrentSession(session.id);
-      
+      await _persistCurrentSession(
+        session.id,
+        machineId: machineId,
+        directory: session.directory ?? directory,
+      );
+
       _isLoading = false;
       notifyListeners();
       return session;

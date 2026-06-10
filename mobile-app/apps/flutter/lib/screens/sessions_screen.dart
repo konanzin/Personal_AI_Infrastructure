@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/machine_store.dart';
 import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import 'chat_screen.dart';
@@ -21,7 +22,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SessionProvider>().loadSessions();
+      context
+          .read<SessionProvider>()
+          .loadSessions(directory: context.read<OpenCodeProvider>().directory);
     });
   }
 
@@ -31,10 +34,14 @@ class _SessionsScreenState extends State<SessionsScreen> {
     super.dispose();
   }
 
-  void _createNewSession() {
+  Future<void> _createNewSession() async {
     // Lazy: clear state, session will be created on first message send
-    context.read<OpenCodeProvider>().clearSession();
-    context.read<SessionProvider>().clearCurrentSession();
+    final openCodeProvider = context.read<OpenCodeProvider>();
+    openCodeProvider.clearSession();
+    await context.read<SessionProvider>().clearCurrentSession(
+          machineId: context.read<MachineStore>().activeMachineId,
+          directory: openCodeProvider.directory,
+        );
     if (mounted) {
       Navigator.pushReplacement(
         context,
@@ -43,8 +50,16 @@ class _SessionsScreenState extends State<SessionsScreen> {
     }
   }
 
-  Future<void> _openSession(String sessionId) async {
-    await context.read<SessionProvider>().selectSession(sessionId);
+  Future<void> _openSession(Session session) async {
+    final openCodeProvider = context.read<OpenCodeProvider>();
+    if (session.directory != null) {
+      openCodeProvider.directory = session.directory;
+    }
+    await context.read<SessionProvider>().selectSession(
+          session.id,
+          machineId: context.read<MachineStore>().activeMachineId,
+          directory: session.directory ?? openCodeProvider.directory,
+        );
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -81,7 +96,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
     );
 
     if (result != null && result.trim().isNotEmpty && mounted) {
-      await context.read<SessionProvider>().renameSession(sessionId, result.trim());
+      await context
+          .read<SessionProvider>()
+          .renameSession(sessionId, result.trim());
     }
 
     controller.dispose();
@@ -162,8 +179,10 @@ class _SessionsScreenState extends State<SessionsScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                fillColor: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.5),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(28),
                   borderSide: BorderSide.none,
@@ -248,12 +267,16 @@ class _SessionsScreenState extends State<SessionsScreen> {
 
           final filtered = _searchQuery.isEmpty
               ? provider.sessions
-              : provider.sessions.where((s) =>
-                  s.displayName.toLowerCase().contains(_searchQuery) ||
-                  (s.directory ?? '').toLowerCase().contains(_searchQuery)).toList();
+              : provider.sessions
+                  .where((s) =>
+                      s.displayName.toLowerCase().contains(_searchQuery) ||
+                      (s.directory ?? '').toLowerCase().contains(_searchQuery))
+                  .toList();
 
           return RefreshIndicator(
-            onRefresh: provider.loadSessions,
+            onRefresh: () => provider.loadSessions(
+              directory: context.read<OpenCodeProvider>().directory,
+            ),
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: filtered.length,
@@ -263,7 +286,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                 final isActive = session.id == provider.currentSessionId;
 
                 return InkWell(
-                  onTap: () => _openSession(session.id),
+                  onTap: () => _openSession(session),
                   onLongPress: () {
                     showModalBottomSheet(
                       context: context,

@@ -101,7 +101,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onScroll() {
     final show = _scrollController.hasClients &&
-        _scrollController.offset > _scrollController.position.minScrollExtent + 200;
+        _scrollController.offset >
+            _scrollController.position.minScrollExtent + 200;
     if (show != _showScrollToBottom) setState(() => _showScrollToBottom = show);
   }
 
@@ -147,15 +148,30 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _doInitialize(OpenCodeProvider provider, ClientProvider clientProvider) async {
+  Future<void> _doInitialize(
+      OpenCodeProvider provider, ClientProvider clientProvider) async {
     if (provider.clientOrNull != clientProvider.client) {
       provider.updateClient(clientProvider.client!);
     }
 
     final sessionProvider = context.read<SessionProvider>();
-    if (sessionProvider.currentSessionId == null) {
-      await sessionProvider.loadPersistedSession();
+    final machineStore = context.read<MachineStore>();
+    final machineId = machineStore.activeMachineId;
+
+    // Apply default directory before restoring the active session, because the
+    // persisted session is scoped by machine + directory.
+    if (provider.directory == null) {
+      final defaultDir = machineStore.activeMachine?.defaultDirectory ??
+          context.read<SettingsProvider>().settings.defaultDirectory;
+      if (defaultDir != null) {
+        provider.directory = defaultDir;
+      }
     }
+
+    await sessionProvider.loadPersistedSession(
+      machineId: machineId,
+      directory: provider.directory,
+    );
     if (!mounted) return;
 
     final sessionId = sessionProvider.currentSessionId;
@@ -180,15 +196,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (!mounted) return;
 
-    // Apply default directory only when no session is active and no directory set
-    if (sessionId == null && provider.directory == null) {
-      final machine = context.read<MachineStore>().activeMachine;
-      final defaultDir = machine?.defaultDirectory ??
-          context.read<SettingsProvider>().settings.defaultDirectory;
-      if (defaultDir != null) {
-        provider.directory = defaultDir;
-      }
-    }
     _cachedChatItems = null;
     _cachedHistoryLength = -1;
     _cachedSessionId = null;
@@ -205,7 +212,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty || _provider == null) return;
-    
+
     _dismissOverlay();
     _textController.clear();
     final attachments = <FileAttachment>[];
@@ -228,7 +235,11 @@ class _ChatScreenState extends State<ChatScreen> {
         await _provider!.createSession();
         final sessionId = _provider!.currentSessionId;
         if (sessionId != null && mounted) {
-          await context.read<SessionProvider>().selectSession(sessionId);
+          await context.read<SessionProvider>().selectSession(
+                sessionId,
+                machineId: context.read<MachineStore>().activeMachineId,
+                directory: _provider!.directory,
+              );
         }
       } catch (e) {
         if (mounted) {
@@ -239,9 +250,10 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
     }
-    
+
     _sendSubscription?.cancel();
-    _sendSubscription = _provider!.sendMessageStream(text, attachments: attachments).listen(
+    _sendSubscription =
+        _provider!.sendMessageStream(text, attachments: attachments).listen(
       (_) {},
       onDone: () {
         _sendSubscription = null;
@@ -293,17 +305,26 @@ class _ChatScreenState extends State<ChatScreen> {
             ListTile(
               leading: const Icon(Icons.camera_alt),
               title: const Text('Camera'),
-              onTap: () { Navigator.pop(ctx); _pickFromCamera(); },
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickFromCamera();
+              },
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('Gallery'),
-              onTap: () { Navigator.pop(ctx); _pickFromGallery(); },
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickFromGallery();
+              },
             ),
             ListTile(
               leading: const Icon(Icons.attach_file),
               title: const Text('File'),
-              onTap: () { Navigator.pop(ctx); _pickFile(); },
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickFile();
+              },
             ),
           ],
         ),
@@ -313,12 +334,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _pickFromCamera() async {
     final xfile = await ImagePicker().pickImage(source: ImageSource.camera);
-    if (xfile != null) setState(() => _pendingAttachments.add(File(xfile.path)));
+    if (xfile != null) {
+      setState(() => _pendingAttachments.add(File(xfile.path)));
+    }
   }
 
   Future<void> _pickFromGallery() async {
     final xfile = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (xfile != null) setState(() => _pendingAttachments.add(File(xfile.path)));
+    if (xfile != null) {
+      setState(() => _pendingAttachments.add(File(xfile.path)));
+    }
   }
 
   Future<void> _pickFile() async {
@@ -416,7 +441,10 @@ class _ChatScreenState extends State<ChatScreen> {
     // Lazy: just clear state without creating a server-side session.
     // The session will be created when the user sends their first message.
     openCodeProvider.clearSession();
-    sessionProvider.clearCurrentSession();
+    await sessionProvider.clearCurrentSession(
+      machineId: context.read<MachineStore>().activeMachineId,
+      directory: openCodeProvider.directory,
+    );
     if (_provider == null) {
       setState(() => _provider = openCodeProvider);
     }
@@ -480,8 +508,12 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         } else if (provModels is List) {
           for (final m in provModels) {
-            final mId = m is Map ? (m['id']?.toString() ?? m['name']?.toString() ?? '') : m.toString();
-            if (mId.isNotEmpty) models.add({'providerID': provId, 'modelID': mId});
+            final mId = m is Map
+                ? (m['id']?.toString() ?? m['name']?.toString() ?? '')
+                : m.toString();
+            if (mId.isNotEmpty) {
+              models.add({'providerID': provId, 'modelID': mId});
+            }
           }
         }
       }
@@ -517,7 +549,8 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 const SizedBox(height: 8),
                 Container(
-                  width: 32, height: 4,
+                  width: 32,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey[600],
                     borderRadius: BorderRadius.circular(2),
@@ -525,7 +558,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('Select Model', style: theme.textTheme.titleMedium),
+                  child:
+                      Text('Select Model', style: theme.textTheme.titleMedium),
                 ),
                 ListTile(
                   leading: const Icon(Icons.auto_awesome),
@@ -561,7 +595,8 @@ class _ChatScreenState extends State<ChatScreen> {
                             trailing: (current != null &&
                                     current['providerID'] == m['providerID'] &&
                                     current['modelID'] == m['modelID'])
-                                ? Icon(Icons.check, color: theme.colorScheme.primary, size: 20)
+                                ? Icon(Icons.check,
+                                    color: theme.colorScheme.primary, size: 20)
                                 : null,
                             onTap: () {
                               _provider!.modelOverride = m;
@@ -622,12 +657,16 @@ class _ChatScreenState extends State<ChatScreen> {
                     final status = todo['status'] as String? ?? 'pending';
                     return ListTile(
                       leading: Icon(
-                        status == 'completed' ? Icons.check_circle
-                            : status == 'in_progress' ? Icons.play_circle
-                            : Icons.circle_outlined,
-                        color: status == 'completed' ? Colors.green
-                            : status == 'in_progress' ? Colors.orange
-                            : null,
+                        status == 'completed'
+                            ? Icons.check_circle
+                            : status == 'in_progress'
+                                ? Icons.play_circle
+                                : Icons.circle_outlined,
+                        color: status == 'completed'
+                            ? Colors.green
+                            : status == 'in_progress'
+                                ? Colors.orange
+                                : null,
                       ),
                       title: Text(content),
                       subtitle: Text(status),
@@ -691,9 +730,12 @@ class _ChatScreenState extends State<ChatScreen> {
               _infoRow('Model', _formatModel(info)),
               _infoRow('Agent', info['agent'] ?? 'default'),
               if (info['cost'] != null) _infoRow('Cost', '\$${info['cost']}'),
-              if (info['tokens'] != null) _infoRow('Tokens', _formatTokens(info['tokens'])),
-              if (info['directory'] != null) _infoRow('Directory', info['directory']),
-              if (info['parentID'] != null) _infoRow('Parent', info['parentID']),
+              if (info['tokens'] != null)
+                _infoRow('Tokens', _formatTokens(info['tokens'])),
+              if (info['directory'] != null)
+                _infoRow('Directory', info['directory']),
+              if (info['parentID'] != null)
+                _infoRow('Parent', info['parentID']),
               if (info['share'] != null) _infoRow('Share', '${info['share']}'),
               _infoRow('ID', info['id'] ?? '-'),
               if (children.isNotEmpty) ...[
@@ -701,10 +743,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 Text('Child Sessions (${children.length})',
                     style: Theme.of(ctx).textTheme.labelLarge),
                 ...children.take(5).map((c) {
-                  final title = c is Map ? (c['title'] ?? c['id'] ?? '-') : '$c';
+                  final title =
+                      c is Map ? (c['title'] ?? c['id'] ?? '-') : '$c';
                   return Padding(
                     padding: const EdgeInsets.only(left: 8, top: 4),
-                    child: Text('- $title', style: const TextStyle(fontSize: 13)),
+                    child:
+                        Text('- $title', style: const TextStyle(fontSize: 13)),
                   );
                 }),
               ],
@@ -744,10 +788,12 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           SizedBox(
             width: 80,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(label,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
           Expanded(
-            child: Text('$value', style: const TextStyle(fontFamily: 'monospace')),
+            child:
+                Text('$value', style: const TextStyle(fontFamily: 'monospace')),
           ),
         ],
       ),
@@ -886,7 +932,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _textController.text;
     if (_acTrigger == '/') {
       _textController.text = s.insertText;
-      _textController.selection = TextSelection.collapsed(offset: s.insertText.length);
+      _textController.selection =
+          TextSelection.collapsed(offset: s.insertText.length);
     } else {
       final before = text.substring(0, _acTriggerOffset);
       final afterCursor = _textController.selection.baseOffset < text.length
@@ -915,18 +962,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Handles slash commands typed in the input (e.g. /compact, /model).
   bool _handleSlashCommand(String text) {
-    if (!text.startsWith('/') || _provider == null || _provider!.currentSessionId == null) {
+    if (!text.startsWith('/') ||
+        _provider == null ||
+        _provider!.currentSessionId == null) {
       return false;
     }
     final parts = text.split(RegExp(r'\s+'));
     final command = parts[0].substring(1);
     final args = parts.length > 1 ? parts.sublist(1).join(' ') : null;
 
-    _provider!.client.executeCommand(
+    _provider!.client
+        .executeCommand(
       _provider!.currentSessionId!,
       command,
       arguments: args,
-    ).then((_) {
+    )
+        .then((_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Command /$command executed')),
@@ -1030,8 +1081,7 @@ class _ChatScreenState extends State<ChatScreen> {
       tableBody: TextStyle(color: theme.colorScheme.onSurface),
       tableBorder:
           TableBorder.all(color: theme.colorScheme.outlineVariant, width: 1),
-      tableCellsPadding:
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     );
   }
 
@@ -1070,7 +1120,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       children: [
                         Text(
                           _getModelDisplayName(),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(width: 4),
                         const Icon(Icons.expand_more, size: 20),
@@ -1088,7 +1139,9 @@ class _ChatScreenState extends State<ChatScreen> {
                               _shortenPath(_provider!.directory!),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1115,9 +1168,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: const TextStyle(fontSize: 12)),
             IconButton(
               icon: const Icon(Icons.keyboard_arrow_up),
-              onPressed: _currentSearchMatch > 0
-                  ? () => _navigateSearch(-1)
-                  : null,
+              onPressed:
+                  _currentSearchMatch > 0 ? () => _navigateSearch(-1) : null,
             ),
             IconButton(
               icon: const Icon(Icons.keyboard_arrow_down),
@@ -1154,7 +1206,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: ListTile(
                           leading: Icon(Icons.checklist),
                           title: Text('Todos'),
-                          dense: true, contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                       const PopupMenuItem(
@@ -1162,7 +1215,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: ListTile(
                           leading: Icon(Icons.share),
                           title: Text('Share'),
-                          dense: true, contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                       const PopupMenuItem(
@@ -1170,7 +1224,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: ListTile(
                           leading: Icon(Icons.info_outline),
                           title: Text('Session Info'),
-                          dense: true, contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                       const PopupMenuItem(
@@ -1178,7 +1233,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: ListTile(
                           leading: Icon(Icons.summarize),
                           title: Text('Summarize'),
-                          dense: true, contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                     ],
@@ -1230,7 +1286,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToSearchMatch() {
-    if (_currentSearchMatch < 0 || _currentSearchMatch >= _searchMatchIndices.length) return;
+    if (_currentSearchMatch < 0 ||
+        _currentSearchMatch >= _searchMatchIndices.length) {
+      return;
+    }
     final histIdx = _searchMatchIndices[_currentSearchMatch];
     final chatItems = _buildChatItems();
     final listIdx = chatItems.indexWhere((ci) => ci.historyIndex == histIdx);
@@ -1264,7 +1323,8 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+              Icon(Icons.error_outline,
+                  size: 48, color: Theme.of(context).colorScheme.error),
               const SizedBox(height: 16),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
@@ -1296,8 +1356,10 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             if (lastError != null)
               MaterialBanner(
-                content: Text(lastError, maxLines: 2, overflow: TextOverflow.ellipsis),
-                leading: Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+                content: Text(lastError,
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                leading: Icon(Icons.error_outline,
+                    color: Theme.of(context).colorScheme.error),
                 backgroundColor: Theme.of(context).colorScheme.errorContainer,
                 actions: [
                   if (lastError.contains('load history'))
@@ -1361,15 +1423,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
             if (isStreaming)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 child: Row(
                   children: [
                     _TypingDots(),
                     const SizedBox(width: 8),
-                    Text('Generating...', style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    )),
+                    Text('Generating...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        )),
                   ],
                 ),
               ),
@@ -1377,8 +1441,10 @@ class _ChatScreenState extends State<ChatScreen> {
             ChatPermissionArea(
               pendingPermissions: pendingPerms,
               pendingQuestions: pendingQs,
-              onPermissionReply: (id, reply) => _provider!.replyToPermission(id, reply),
-              onQuestionReply: (id, answers) => _provider!.replyToQuestion(id, answers),
+              onPermissionReply: (id, reply) =>
+                  _provider!.replyToPermission(id, reply),
+              onQuestionReply: (id, answers) =>
+                  _provider!.replyToQuestion(id, answers),
               onQuestionReject: (id) => _provider!.rejectQuestion(id),
             ),
 
@@ -1450,7 +1516,8 @@ class _ChatScreenState extends State<ChatScreen> {
     List<AnsweredQuestionData> answeredQuestions = const [];
     if (!isUser && messageId != null) {
       reasoning = _provider!.getReasoningForHistoryIndex(index);
-      toolCalls = _provider!.getToolCallsForMessage(messageId)
+      toolCalls = _provider!
+          .getToolCallsForMessage(messageId)
           .where((tc) => !_qaHiddenTools.contains(tc.name.toLowerCase()))
           .toList();
       shellCommands = _provider!.getShellCommandsForMessage(messageId);
@@ -1462,7 +1529,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!showThinking) reasoning = null;
 
     final isLastMessage = index == _provider!.history.length - 1;
-    final isActivelyStreaming = !isUser && _provider!.isStreaming && isLastMessage;
+    final isActivelyStreaming =
+        !isUser && _provider!.isStreaming && isLastMessage;
 
     return ChatMessageTile(
       message: message,
@@ -1497,8 +1565,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('Copied'),
-                      duration: Duration(seconds: 1)),
+                      content: Text('Copied'), duration: Duration(seconds: 1)),
                 );
               },
             ),
@@ -1526,7 +1593,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   Navigator.pop(ctx);
                   final newId = await _provider!.forkSession(messageId);
                   if (newId != null && mounted) {
-                    await context.read<SessionProvider>().selectSession(newId);
+                    await context.read<SessionProvider>().selectSession(
+                          newId,
+                          machineId:
+                              context.read<MachineStore>().activeMachineId,
+                          directory: _provider!.directory,
+                        );
                     if (mounted) {
                       Navigator.pushReplacement(
                         context,
@@ -1560,7 +1632,8 @@ class _ChatScreenState extends State<ChatScreen> {
       onSend: _sendMessage,
       onAttach: _showAttachmentPicker,
       onVoiceResult: _sendVoiceText,
-      onRemoveAttachment: (i) => setState(() => _pendingAttachments.removeAt(i)),
+      onRemoveAttachment: (i) =>
+          setState(() => _pendingAttachments.removeAt(i)),
       guessMime: _guessMime,
     );
   }
@@ -1571,13 +1644,16 @@ class _TypingDots extends StatefulWidget {
   State<_TypingDots> createState() => _TypingDotsState();
 }
 
-class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderStateMixin {
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat();
   }
 
   @override
@@ -1605,7 +1681,10 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.6),
                     shape: BoxShape.circle,
                   ),
                 ),

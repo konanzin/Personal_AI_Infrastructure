@@ -24,8 +24,12 @@ class MachinesScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.dns_outlined, size: 64,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(128)),
+                  Icon(Icons.dns_outlined,
+                      size: 64,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant
+                          .withAlpha(128)),
                   const SizedBox(height: 16),
                   Text('No machines configured',
                       style: Theme.of(context).textTheme.titleMedium),
@@ -122,13 +126,14 @@ class _MachineTile extends StatelessWidget {
       title: Text(machine.name,
           style: TextStyle(
               fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
-      subtitle: Text(machine.serverUrl,
-          maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle:
+          Text(machine.serverUrl, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isActive)
-            Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 20),
+            Icon(Icons.check_circle,
+                color: theme.colorScheme.primary, size: 20),
           PopupMenuButton<String>(
             onSelected: (v) {
               if (v == 'edit') onEdit();
@@ -189,7 +194,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     _urlCtrl = TextEditingController(text: m?.serverUrl ?? '');
     _userCtrl = TextEditingController(text: m?.username ?? 'opencode');
     _passCtrl = TextEditingController(text: m?.password ?? '');
-    _timeoutCtrl = TextEditingController(text: '${m?.requestTimeoutSeconds ?? 30}');
+    _timeoutCtrl =
+        TextEditingController(text: '${m?.requestTimeoutSeconds ?? 30}');
     _defaultDirCtrl = TextEditingController(text: m?.defaultDirectory ?? '');
     _sshHostCtrl = TextEditingController(text: m?.ssh?.host ?? '');
     _sshPortCtrl = TextEditingController(text: '${m?.ssh?.port ?? 22}');
@@ -386,18 +392,18 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         password: sshConfig.password,
       );
 
-      await ssh.execute("sh -lc 'command -v opencode'");
+      final opencodeBin = await ssh.execute(remoteOpenCodeLookupCommand());
 
       final defaultDir = _defaultDirCtrl.text.trim();
-      final cdPart = defaultDir.isNotEmpty
-          ? 'cd ${shellEscape(defaultDir)} && '
-          : '';
       final port = _effectiveOpenCodePort();
-      final passwordEnv = shellEscape(serverPassword);
-      const logDir = r'$HOME/.local/state/pai-mobile';
-      final command = 'mkdir -p $logDir && '
-          'sh -lc ${shellEscape('${cdPart}OPENCODE_SERVER_PASSWORD=$passwordEnv nohup opencode serve --hostname 0.0.0.0 --port $port > $logDir/opencode-serve.log 2>&1 &')}';
-      await ssh.execute(command);
+      await ssh.execute(installPaiOpenCodeControllerCommand());
+      await ssh.execute(paiOpenCodeControllerCommand(
+        'start',
+        opencodeBin: opencodeBin,
+        password: serverPassword,
+        port: port,
+        workdir: defaultDir.isNotEmpty ? defaultDir : null,
+      ));
 
       final result = await _waitForOpenCodeHttp();
 
@@ -416,9 +422,10 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       return result.success;
     } on SshCommandException catch (e) {
       if (!mounted) return false;
-      final message = e.command.contains('command -v opencode')
-          ? 'opencode is not installed on the remote machine'
-          : 'Remote setup failed (exit ${e.exitCode})';
+      final message =
+          e.exitCode == 127 || e.stderr.contains('opencode not found')
+              ? 'opencode is not installed on the remote machine'
+              : 'Remote setup failed (exit ${e.exitCode})';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
@@ -461,7 +468,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
           return;
         }
 
-        final bootstrapped = await _bootstrapOpenCodeViaSsh(showSnackBar: false);
+        final bootstrapped =
+            await _bootstrapOpenCodeViaSsh(showSnackBar: false);
         if (!bootstrapped) return;
       }
     } finally {
@@ -471,7 +479,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     final defaultDir = _defaultDirCtrl.text.trim();
     final paiUrl = _paiAgentUrlCtrl.text.trim();
     final machine = Machine(
-      id: widget.machine?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: widget.machine?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       name: _nameCtrl.text.trim(),
       serverUrl: _effectiveServerUrl(),
       username: _effectiveOpenCodeUsername(),
@@ -540,7 +549,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                 onExpansionChanged: (v) => _sshExpanded = v,
                 tilePadding: EdgeInsets.zero,
                 title: const Text('SSH Setup'),
-                subtitle: const Text('Primary path: connect, start OpenCode, then chat'),
+                subtitle: const Text(
+                    'Primary path: connect, start OpenCode, then chat'),
                 leading: const Icon(Icons.terminal),
                 children: [
                   const SizedBox(height: 8),
@@ -577,20 +587,23 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                     controller: _sshKeyCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Private Key (PEM)',
-                      helperText: 'Paste the full PEM content, or use password below',
+                      helperText:
+                          'Paste the full PEM content, or use password below',
                       prefixIcon: Icon(Icons.vpn_key_outlined),
                       border: OutlineInputBorder(),
                     ),
                     maxLines: 3,
                     minLines: 2,
-                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                    style:
+                        const TextStyle(fontSize: 12, fontFamily: 'monospace'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _sshPasswordCtrl,
                     decoration: InputDecoration(
                       labelText: 'SSH Password',
-                      helperText: 'Optional fallback for normal SSH password auth',
+                      helperText:
+                          'Optional fallback for normal SSH password auth',
                       prefixIcon: const Icon(Icons.password_outlined),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
@@ -650,10 +663,13 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                     keyboardType: TextInputType.url,
                     validator: (v) {
                       final value = v?.trim() ?? '';
-                      if (value.isEmpty && _sshHostCtrl.text.trim().isNotEmpty) {
+                      if (value.isEmpty &&
+                          _sshHostCtrl.text.trim().isNotEmpty) {
                         return null;
                       }
-                      if (value.isEmpty) return 'Required unless SSH host is set';
+                      if (value.isEmpty) {
+                        return 'Required unless SSH host is set';
+                      }
                       if (!value.startsWith('http')) {
                         return 'Must start with http:// or https://';
                       }

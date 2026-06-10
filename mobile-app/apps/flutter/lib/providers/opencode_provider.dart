@@ -162,6 +162,9 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     _sseSubscription?.cancel();
     if (_client != newClient) {
       _client?.close();
+      _currentSessionId = null;
+      _directory = null;
+      _clearBuffers();
     }
     _client = newClient;
     notifyListeners();
