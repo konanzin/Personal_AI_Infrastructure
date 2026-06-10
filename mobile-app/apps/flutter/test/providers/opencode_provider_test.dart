@@ -37,7 +37,7 @@ class _FakeOpenCodeClient extends OpenCodeClient {
   Future<List<dynamic>> getSessionTodos(String sessionId) async => [];
 
   @override
-  Future<Map<String, dynamic>> createSession({String? title}) async =>
+  Future<Map<String, dynamic>> createSession({String? title, String? directory}) async =>
       {'id': 'sess-1'};
 
   @override

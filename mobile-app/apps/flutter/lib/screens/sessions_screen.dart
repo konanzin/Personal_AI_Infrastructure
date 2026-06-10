@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import 'chat_screen.dart';
 
@@ -30,11 +31,11 @@ class _SessionsScreenState extends State<SessionsScreen> {
     super.dispose();
   }
 
-  Future<void> _createNewSession() async {
-    final provider = context.read<SessionProvider>();
-    final session = await provider.createSession();
-
-    if (session != null && mounted) {
+  void _createNewSession() {
+    // Lazy: clear state, session will be created on first message send
+    context.read<OpenCodeProvider>().clearSession();
+    context.read<SessionProvider>().clearCurrentSession();
+    if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const ChatScreen()),

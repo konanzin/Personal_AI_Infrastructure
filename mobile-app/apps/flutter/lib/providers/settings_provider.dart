@@ -12,12 +12,16 @@ class AppSettings {
   final bool isConfigured;
   final int requestTimeoutSeconds;
 
+  /// Transitional: will be migrated to Machine.defaultDirectory in Phase 4.
+  final String? defaultDirectory;
+
   const AppSettings({
     this.serverUrl = 'http://localhost:4096',
     this.username = 'opencode',
     this.password = 'pai-mobile',
     this.isConfigured = false,
     this.requestTimeoutSeconds = 30,
+    this.defaultDirectory,
   });
 
   AppSettings copyWith({
@@ -26,6 +30,7 @@ class AppSettings {
     String? password,
     bool? isConfigured,
     int? requestTimeoutSeconds,
+    String? defaultDirectory,
   }) {
     return AppSettings(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -33,6 +38,7 @@ class AppSettings {
       password: password ?? this.password,
       isConfigured: isConfigured ?? this.isConfigured,
       requestTimeoutSeconds: requestTimeoutSeconds ?? this.requestTimeoutSeconds,
+      defaultDirectory: defaultDirectory ?? this.defaultDirectory,
     );
   }
 }
@@ -57,6 +63,7 @@ class SettingsProvider extends ChangeNotifier {
       final credentials = await SecureStorageService.loadCredentials();
       final prefs = await SharedPreferences.getInstance();
       final timeout = prefs.getInt('request_timeout_seconds') ?? 30;
+      final defaultDir = prefs.getString('default_directory');
       
       if (credentials['serverUrl'] != null) {
         _settings = AppSettings(
@@ -65,6 +72,7 @@ class SettingsProvider extends ChangeNotifier {
           password: credentials['password'] ?? '',
           isConfigured: true,
           requestTimeoutSeconds: timeout,
+          defaultDirectory: defaultDir,
         );
       }
     } catch (e) {
@@ -152,6 +160,25 @@ class SettingsProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Saves the default directory (transitional, migrates to Machine in Phase 4).
+  Future<void> saveDefaultDirectory(String? directory) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (directory != null && directory.trim().isNotEmpty) {
+      await prefs.setString('default_directory', directory.trim());
+      _settings = _settings.copyWith(defaultDirectory: directory.trim());
+    } else {
+      await prefs.remove('default_directory');
+      _settings = AppSettings(
+        serverUrl: _settings.serverUrl,
+        username: _settings.username,
+        password: _settings.password,
+        isConfigured: _settings.isConfigured,
+        requestTimeoutSeconds: _settings.requestTimeoutSeconds,
+      );
+    }
+    notifyListeners();
   }
 
   /// Limpa todas as configurações

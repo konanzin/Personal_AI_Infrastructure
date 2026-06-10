@@ -804,10 +804,25 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     }
   }
   
-  /// Cria uma nova sessão no OpenCode
+  /// Cria uma nova sessão no OpenCode, usando _directory corrente.
   Future<void> createSession({String? title}) async {
-    final session = await client.createSession(title: title);
+    final Map<String, dynamic> session;
+    try {
+      session = await client.createSession(
+        title: title,
+        directory: _directory,
+      );
+    } catch (e) {
+      debugPrint(
+        '[PAI_SESSION] createSession failed '
+        'directory=${_directory ?? '(default)'} error=$e',
+      );
+      rethrow;
+    }
     _currentSessionId = session['id'] as String?;
+    if (session['directory'] is String) {
+      _directory = session['directory'] as String;
+    }
     _history.clear();
     _reasoningBuffers.clear();
     _messageTimestamps.clear();

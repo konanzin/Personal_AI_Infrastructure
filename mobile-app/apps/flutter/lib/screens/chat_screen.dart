@@ -10,9 +10,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/client_provider.dart';
+import '../providers/machine_store.dart';
 import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/git_status_service.dart';
+import '../services/ssh_service.dart';
+import '../widgets/git_status_badge.dart';
+import '../widgets/workspace_picker.dart';
 import '../services/voice_service.dart';
 import '../widgets/date_header.dart';
 import '../widgets/chat_permission_area.dart';
@@ -57,6 +62,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final VoiceService _voiceService = VoiceService();
   final List<File> _pendingAttachments = [];
   bool _showScrollToBottom = false;
+  GitStatus? _gitStatus;
+  String? _gitStatusDirectory;
   StreamSubscription? _sendSubscription;
   bool _isSearching = false;
   final TextEditingController _chatSearchController = TextEditingController();
@@ -172,9 +179,21 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (!mounted) return;
+
+    // Apply default directory only when no session is active and no directory set
+    if (sessionId == null && provider.directory == null) {
+      final machine = context.read<MachineStore>().activeMachine;
+      final defaultDir = machine?.defaultDirectory ??
+          context.read<SettingsProvider>().settings.defaultDirectory;
+      if (defaultDir != null) {
+        provider.directory = defaultDir;
+      }
+    }
     _cachedChatItems = null;
     _cachedHistoryLength = -1;
     _cachedSessionId = null;
+
+    _fetchGitStatusIfNeeded(provider.directory);
 
     setState(() {
       _provider = provider;
@@ -324,7 +343,57 @@ class _ChatScreenState extends State<ChatScreen> {
     };
   }
 
+  // ── Git status ──────────────────────────────────────────────────────────
+
+  void _fetchGitStatusIfNeeded(String? directory) {
+    if (directory == null || directory == _gitStatusDirectory) return;
+    _gitStatusDirectory = directory;
+
+    final machine = context.read<MachineStore>().activeMachine;
+    final ssh = machine?.ssh;
+    if (ssh == null) {
+      _gitStatus = null;
+      return;
+    }
+
+    final sshService = SshService();
+    () async {
+      try {
+        await sshService.connect(
+          host: ssh.host,
+          port: ssh.port,
+          username: ssh.username,
+          privateKeyPem: ssh.privateKey,
+          password: ssh.password,
+        );
+        final status = await GitStatusService(sshService).getStatus(directory);
+        if (mounted && _gitStatusDirectory == directory) {
+          setState(() => _gitStatus = status);
+        }
+      } catch (_) {
+        // SSH unavailable -- silently skip git status
+      } finally {
+        sshService.disconnect();
+      }
+    }();
+  }
+
   // ── Menu actions ────────────────────────────────────────────────────────
+
+  String _shortenPath(String path) {
+    final machine = context.read<MachineStore>().activeMachine;
+    final defaultDir = machine?.defaultDirectory ??
+        context.read<SettingsProvider>().settings.defaultDirectory;
+    if (defaultDir != null && path.startsWith(defaultDir)) {
+      final suffix = path.substring(defaultDir.length);
+      return suffix.isEmpty ? '~' : '~$suffix';
+    }
+    return path;
+  }
+
+  void _showWorkspacePicker() {
+    showWorkspacePicker(context);
+  }
 
   String _getModelDisplayName() {
     if (_provider == null) return 'PAI';
@@ -974,6 +1043,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _cachedMarkdownStyleSheet = _buildMarkdownStyleSheet(theme);
     }
 
+    final currentDir = _provider?.directory;
+    if (currentDir != _gitStatusDirectory) {
+      _fetchGitStatusIfNeeded(currentDir);
+    }
+
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
@@ -985,19 +1059,49 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         title: _isSearching
             ? _buildChatSearchField()
-            : GestureDetector(
-                onTap: () => _showModelPicker(),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _getModelDisplayName(),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () => _showModelPicker(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _getModelDisplayName(),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.expand_more, size: 20),
+                      ],
                     ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.expand_more, size: 20),
-                  ],
-                ),
+                  ),
+                  if (_provider?.directory != null)
+                    GestureDetector(
+                      onTap: () => _showWorkspacePicker(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _shortenPath(_provider!.directory!),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_gitStatus?.branch != null) ...[
+                            const SizedBox(width: 6),
+                            GitStatusInline(status: _gitStatus!),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
               ),
         centerTitle: false,
         actions: [

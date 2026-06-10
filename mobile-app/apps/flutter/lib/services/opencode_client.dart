@@ -903,11 +903,15 @@ class OpenCodeClient {
     return null;
   }
 
-  /// Create a new session.
-  Future<Map<String, dynamic>> createSession({String? title}) async {
+  /// Create a new session, optionally scoped to [directory].
+  Future<Map<String, dynamic>> createSession({
+    String? title,
+    String? directory,
+  }) async {
     final response = await _request(
       'POST',
       '/session',
+      queryParameters: directory != null ? {'directory': directory} : null,
       body: {if (title != null) 'title': title},
       context: 'create session',
     );

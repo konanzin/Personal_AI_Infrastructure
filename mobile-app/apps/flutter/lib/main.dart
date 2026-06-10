@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/app_lock_provider.dart';
 import 'providers/client_provider.dart';
+import 'providers/machine_store.dart';
 import 'providers/opencode_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/session_provider.dart';
+import 'providers/workspace_provider.dart';
 import 'screens/chat_screen.dart';
+import 'screens/lock_screen.dart';
+import 'screens/machines_screen.dart';
+import 'screens/providers_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/terminal_screen.dart';
 import 'services/notification_service.dart';
 import 'services/permission_service.dart';
 import 'theme.dart';
@@ -28,7 +35,23 @@ class PaiMobileApp extends StatelessWidget {
           create: (_) => SettingsProvider()..loadSettings()..loadThemeMode()..loadShowThinking(),
         ),
         ChangeNotifierProvider(
+          create: (_) => MachineStore()..initialize(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => WorkspaceProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AppLockProvider()..initialize(),
+        ),
+        ChangeNotifierProxyProvider<MachineStore, ClientProvider>(
           create: (_) => ClientProvider(),
+          update: (_, machineStore, prev) {
+            final machine = machineStore.activeMachine;
+            if (machine != null) {
+              prev!.initializeFromMachine(machine);
+            }
+            return prev!;
+          },
         ),
         ChangeNotifierProxyProvider<ClientProvider, SessionProvider>(
           create: (_) => SessionProvider()..loadPersistedSession(),
@@ -97,10 +120,6 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
     super.didChangeDependencies();
     if (!_initialized) {
       _initialized = true;
-      final settings = context.read<SettingsProvider>().settings;
-      context.read<ClientProvider>().initialize(
-        requestTimeoutSeconds: settings.requestTimeoutSeconds,
-      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           PermissionService.requestNotificationPermission(context);
@@ -113,7 +132,19 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final settingsProvider = context.watch<SettingsProvider>();
-    final settings = settingsProvider.settings;
+    final machineStore = context.watch<MachineStore>();
+    final lockProvider = context.watch<AppLockProvider>();
+    final hasMachine = machineStore.activeMachine != null;
+    final isConfigured = hasMachine || settingsProvider.settings.isConfigured;
+
+    Widget home;
+    if (lockProvider.isLocked) {
+      home = const LockScreen();
+    } else if (isConfigured) {
+      home = const ChatScreen();
+    } else {
+      home = const _WelcomeScreen();
+    }
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
@@ -122,12 +153,13 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
       themeMode: settingsProvider.themeMode,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      home: settings.isConfigured
-          ? const ChatScreen()
-          : const _WelcomeScreen(),
+      home: home,
       routes: {
         '/settings': (context) => const SettingsScreen(),
         '/chat': (context) => const ChatScreen(),
+        '/machines': (context) => const MachinesScreen(),
+        '/providers': (context) => const ProvidersScreen(),
+        '/terminal': (context) => const TerminalScreen(),
       },
     );
   }
@@ -168,9 +200,9 @@ class _WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 48),
               ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, '/settings'),
+                onPressed: () => Navigator.pushNamed(context, '/machines'),
                 icon: const Icon(Icons.settings),
-                label: const Text('Configure Server'),
+                label: const Text('Set Up Machine'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,

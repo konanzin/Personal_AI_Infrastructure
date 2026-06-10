@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/machine_store.dart';
 import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
+import 'machine_selector.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -147,10 +149,29 @@ class _AppDrawerState extends State<AppDrawer> {
               child: Row(
                 children: [
                   Text('PAI', style: theme.textTheme.titleLarge),
+                  const SizedBox(width: 8),
+                  const MachineSelector(),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.search, size: 22),
                     onPressed: () {},
+                  ),
+                  if (context.read<MachineStore>().activeMachine?.ssh != null)
+                    IconButton(
+                      icon: const Icon(Icons.terminal, size: 22),
+                      tooltip: 'Terminal',
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/terminal');
+                      },
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.extension_outlined, size: 22),
+                    tooltip: 'AI Providers',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/providers');
+                    },
                   ),
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, size: 22),
@@ -222,16 +243,31 @@ class _AppDrawerState extends State<AppDrawer> {
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      child: Text(
-                                        session.displayName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                                          color: isActive
-                                              ? theme.colorScheme.primary
-                                              : theme.colorScheme.onSurface,
-                                        ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            session.displayName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodyMedium?.copyWith(
+                                              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                                              color: isActive
+                                                  ? theme.colorScheme.primary
+                                                  : theme.colorScheme.onSurface,
+                                            ),
+                                          ),
+                                          if (session.directory != null)
+                                            Text(
+                                              session.directory!.split('/').lastWhere((s) => s.isNotEmpty, orElse: () => session.directory!),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                fontSize: 11,
+                                                color: theme.colorScheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                     const SizedBox(width: 8),

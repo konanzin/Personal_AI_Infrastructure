@@ -149,7 +149,7 @@ class SessionProvider extends ChangeNotifier {
   }
 
   /// Cria uma nova sessão e adiciona à lista
-  Future<Session?> createSession({String? title}) async {
+  Future<Session?> createSession({String? title, String? directory}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -163,7 +163,10 @@ class SessionProvider extends ChangeNotifier {
         return null;
       }
 
-      final response = await client.createSession(title: title);
+      final response = await client.createSession(
+        title: title,
+        directory: directory,
+      );
       final session = Session.fromJson(response);
       
       _sessions.insert(0, session);

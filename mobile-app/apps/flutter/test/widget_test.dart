@@ -30,6 +30,6 @@ void main() {
     // Verify that the welcome screen content is present.
     expect(find.text('PAI'), findsOneWidget);
     expect(find.text('Your Personal AI Assistant'), findsOneWidget);
-    expect(find.text('Configure Server'), findsOneWidget);
+    expect(find.text('Set Up Machine'), findsOneWidget);
   });
 }

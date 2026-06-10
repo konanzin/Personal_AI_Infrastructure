@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/machine.dart';
 import '../services/opencode_client.dart';
-import '../services/secure_storage.dart';
 
 /// App-scoped provider that manages a single [OpenCodeClient] instance.
 ///
@@ -13,6 +13,7 @@ class ClientProvider extends ChangeNotifier {
   String? _username;
   String? _password;
   int _requestTimeoutSeconds = 30;
+  String? _activeMachineId;
 
   Map<String, dynamic>? _cachedProviders;
   DateTime? _providersCacheTime;
@@ -40,13 +41,20 @@ class ClientProvider extends ChangeNotifier {
     _providersCacheTime = null;
   }
 
-  /// Initializes the client from stored credentials.
-  Future<void> initialize({int requestTimeoutSeconds = 30}) async {
-    _requestTimeoutSeconds = requestTimeoutSeconds;
-    final credentials = await SecureStorageService.loadCredentials();
-    _baseUrl = credentials['serverUrl'];
-    _username = credentials['username'];
-    _password = credentials['password'];
+  /// Initializes the client from a [Machine]. Skips rebuild if nothing changed.
+  void initializeFromMachine(Machine machine) {
+    if (_activeMachineId == machine.id &&
+        _baseUrl == machine.serverUrl &&
+        _username == machine.username &&
+        _password == machine.password &&
+        _requestTimeoutSeconds == machine.requestTimeoutSeconds) {
+      return;
+    }
+    _activeMachineId = machine.id;
+    _baseUrl = machine.serverUrl;
+    _username = machine.username;
+    _password = machine.password;
+    _requestTimeoutSeconds = machine.requestTimeoutSeconds;
     _rebuildClient();
   }
 
@@ -54,28 +62,6 @@ class ClientProvider extends ChangeNotifier {
   void updateTimeout(int seconds) {
     if (_requestTimeoutSeconds == seconds) return;
     _requestTimeoutSeconds = seconds;
-    _rebuildClient();
-  }
-
-  /// Forces a reload of credentials (e.g. after settings change).
-  Future<void> refreshCredentials({int? requestTimeoutSeconds}) async {
-    final credentials = await SecureStorageService.loadCredentials();
-    final newUrl = credentials['serverUrl'];
-    final newUser = credentials['username'];
-    final newPass = credentials['password'];
-    final newTimeout = requestTimeoutSeconds ?? _requestTimeoutSeconds;
-
-    if (newUrl == _baseUrl &&
-        newUser == _username &&
-        newPass == _password &&
-        newTimeout == _requestTimeoutSeconds) {
-      return;
-    }
-
-    _baseUrl = newUrl;
-    _username = newUser;
-    _password = newPass;
-    _requestTimeoutSeconds = newTimeout;
     _rebuildClient();
   }
 
