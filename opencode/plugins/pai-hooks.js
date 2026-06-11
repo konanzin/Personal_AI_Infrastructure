@@ -19,7 +19,7 @@
  * - F8:   WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
  * - F9:   SessionEnd (session.deleted) — Destructive cleanup, archive, counts
  *
- * @version 2.11.0
+ * @version 2.12.0
  * @license MIT
  */
 
@@ -68,7 +68,7 @@ const console = PAI_DEBUG_UI
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.11.0';
+const PLUGIN_VERSION = '2.12.0';
 const MIN_PROMPT_LENGTH = 3;
 
 function readText(path, maxChars = 3000) {
@@ -291,7 +291,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   console.log(`[PAI] Plugin v${PLUGIN_VERSION} initialized`);
   await logStructured('info', 'Plugin initialized');
 
-  return {
+  const hooks = {
     // ═══════════════════════════════════════════════════════════════
     // F0: Default PAI Runtime — make normal OpenCode prompts behave like PAI
     //
@@ -1910,6 +1910,82 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
       }
     },
   };
+
+  // ═══════════════════════════════════════════════════════════════
+  // RUNTIME ADAPTER — OpenCode ≥1.16 plugin surface
+  //
+  // Verified against @opencode-ai/plugin 1.16 types: `chat.message`,
+  // `tool.execute.*` and `experimental.*` are real hooks, but session
+  // lifecycle and message updates are BUS EVENTS delivered through the
+  // generic `event` hook, and the permission hook is `permission.ask`.
+  // The named handlers above are kept as the canonical implementations;
+  // this adapter routes the real runtime signals into them.
+  //
+  // Message content lives in message *parts* (not `message.content`), so
+  // the 🎯 capture/satisfaction path is fed from `message.part.updated`
+  // with a role cache built from `message.updated`.
+  // ═══════════════════════════════════════════════════════════════
+
+  const messageMetaCache = new Map(); // messageID -> { role, agent }
+  const partTextSeen = new Set(); // `${messageID}:${partID}:${textHash}` already processed
+
+  hooks['permission.ask'] = hooks['permission.asked'];
+
+  hooks.event = async ({ event }) => {
+    try {
+      const { type, properties = {} } = event || {};
+      switch (type) {
+        case 'session.created':
+          await hooks['session.created'](properties, {});
+          break;
+        case 'session.idle':
+          await hooks['session.idle'](properties, {});
+          break;
+        case 'session.deleted':
+          await hooks['session.deleted'](properties, {});
+          break;
+        case 'message.updated': {
+          const info = properties.info || {};
+          if (info.id) {
+            messageMetaCache.set(info.id, { role: info.role, agent: info.agent || null });
+            if (messageMetaCache.size > 500) {
+              messageMetaCache.delete(messageMetaCache.keys().next().value);
+            }
+          }
+          break;
+        }
+        case 'message.part.updated': {
+          const part = properties.part || {};
+          if (part.type !== 'text' || !part.text) break;
+          const meta = messageMetaCache.get(part.messageID);
+          if (!meta) break;
+          const key = `${part.messageID}:${part.id}:${hashString(part.text, 12)}`;
+          if (partTextSeen.has(key)) break;
+          partTextSeen.add(key);
+          if (partTextSeen.size > 1000) {
+            partTextSeen.delete(partTextSeen.values().next().value);
+          }
+          await hooks['message.updated'](
+            {
+              sessionID: properties.sessionID,
+              message: {
+                id: part.messageID,
+                role: meta.role,
+                agent: meta.agent,
+                content: part.text,
+              },
+            },
+            {},
+          );
+          break;
+        }
+      }
+    } catch (e) {
+      console.error(`[PAI] event bridge error: ${e.message}`);
+    }
+  };
+
+  return hooks;
 };
 
 export default PAIHooksPlugin;

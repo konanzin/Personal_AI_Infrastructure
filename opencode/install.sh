@@ -335,7 +335,12 @@ generate_config() {
     fi
 
     cp -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" "${OPENCODE_DIR}/opencode.jsonc"
-    
+
+    # OpenCode resolves relative plugin paths against the server CWD, not the
+    # config dir (verified on 1.16: "./plugins/..." silently fails to load
+    # when serving from another directory). Render the absolute path.
+    sed -i "s|\"./plugins/pai-hooks.js\"|\"${PLUGINS_DIR}/pai-hooks.js\"|" "${OPENCODE_DIR}/opencode.jsonc"
+
     success "Config generated"
 }
 

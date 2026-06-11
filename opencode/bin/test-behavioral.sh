@@ -44,14 +44,20 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.11.0" \
-    "grep -q \"PLUGIN_VERSION = '2.11.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.12.0" \
+    "grep -q \"PLUGIN_VERSION = '2.12.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
 
 run_test "permission.asked handler exists" \
     "grep -q '\"permission.asked\"' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Runtime event bridge present (OpenCode >=1.16 bus events)" \
+    "grep -q 'hooks.event = async' ${PLUGINS_DIR}/pai-hooks.js && grep -q \"hooks\['permission.ask'\]\" ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Event bridge routes session lifecycle and message parts" \
+    "grep -q \"case 'session.created':\" ${PLUGINS_DIR}/pai-hooks.js && grep -q \"case 'message.part.updated':\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "experimental.session.compacting handler exists" \
     "grep -q '\"experimental.session.compacting\"' ${PLUGINS_DIR}/pai-hooks.js"

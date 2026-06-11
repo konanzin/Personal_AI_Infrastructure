@@ -45,9 +45,9 @@ describe("Plugin Integration — Hook Registration", () => {
     expect(plugin["tool.execute.after"]).toBeDefined();
   });
 
-  test("plugin version is 2.11.0", async () => {
+  test("plugin version is 2.12.0", async () => {
     const content = readFileSync(pluginPath, "utf-8");
-    expect(content).toContain("PLUGIN_VERSION = '2.11.0'");
+    expect(content).toContain("PLUGIN_VERSION = '2.12.0'");
   });
 });
 
@@ -206,5 +206,62 @@ describe("Plugin Integration — Context Injection", () => {
 
     expect(output.system[0]).toContain("Operational Procedures");
     expect(output.system[0]).not.toContain("lean profile");
+  });
+});
+
+describe("Plugin Integration — Runtime Event Bridge (OpenCode >=1.16)", () => {
+  test("plugin exposes the generic event hook and permission.ask alias", async () => {
+    const plugin = await loadPlugin();
+    expect(plugin.event).toBeDefined();
+    expect(plugin["permission.ask"]).toBe(plugin["permission.asked"]);
+  });
+
+  test("session.created bus event initializes session state", async () => {
+    const plugin = await loadPlugin();
+    const { existsSync } = await import("fs");
+    const { join } = await import("path");
+
+    const { STATE_DIR } = await import("../plugins/lib/pai-hooks.lib.js");
+    const sid = `ses-bridge-${Math.floor(performance.now() * 1000)}`;
+    await plugin.event({ event: { type: "session.created", properties: { sessionID: sid, info: {} } } });
+
+    const stateFile = join(STATE_DIR, `current-work-${sid}.json`);
+    expect(existsSync(stateFile)).toBe(true);
+  });
+
+  test("message part with 🎯 COMPLETED emits agent_completed via the bridge", async () => {
+    const plugin = await loadPlugin();
+    const { readFileSync, existsSync } = await import("fs");
+    const { join } = await import("path");
+
+    const sid = "ses-bridge-msg";
+    const mid = `msg-${Math.floor(performance.now() * 1000)}`;
+
+    // Bus order: message.updated (role metadata) then message.part.updated (text)
+    await plugin.event({ event: { type: "message.updated", properties: { sessionID: sid, info: { id: mid, role: "assistant", agent: "build-mobile" } } } });
+    await plugin.event({
+      event: {
+        type: "message.part.updated",
+        properties: { sessionID: sid, part: { id: "prt-1", messageID: mid, type: "text", text: "All done.\n\n🎯 COMPLETED: Bridge routed the completed line correctly" } },
+      },
+    });
+
+    const { NOTIFICATIONS_PATH: stream } = await import("../plugins/lib/pai-hooks.lib.js");
+    expect(existsSync(stream)).toBe(true);
+    const events = readFileSync(stream, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const completed = events.filter((e) => e.event === "agent_completed" && e.data.message_id === mid);
+    expect(completed.length).toBe(1);
+    expect(completed[0].speak).toBe("Bridge routed the completed line correctly");
+
+    // Re-delivering the same part must not duplicate (dedupe guard)
+    await plugin.event({
+      event: {
+        type: "message.part.updated",
+        properties: { sessionID: sid, part: { id: "prt-1", messageID: mid, type: "text", text: "All done.\n\n🎯 COMPLETED: Bridge routed the completed line correctly" } },
+      },
+    });
+    const after = readFileSync(stream, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
+      .filter((e) => e.event === "agent_completed" && e.data.message_id === mid);
+    expect(after.length).toBe(1);
   });
 });
