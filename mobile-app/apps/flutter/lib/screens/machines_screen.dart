@@ -1,9 +1,17 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/machine.dart';
 import '../providers/machine_store.dart';
+import '../theme.dart';
+import '../services/machine_bootstrap_service.dart';
+import '../services/network_policy.dart';
 import '../services/opencode_client.dart';
+import '../services/ssh_key_service.dart';
 import '../services/ssh_service.dart';
 
 class MachinesScreen extends StatelessWidget {
@@ -173,8 +181,15 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   late final TextEditingController _sshUserCtrl;
   late final TextEditingController _sshKeyCtrl;
   late final TextEditingController _sshPasswordCtrl;
-  // PAI Agent
-  late final TextEditingController _paiAgentUrlCtrl;
+
+  /// Host key fingerprint captured on the last successful SSH connection in
+  /// this editor session. Saving stores it as the pinned fingerprint.
+  String? _capturedHostKeyFingerprint;
+
+  /// Private key PEM provisioned during this editor session (generated on
+  /// device, public half installed on the server). When set, the saved
+  /// SshConfig carries this key and the bootstrap password is discarded.
+  String? _provisionedPrivateKey;
 
   bool _obscurePassword = true;
   bool _obscureSshPassword = true;
@@ -202,7 +217,6 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     _sshUserCtrl = TextEditingController(text: m?.ssh?.username ?? '');
     _sshKeyCtrl = TextEditingController(text: m?.ssh?.privateKey ?? '');
     _sshPasswordCtrl = TextEditingController(text: m?.ssh?.password ?? '');
-    _paiAgentUrlCtrl = TextEditingController(text: m?.paiAgentUrl ?? '');
     _sshExpanded = m == null || m.ssh != null;
   }
 
@@ -219,12 +233,24 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     _sshUserCtrl.dispose();
     _sshKeyCtrl.dispose();
     _sshPasswordCtrl.dispose();
-    _paiAgentUrlCtrl.dispose();
     super.dispose();
+  }
+
+  /// Blocks plain HTTP to non-private hosts. Returns true when allowed.
+  bool _cleartextGuard() {
+    final violation = cleartextViolation(_effectiveServerUrl());
+    if (violation == null) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(violation),
+          backgroundColor: Theme.of(context).colorScheme.error),
+    );
+    return false;
   }
 
   Future<void> _testConnection() async {
     _applyDerivedServerUrlIfNeeded();
+    if (!_cleartextGuard()) return;
     setState(() => _testing = true);
     try {
       final config = ClientConfig(
@@ -238,12 +264,16 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(result.success ? 'Connected!' : result.message),
-        backgroundColor: result.success ? Colors.green : Colors.red,
+        backgroundColor: result.success
+            ? Theme.of(context).semanticColors.success
+            : Theme.of(context).colorScheme.error,
       ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
     } finally {
@@ -278,9 +308,15 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     return username.isNotEmpty ? username : 'opencode';
   }
 
+  /// Returns the configured server password, generating a random one when
+  /// the field is empty so machines never fall back to a guessable default.
   String _effectiveOpenCodePassword() {
-    final password = _passCtrl.text;
-    return password.isNotEmpty ? password : 'pai-mobile';
+    if (_passCtrl.text.isEmpty) {
+      final rng = Random.secure();
+      final bytes = List<int>.generate(18, (_) => rng.nextInt(256));
+      _passCtrl.text = base64UrlEncode(bytes).replaceAll('=', '');
+    }
+    return _passCtrl.text;
   }
 
   Future<ConnectionCheckResult> _checkOpenCodeHttp() async {
@@ -293,41 +329,63 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     return client.checkConnection().whenComplete(client.close);
   }
 
-  Future<ConnectionCheckResult> _waitForOpenCodeHttp() async {
-    var result = await _checkOpenCodeHttp();
-    if (result.success) return result;
-
-    for (var attempt = 0; attempt < 10; attempt++) {
-      await Future<void>.delayed(const Duration(milliseconds: 750));
-      result = await _checkOpenCodeHttp();
-      if (result.success) return result;
-    }
-    return result;
-  }
-
+  /// Builds the config used to *connect* during setup. May include the
+  /// password, because the first connection (before a key exists) needs it.
   SshConfig? _buildSshConfig() {
     final host = _sshHostCtrl.text.trim();
     final user = _sshUserCtrl.text.trim();
-    final key = _sshKeyCtrl.text.trim();
+    final pastedKey = _sshKeyCtrl.text.trim();
+    final key = pastedKey.isNotEmpty
+        ? pastedKey
+        : (_provisionedPrivateKey ?? widget.machine?.ssh?.privateKey);
     final password = _sshPasswordCtrl.text;
     if (host.isEmpty || user.isEmpty) return null;
-    if (key.isEmpty && password.isEmpty) return null;
+    if ((key == null || key.isEmpty) && password.isEmpty) return null;
     return SshConfig(
       host: host,
       port: int.tryParse(_sshPortCtrl.text) ?? 22,
       username: user,
-      privateKey: key.isNotEmpty ? key : null,
+      privateKey: key != null && key.isNotEmpty ? key : null,
       password: password.isNotEmpty ? password : null,
+      hostKeyFingerprint:
+          _capturedHostKeyFingerprint ?? widget.machine?.ssh?.hostKeyFingerprint,
     );
+  }
+
+  /// Builds the config to *persist*. Once a key exists, the password is
+  /// dropped so a long-term server credential is never stored on the device.
+  SshConfig? _buildSshConfigForSave() {
+    final base = _buildSshConfig();
+    if (base == null) return null;
+    if (base.privateKey != null && base.privateKey!.isNotEmpty) {
+      return base.copyWith(password: null);
+    }
+    return base;
+  }
+
+  /// Generates a dedicated key on-device and installs its public half on the
+  /// server over the (already authenticated) [ssh] connection. No-op if a key
+  /// is already in play (pasted by the user or provisioned earlier).
+  Future<void> _ensureKeyProvisioned(SshService ssh) async {
+    if (_provisionedPrivateKey != null) return;
+    if (_sshKeyCtrl.text.trim().isNotEmpty) return;
+    if (widget.machine?.ssh?.privateKey != null) return;
+    final name = _nameCtrl.text.trim();
+    final generated = SshKeyService().generateEd25519(
+      comment: 'pai-mobile-${name.isEmpty ? 'device' : name}',
+    );
+    await ssh.execute(installAuthorizedKeyCommand(generated.authorizedKeysLine));
+    _provisionedPrivateKey = generated.privateKeyPem;
   }
 
   Future<void> _testSshConnection() async {
     final sshConfig = _buildSshConfig();
     if (sshConfig == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Fill SSH host, username, and password or private key'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text(
+              'Fill SSH host, username, and password or private key'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
@@ -343,20 +401,21 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         privateKeyPem: sshConfig.privateKey,
         password: sshConfig.password,
       );
+      _capturedHostKeyFingerprint = ssh.hostKeyFingerprint;
       final whoami = await ssh.execute('whoami');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('SSH connected as $whoami'),
-          backgroundColor: Colors.green,
+          backgroundColor: Theme.of(context).semanticColors.success,
         ),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('SSH connection failed'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('SSH connection failed'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } finally {
@@ -365,13 +424,32 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     }
   }
 
+  String _bootstrapStepLabel(BootstrapStepEvent event) {
+    switch (event.step) {
+      case BootstrapStep.connecting:
+        return 'Connecting over SSH...';
+      case BootstrapStep.provisioningKey:
+        return 'Generating and installing a dedicated SSH key...';
+      case BootstrapStep.locatingOpenCode:
+        return 'Locating opencode on the remote machine...';
+      case BootstrapStep.installingController:
+        return 'Installing the pai-opencode controller...';
+      case BootstrapStep.startingService:
+        return 'Starting the OpenCode service...';
+      case BootstrapStep.waitingForHttp:
+        return 'Waiting for HTTP, attempt '
+            '${event.attempt}/${event.maxAttempts}...';
+    }
+  }
+
   Future<bool> _bootstrapOpenCodeViaSsh({bool showSnackBar = true}) async {
     final sshConfig = _buildSshConfig();
     if (sshConfig == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Fill SSH host, username, and password or private key'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text(
+              'Fill SSH host, username, and password or private key'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return false;
@@ -382,66 +460,132 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     if (_passCtrl.text.isEmpty) _passCtrl.text = serverPassword;
 
     setState(() => _testingSsh = true);
+
+    final progress = ValueNotifier<String>('Connecting over SSH...');
+    var dialogOpen = true;
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Setting up OpenCode'),
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ValueListenableBuilder<String>(
+                  valueListenable: progress,
+                  builder: (_, value, __) => Text(value),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).whenComplete(() => dialogOpen = false));
+
+    final name = _nameCtrl.text.trim();
+    final defaultDir = _defaultDirCtrl.text.trim();
+    BootstrapOutcome? outcome;
+    try {
+      await for (final event in MachineBootstrapService().bootstrap(
+        ssh: sshConfig,
+        serverUrl: _effectiveServerUrl(),
+        serverUsername: _effectiveOpenCodeUsername(),
+        serverPassword: serverPassword,
+        port: _effectiveOpenCodePort(),
+        workdir: defaultDir.isNotEmpty ? defaultDir : null,
+        keyComment: 'pai-mobile-${name.isEmpty ? 'device' : name}',
+        requestTimeoutSeconds: int.tryParse(_timeoutCtrl.text) ?? 30,
+      )) {
+        switch (event) {
+          case BootstrapStepEvent e:
+            progress.value = _bootstrapStepLabel(e);
+          case BootstrapDoneEvent e:
+            outcome = e.outcome;
+        }
+      }
+    } finally {
+      if (dialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      progress.dispose();
+      if (mounted) setState(() => _testingSsh = false);
+    }
+
+    final result = outcome;
+    if (result == null || !mounted) return false;
+
+    if (result.hostKeyFingerprint != null) {
+      _capturedHostKeyFingerprint = result.hostKeyFingerprint;
+    }
+    if (result.provisionedPrivateKeyPem != null) {
+      _provisionedPrivateKey = result.provisionedPrivateKeyPem;
+    }
+
+    final String message;
+    final Color color;
+    switch (result.failure) {
+      case null:
+        message = result.success
+            ? 'OpenCode is running and reachable'
+            : 'OpenCode started, but HTTP check failed: ${result.message}';
+        color = result.success
+            ? Theme.of(context).semanticColors.success
+            : Theme.of(context).semanticColors.warning;
+      case BootstrapFailureKind.openCodeMissing:
+        message = 'opencode is not installed on the remote machine';
+        color = Theme.of(context).colorScheme.error;
+      case BootstrapFailureKind.remoteCommandFailed:
+        message = result.exitCode != null
+            ? 'Remote setup failed (exit ${result.exitCode})'
+            : 'SSH bootstrap failed';
+        color = Theme.of(context).colorScheme.error;
+      case BootstrapFailureKind.sshConnectFailed:
+        message = 'SSH bootstrap failed';
+        color = Theme.of(context).colorScheme.error;
+    }
+    if (showSnackBar || !result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: color,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+    return result.success;
+  }
+
+  /// When SSH is configured with only a password (no key yet), opens a short
+  /// connection to provision a dedicated key. Best-effort: failure here does
+  /// not block saving (the password path still works as a fallback).
+  Future<void> _provisionKeyIfPasswordOnly() async {
+    final cfg = _buildSshConfig();
+    if (cfg == null) return;
+    if (cfg.privateKey != null && cfg.privateKey!.isNotEmpty) return;
+    if (cfg.password == null || cfg.password!.isEmpty) return;
     final ssh = SshService();
     try {
       await ssh.connect(
-        host: sshConfig.host,
-        port: sshConfig.port,
-        username: sshConfig.username,
-        privateKeyPem: sshConfig.privateKey,
-        password: sshConfig.password,
+        host: cfg.host,
+        port: cfg.port,
+        username: cfg.username,
+        password: cfg.password,
+        expectedHostKeyFingerprint: cfg.hostKeyFingerprint,
       );
-
-      final opencodeBin = await ssh.execute(remoteOpenCodeLookupCommand());
-
-      final defaultDir = _defaultDirCtrl.text.trim();
-      final port = _effectiveOpenCodePort();
-      await ssh.execute(installPaiOpenCodeControllerCommand());
-      await ssh.execute(paiOpenCodeControllerCommand(
-        'start',
-        opencodeBin: opencodeBin,
-        password: serverPassword,
-        port: port,
-        workdir: defaultDir.isNotEmpty ? defaultDir : null,
-      ));
-
-      final result = await _waitForOpenCodeHttp();
-
-      if (!mounted) return false;
-      if (showSnackBar || !result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.success
-                ? 'OpenCode is running and reachable'
-                : 'OpenCode started, but HTTP check failed: ${result.message}'),
-            backgroundColor: result.success ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-      return result.success;
-    } on SshCommandException catch (e) {
-      if (!mounted) return false;
-      final message =
-          e.exitCode == 127 || e.stderr.contains('opencode not found')
-              ? 'opencode is not installed on the remote machine'
-              : 'Remote setup failed (exit ${e.exitCode})';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
-      return false;
+      _capturedHostKeyFingerprint = ssh.hostKeyFingerprint;
+      await _ensureKeyProvisioned(ssh);
     } catch (_) {
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('SSH bootstrap failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return false;
+      // Leave the password path in place if provisioning fails.
     } finally {
       ssh.disconnect();
-      if (mounted) setState(() => _testingSsh = false);
     }
   }
 
@@ -450,6 +594,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
 
     final store = context.read<MachineStore>();
     _applyDerivedServerUrlIfNeeded();
+    if (!_cleartextGuard()) return;
     if (_passCtrl.text.isEmpty) _passCtrl.text = _effectiveOpenCodePassword();
 
     setState(() => _saving = true);
@@ -462,7 +607,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(directCheck.message),
-              backgroundColor: Colors.red,
+              backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
           return;
@@ -471,24 +616,31 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         final bootstrapped =
             await _bootstrapOpenCodeViaSsh(showSnackBar: false);
         if (!bootstrapped) return;
+      } else {
+        // OpenCode is already reachable, so no bootstrap ran — but if SSH was
+        // given with only a password, provision a key now so we never persist
+        // the password.
+        await _provisionKeyIfPasswordOnly();
       }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
 
     final defaultDir = _defaultDirCtrl.text.trim();
-    final paiUrl = _paiAgentUrlCtrl.text.trim();
+    // Prefer a stable identity derived from the host key over a timestamp,
+    // so the same machine maps to the same ID across reinstalls.
+    final newMachineId = _capturedHostKeyFingerprint != null
+        ? stableMachineId(_capturedHostKeyFingerprint!)
+        : DateTime.now().millisecondsSinceEpoch.toString();
     final machine = Machine(
-      id: widget.machine?.id ??
-          DateTime.now().millisecondsSinceEpoch.toString(),
+      id: widget.machine?.id ?? newMachineId,
       name: _nameCtrl.text.trim(),
       serverUrl: _effectiveServerUrl(),
       username: _effectiveOpenCodeUsername(),
       password: _effectiveOpenCodePassword(),
       requestTimeoutSeconds: int.tryParse(_timeoutCtrl.text) ?? 30,
       defaultDirectory: defaultDir.isNotEmpty ? defaultDir : null,
-      ssh: _buildSshConfig(),
-      paiAgentUrl: paiUrl.isNotEmpty ? paiUrl : null,
+      ssh: _buildSshConfigForSave(),
       lastConnected: widget.machine?.lastConnected,
     );
 
@@ -513,7 +665,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, 16 + MediaQuery.of(context).viewPadding.bottom),
         child: Form(
           key: _formKey,
           child: Column(
@@ -691,7 +844,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                     controller: _passCtrl,
                     decoration: InputDecoration(
                       labelText: 'OpenCode Server Password',
-                      helperText: 'Used when starting opencode serve via SSH',
+                      helperText:
+                          'Leave empty to generate a random password on setup',
                       prefixIcon: const Icon(Icons.lock_outlined),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
@@ -735,19 +889,6 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                 ],
               ),
 
-              // ── PAI Agent ──
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _paiAgentUrlCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'PAI Agent URL (optional)',
-                  hintText: 'http://100.x.x.x:8080',
-                  helperText: 'URL of the PAI machine agent',
-                  prefixIcon: Icon(Icons.smart_toy_outlined),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.url,
-              ),
             ],
           ),
         ),
