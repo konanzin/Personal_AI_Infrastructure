@@ -1,10 +1,12 @@
 package com.example.pai_mobile_flutter
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -14,6 +16,21 @@ class MainActivity : FlutterFragmentActivity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var methodChannel: MethodChannel? = null
     private var isListening = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // Treat the app like a banking app: FLAG_SECURE blanks the content in
+        // the recent-apps/task switcher and blocks screenshots/screen capture.
+        // Skipped in debug builds so development (screenshots/E2E) still works.
+        val isDebuggable =
+            (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (!isDebuggable) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE,
+            )
+        }
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

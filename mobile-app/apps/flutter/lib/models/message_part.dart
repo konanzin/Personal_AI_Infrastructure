@@ -54,6 +54,11 @@ enum ToolCallState {
   running,
   completed,
   error,
+
+  /// Loaded from history in a non-terminal state (running/pending): the
+  /// session ended before it finished, so it is stale — shown without a live
+  /// spinner.
+  interrupted,
 }
 
 /// Shell command part.

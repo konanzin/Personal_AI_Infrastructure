@@ -1,4 +1,16 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 const _sentinel = Object();
+
+/// Derives a stable machine identity from the SSH host key fingerprint.
+/// The same machine always yields the same ID, across app reinstalls and
+/// regardless of which address or name was used to reach it.
+String stableMachineId(String hostKeyFingerprint) {
+  final digest = sha256.convert(utf8.encode(hostKeyFingerprint));
+  return 'mach_${digest.toString().substring(0, 20)}';
+}
 
 class SshConfig {
   final String host;
@@ -7,12 +19,18 @@ class SshConfig {
   final String? privateKey;
   final String? password;
 
+  /// Pinned host key fingerprint (`<type>:<md5-hex>`), captured on first
+  /// successful connection in the machine editor. Routine connections
+  /// (terminal, git status) refuse to proceed if the host key changes.
+  final String? hostKeyFingerprint;
+
   const SshConfig({
     required this.host,
     this.port = 22,
     required this.username,
     this.privateKey,
     this.password,
+    this.hostKeyFingerprint,
   });
 
   factory SshConfig.fromJson(Map<String, dynamic> json) {
@@ -22,6 +40,7 @@ class SshConfig {
       username: json['username'] as String,
       privateKey: json['privateKey'] as String?,
       password: json['password'] as String?,
+      hostKeyFingerprint: json['hostKeyFingerprint'] as String?,
     );
   }
 
@@ -31,6 +50,8 @@ class SshConfig {
         'username': username,
         if (privateKey != null) 'privateKey': privateKey,
         if (password != null) 'password': password,
+        if (hostKeyFingerprint != null)
+          'hostKeyFingerprint': hostKeyFingerprint,
       };
 
   SshConfig copyWith({
@@ -39,6 +60,7 @@ class SshConfig {
     String? username,
     Object? privateKey = _sentinel,
     Object? password = _sentinel,
+    Object? hostKeyFingerprint = _sentinel,
   }) {
     return SshConfig(
       host: host ?? this.host,
@@ -48,6 +70,9 @@ class SshConfig {
           ? this.privateKey
           : privateKey as String?,
       password: password == _sentinel ? this.password : password as String?,
+      hostKeyFingerprint: hostKeyFingerprint == _sentinel
+          ? this.hostKeyFingerprint
+          : hostKeyFingerprint as String?,
     );
   }
 }
@@ -61,7 +86,6 @@ class Machine {
   final int requestTimeoutSeconds;
   final String? defaultDirectory;
   final SshConfig? ssh;
-  final String? paiAgentUrl;
   final DateTime? lastConnected;
 
   const Machine({
@@ -73,7 +97,6 @@ class Machine {
     this.requestTimeoutSeconds = 30,
     this.defaultDirectory,
     this.ssh,
-    this.paiAgentUrl,
     this.lastConnected,
   });
 
@@ -89,7 +112,6 @@ class Machine {
       ssh: json['ssh'] != null
           ? SshConfig.fromJson(json['ssh'] as Map<String, dynamic>)
           : null,
-      paiAgentUrl: json['paiAgentUrl'] as String?,
       lastConnected: json['lastConnected'] != null
           ? DateTime.fromMillisecondsSinceEpoch(json['lastConnected'] as int)
           : null,
@@ -105,7 +127,6 @@ class Machine {
         'requestTimeoutSeconds': requestTimeoutSeconds,
         if (defaultDirectory != null) 'defaultDirectory': defaultDirectory,
         if (ssh != null) 'ssh': ssh!.toJson(),
-        if (paiAgentUrl != null) 'paiAgentUrl': paiAgentUrl,
         if (lastConnected != null)
           'lastConnected': lastConnected!.millisecondsSinceEpoch,
       };
@@ -118,8 +139,7 @@ class Machine {
     String? password,
     int? requestTimeoutSeconds,
     Object? defaultDirectory = _sentinel,
-    SshConfig? ssh,
-    Object? paiAgentUrl = _sentinel,
+    Object? ssh = _sentinel,
     DateTime? lastConnected,
   }) {
     return Machine(
@@ -133,10 +153,7 @@ class Machine {
       defaultDirectory: defaultDirectory == _sentinel
           ? this.defaultDirectory
           : defaultDirectory as String?,
-      ssh: ssh ?? this.ssh,
-      paiAgentUrl: paiAgentUrl == _sentinel
-          ? this.paiAgentUrl
-          : paiAgentUrl as String?,
+      ssh: ssh == _sentinel ? this.ssh : ssh as SshConfig?,
       lastConnected: lastConnected ?? this.lastConnected,
     );
   }

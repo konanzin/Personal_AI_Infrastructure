@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/api_errors.dart';
 import '../services/opencode_client.dart';
 
 /// Modelo de sessão do OpenCode
@@ -166,6 +167,44 @@ class SessionProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Bijective session rule: a restored session may only be attached when it
+  /// still exists on the server and belongs to [expectedDirectory].
+  ///
+  /// Returns false when the session is gone or demonstrably belongs to a
+  /// different directory. Transport failures (offline, timeout) fail open so
+  /// restore still works without connectivity; auth errors also fail open
+  /// because they say nothing about the session itself.
+  Future<bool> verifySessionScope(
+    String sessionId, {
+    String? expectedDirectory,
+  }) async {
+    final client = _client;
+    if (client == null) return true;
+
+    Map<String, dynamic> session;
+    try {
+      session = await client.getSession(sessionId);
+    } on NotFoundError {
+      return false;
+    } on ApiError {
+      return true;
+    } catch (_) {
+      return true;
+    }
+
+    // Only verify against absolute paths; relative or `~` inputs cannot be
+    // compared reliably on the client side.
+    if (expectedDirectory == null || !expectedDirectory.startsWith('/')) {
+      return true;
+    }
+    final actual = session['directory'] as String?;
+    if (actual == null || actual.isEmpty) return true;
+
+    String norm(String p) =>
+        p.length > 1 && p.endsWith('/') ? p.substring(0, p.length - 1) : p;
+    return norm(actual) == norm(expectedDirectory);
   }
 
   /// Seleciona uma sessão como atual
