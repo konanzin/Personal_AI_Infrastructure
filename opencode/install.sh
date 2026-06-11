@@ -160,9 +160,17 @@ install_plugins() {
 # ─── Install Agents ───────────────────────────────────────
 install_agents() {
     log "Installing agents..."
-    
+
+    # Remove agents this product used to ship and has since retired —
+    # cp -f never deletes, so stale files from old installs would otherwise
+    # keep showing up in agent pickers forever.
+    local retired=("BrowserAgent" "QATester" "UIReviewer" "e1" "e2" "e3" "e4" "e5" "rate")
+    for stale in "${retired[@]}"; do
+        rm -f "$AGENTS_DIR/${stale}.md"
+    done
+
     cp -f "${REPO_DIR}/opencode/agents/"*.md "$AGENTS_DIR/"
-    
+
     local count=$(ls "$AGENTS_DIR/"*.md | wc -l)
     success "$count agents installed"
 }
@@ -276,6 +284,36 @@ install_pai_core() {
     success "PAI core installed"
 }
 
+# ─── Patch legacy upstream paths ──────────────────────────
+# Upstream PAI was built for Claude Code and hardcodes ~/.claude/ in
+# vendored skills and docs. The repo keeps those files pristine (clean
+# diffs against upstream); the migration happens here, on the installed
+# copies only. See REPO_MODEL.md ("patch at install time").
+patch_installed_paths() {
+    log "Patching legacy ~/.claude/ paths in installed content..."
+
+    local targets=("$SKILLS_DIR" "$PAI_DIR" "$AGENTS_DIR" "$COMMANDS_DIR")
+    local patched=0
+
+    # PAI/bin is excluded: those are repo-canonical OpenCode scripts whose
+    # grep patterns legitimately mention .claude/ (they scan for leftovers).
+    for dir in "${targets[@]}"; do
+        [ -d "$dir" ] || continue
+        while IFS= read -r file; do
+            case "$file" in
+                "$PAI_DIR/bin/"*) continue ;;
+            esac
+            sed -i \
+                -e 's|\.claude/|.config/opencode/|g' \
+                -e 's|"\.claude"|".config/opencode"|g' \
+                "$file"
+            patched=$((patched + 1))
+        done < <(grep -rlI -e '\.claude/' -e '"\.claude"' "$dir" 2>/dev/null)
+    done
+
+    success "Patched legacy paths in $patched files"
+}
+
 # ─── Generate opencode.jsonc ──────────────────────────────
 generate_config() {
     log "Generating opencode.jsonc..."
@@ -379,6 +417,7 @@ main() {
     install_commands
     install_skills
     install_pai_core
+    patch_installed_paths
     generate_config
     validate
     report

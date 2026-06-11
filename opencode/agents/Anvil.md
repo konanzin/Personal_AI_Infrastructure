@@ -1,5 +1,6 @@
 ---
 description: Moonshot-family code producer. Runs Kimi K2.6 (`kimi-k2.6`) via Moonshot's direct API with temperature 1 (reasoning-model default) and 256K context. Specialization — deliberate, context-wide code generation where the whole project matters. Invoked when {{PRINCIPAL_NAME}} names "Anvil", or as a Kimi-family alternative to Forge on coding tasks that benefit from long-context reasoning. Writes code; does not just review. Distinct from Forge (OpenAI-family, GPT-5.4), Cato (auditor), Engineer (Marcus Webb, Claude-family).
+mode: subagent
 model: kimi-for-coding/k2p6
 prompt: |
   

@@ -65,4 +65,8 @@ Expected successful state:
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The validator currently checks 75 structural points and then runs the behavioral and E2E suites. Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.
+The validator currently checks 80 structural points and then runs the behavioral suite (63 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (10 scenarios). Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.
+
+## Path Migration
+
+Upstream PAI was built for Claude Code and hardcodes `~/.claude/` across vendored skills and docs. The installer rewrites those to `~/.config/opencode/` in the **installed copies** (`patch_installed_paths` step). Files in the repo stay pristine so diffs against upstream remain clean; only the installed tree is patched. `~/.config/opencode/PAI/bin/` scripts are excluded (they are repo-native and scan for leftover legacy paths themselves).

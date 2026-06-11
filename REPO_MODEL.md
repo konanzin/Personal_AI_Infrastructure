@@ -72,6 +72,20 @@ Initial parity with upstream was a deliberate goal to prove the port. Going forw
 - We keep behavioral parity where it matters (Algorithm, skills, agent contracts).
 - We diverge where OpenCode offers a better native path.
 - We add native features that upstream does not have.
-- Parity is measured by validator coverage and real usage, not line-by-line equivalence.
+- Parity is measured by validator coverage and real usage, not line-by-line equivalence — and it is measured **against the chosen scope below**, not against everything upstream ships.
 
-Current state: **142/142 checks passing** (75 structural + 57 behavioral + 10 E2E runtime). Parity estimate: **~90-95%**.
+Current state: **153/153 checks passing** (80 structural + 63 behavioral + 10 E2E runtime) over the core scope: Algorithm, skills, agents, ISA/work-state sync, security guards, classifier, and observability streams.
+
+## Out of Scope by Design
+
+The following upstream subsystems are deliberately not part of this product today. They are not gaps; they are decisions. Agents and docs are written to degrade gracefully when these are absent (health-checked voice curls, structured `unavailable` fallbacks).
+
+| Subsystem | Upstream role | Why excluded | Future path |
+|-----------|---------------|--------------|-------------|
+| Pulse daemon runtime | Always-on dashboard/notify server on `localhost:31337` | Heavy, desktop-centric; OpenCode product targets a leaner runtime | Mobile app may assume the notify/observer role |
+| Voice (ElevenLabs) | Speaks agent updates on the desktop | Depends on Pulse + paid API | Voice rendering on mobile via TTS, fed by plugin events |
+| `PAI/TOOLS/` helpers (ForgeProgress, AnvilProgress, CrossVendorAudit, Arthur engine) | Wrap external vendor CLIs and credential policy | Never published upstream; depend on OpenAI/Moonshot accounts | Agents return structured `unavailable`; helpers can be ported if multi-vendor work is adopted |
+| Arbol (cloud execution) | Parallel cloud runs | Docs-only upstream | Re-evaluate if needed |
+| Feed / Fabric systems | Content pipelines | Docs-only upstream | Re-evaluate if needed |
+| Memory consolidation jobs | Pulse-scheduled learning capture | Requires daemon | Candidate for plugin-side or mobile-triggered jobs |
+| Terminal tabs / statusline UI | Kitty-based dashboard | Claude Code/desktop-specific | OpenCode-native or mobile UI instead |

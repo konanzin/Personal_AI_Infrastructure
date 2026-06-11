@@ -27,11 +27,11 @@ The installer is idempotent. It preserves installed `USER` and `MEMORY` data, up
 ## Included Surface
 
 - One OpenCode plugin with native event handlers for PAI hook behavior
-- 18 OpenCode agent files
-- PAI skills loaded from `~/.config/opencode/skills`
+- 15 OpenCode agent files (BrowserAgent, QATester, and UIReviewer were retired — web verification and QA are handled by the Interceptor skill)
+- PAI skills loaded from `~/.config/opencode/skills`, with legacy `~/.claude/` paths rewritten at install time
 - PAI core directories for Algorithm, Memory, optional Pulse scaffolding, Tools, Templates, and User context
 - Default PAI runtime injection on normal prompts (model decides mode)
-- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse` (diagnostic scaffold only), `/context`, and `/e1` through `/e5`
+- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse` (diagnostic scaffold only), `/context`, `/context-search` (alias `/cs`), `/pu`, and `/e1` through `/e5`
 
 ## Current Scope Boundary
 
