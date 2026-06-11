@@ -82,8 +82,8 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
       );
     }
 
-    final providers = _providers;
-    if (providers == null || providers.isEmpty) {
+    final list = _providerList();
+    if (list.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -106,7 +106,8 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: EdgeInsets.fromLTRB(
+            0, 8, 0, 8 + MediaQuery.of(context).viewPadding.bottom),
         children: [
           if (!hasSsh)
             Padding(
@@ -133,11 +134,29 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
                 ),
               ),
             ),
-          ...providers.entries.map((e) =>
-              _ProviderTile(name: e.key, data: e.value as Map<String, dynamic>)),
+          ...list.map((p) => _ProviderTile(
+                name: (p['id'] ?? p['name'] ?? '').toString(),
+                data: p,
+              )),
         ],
       ),
     );
+  }
+
+  /// OpenCode's `/config/providers` returns `{providers: [...], default: {}}`.
+  /// Extract the provider objects defensively (older shapes may differ).
+  List<Map<String, dynamic>> _providerList() {
+    final raw = _providers;
+    if (raw == null) return const [];
+    final providers = raw['providers'];
+    if (providers is List) {
+      return providers.whereType<Map>().map(Map<String, dynamic>.from).toList();
+    }
+    // Fallback: a flat id→data map (pre-1.x shape).
+    return raw.entries
+        .where((e) => e.value is Map)
+        .map((e) => {'id': e.key, ...Map<String, dynamic>.from(e.value as Map)})
+        .toList();
   }
 
   // ── Add provider dialog ────────────────────────────────────────────────
@@ -282,7 +301,8 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
       await _load();
       if (!mounted) return;
 
-      final recognized = _providers?.containsKey(providerId) == true;
+      final recognized =
+          _providerList().any((p) => p['id'] == providerId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(recognized
@@ -298,7 +318,9 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
             ? 'SSH command failed (exit ${e.exitCode})'
             : 'Provider update failed';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(safeMsg), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text(safeMsg),
+              backgroundColor: Theme.of(context).colorScheme.error),
         );
         setState(() => _loading = false);
       }

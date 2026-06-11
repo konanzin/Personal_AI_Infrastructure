@@ -1,0 +1,197 @@
+{
+  "@@locale": "pt",
+  "appTitle": "PAI — OpenCode AI",
+  "cancel": "Cancelar",
+  "save": "Salvar",
+  "delete": "Excluir",
+  "retry": "Tentar novamente",
+  "dismiss": "Dispensar",
+  "stop": "Parar",
+  "copy": "Copiar",
+  "copied": "Copiado",
+  "rename": "Renomear",
+  "allow": "Permitir",
+  "once": "Uma vez",
+  "deny": "Negar",
+  "answer": "Responder",
+  "switchAction": "Trocar",
+  "manage": "Gerenciar",
+  "askPaiHint": "Peça ao PAI...",
+  "chatEmptyTitle": "Como posso ajudar?",
+  "chatEmptySubtitle": "Envie uma mensagem para começar",
+  "initializingChat": "Inicializando o chat...",
+  "generating": "Gerando...",
+  "goToSettings": "Ir para Configurações",
+  "serverNotConfigured": "Servidor não configurado. Acesse as Configurações.",
+  "savedSessionOtherDirectory": "A sessão salva pertencia a outro diretório; começando do zero",
+  "failedLoadHistory": "Falha ao carregar o histórico da sessão: {error}",
+  "@failedLoadHistory": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "failedCreateSession": "Falha ao criar a sessão: {error}",
+  "@failedCreateSession": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "errorWithDetail": "Erro: {error}",
+  "@errorWithDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "camera": "Câmera",
+  "gallery": "Galeria",
+  "file": "Arquivo",
+  "sessionSummarized": "Sessão resumida",
+  "noModelsAvailable": "Nenhum modelo disponível",
+  "selectModel": "Selecionar modelo",
+  "defaultServerModel": "Padrão (servidor)",
+  "failedLoadModels": "Falha ao carregar modelos: {error}",
+  "@failedLoadModels": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionTodos": "Tarefas da sessão",
+  "noTodos": "Sem tarefas nesta sessão",
+  "shareLinkMessage": "Link de compartilhamento: {link}",
+  "@shareLinkMessage": {
+    "placeholders": {
+      "link": {
+        "type": "String"
+      }
+    }
+  },
+  "shareCreated": "Compartilhamento criado (veja as informações da sessão)",
+  "noSessionInfo": "Sem informações da sessão",
+  "sessionInfo": "Informações da sessão",
+  "modelLabel": "Modelo",
+  "childSessions": "Sessões filhas ({count})",
+  "@childSessions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commandExecuted": "Comando /{command} executado",
+  "@commandExecuted": {
+    "placeholders": {
+      "command": {
+        "type": "String"
+      }
+    }
+  },
+  "commandFailed": "Comando falhou: {error}",
+  "@commandFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "todos": "Tarefas",
+  "share": "Compartilhar",
+  "summarize": "Resumir",
+  "searchInChat": "Buscar no chat...",
+  "revertChanges": "Reverter alterações",
+  "revertChangesSubtitle": "Desfaz as alterações de arquivos desta mensagem",
+  "reverted": "Revertido",
+  "revertFailed": "Falha ao reverter",
+  "forkFromHere": "Ramificar a partir daqui",
+  "forkSubtitle": "Cria uma nova sessão a partir deste ponto",
+  "undo": "Desfazer",
+  "yesterdayAt": "Ontem {time}",
+  "@yesterdayAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chats": "Conversas",
+  "newChat": "Nova conversa",
+  "searchChats": "Buscar conversas...",
+  "renameSession": "Renomear sessão",
+  "name": "Nome",
+  "enterSessionName": "Digite o nome da sessão",
+  "deleteSessionTitle": "Excluir sessão?",
+  "deleteConfirmBody": "\"{name}\" será excluída permanentemente.",
+  "@deleteConfirmBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "noChatsYet": "Nenhuma conversa ainda",
+  "startNewConversation": "Comece uma nova conversa",
+  "sessionName": "Nome da sessão",
+  "deleteQuestion": "Excluir?",
+  "terminal": "Terminal",
+  "aiProviders": "Provedores de IA",
+  "settings": "Configurações",
+  "paiLocked": "PAI está bloqueado",
+  "authenticating": "Autenticando...",
+  "unlock": "Desbloquear",
+  "unlockHintBiometrics": "Desbloqueie com biometria ou PIN do aparelho",
+  "unlockHintPin": "Desbloqueie com o PIN do aparelho",
+  "authCancelledOrFailed": "A autenticação foi cancelada ou falhou.",
+  "setupScreenLock": "Configure um bloqueio de tela nas configurações do Android para usar o bloqueio do app.",
+  "workspace": "Workspace",
+  "favorites": "Favoritos",
+  "recent": "Recentes",
+  "manualPath": "Caminho manual",
+  "defaultHome": "Padrão (~)",
+  "switchWorkspaceTitle": "Trocar de workspace?",
+  "switchWorkspaceBodyStreaming": "Um stream ativo será interrompido e o contexto do chat atual será fechado.",
+  "switchWorkspaceBody": "O contexto do chat atual será fechado.",
+  "machines": "Máquinas",
+  "machinesSubtitle": "Configure SSH, faça o bootstrap do OpenCode ou use um servidor direto",
+  "aiProvidersSubtitle": "Gerencie os provedores da máquina ativa",
+  "appearance": "Aparência",
+  "systemTheme": "Sistema",
+  "lightTheme": "Claro",
+  "darkTheme": "Escuro",
+  "dynamicColor": "Cores dinâmicas",
+  "dynamicColorSubtitle": "Seguir as cores do papel de parede (Material You)",
+  "accentColor": "Cor de destaque",
+  "pureBlack": "Preto puro (OLED)",
+  "pureBlackSubtitle": "Superfícies pretas no tema escuro",
+  "showThinking": "Mostrar raciocínio",
+  "showThinkingSubtitle": "Exibe as etapas de raciocínio do agente",
+  "security": "Segurança",
+  "appLock": "Bloqueio do app",
+  "appLockSubtitleAvailable": "Usa biometria, PIN, senha ou padrão do Android",
+  "appLockSubtitleUnavailable": "Configure um bloqueio de tela no Android primeiro",
+  "lockTimeout": "Tempo de bloqueio",
+  "permissionRequired": "Permissão necessária",
+  "paiWantsToExecute": "O PAI quer executar:",
+  "patternsAffected": "Padrões afetados:",
+  "question": "Pergunta",
+  "answered": "Respondida",
+  "customAnswerHint": "Resposta personalizada...",
+  "micPermissionNeeded": "Permissão de microfone necessária",
+  "welcomeSubtitle": "Seu assistente pessoal de IA",
+  "setUpMachine": "Configurar máquina",
+  "browseFolders": "Procurar pastas",
+  "useThisFolder": "Usar esta pasta",
+  "couldNotListFolder": "Não foi possível listar a pasta",
+  "noSubfolders": "Sem subpastas",
+  "colorStyle": "Estilo de cor",
+  "colorStyleSoft": "Suave",
+  "colorStyleVibrant": "Vibrante",
+  "colorStyleFaithful": "Fiel",
+  "colorStyleExpressive": "Expressivo"
+}

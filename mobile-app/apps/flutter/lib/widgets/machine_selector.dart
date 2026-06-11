@@ -5,6 +5,7 @@ import '../providers/machine_store.dart';
 import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import '../screens/machines_screen.dart';
+import '../l10n/app_localizations.dart';
 
 /// Chip showing the active machine name. Tap opens a bottom sheet for switching.
 class MachineSelector extends StatelessWidget {
@@ -18,7 +19,12 @@ class MachineSelector extends StatelessWidget {
 
     return ActionChip(
       avatar: const Icon(Icons.dns, size: 16),
-      label: Text(active.name, style: const TextStyle(fontSize: 13)),
+      label: Text(
+        active.name,
+        style: const TextStyle(fontSize: 13),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       onPressed: () => _showSwitcher(context, store),
     );
   }
@@ -34,7 +40,7 @@ class MachineSelector extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
               child: Row(
                 children: [
-                  Text('Machines',
+                  Text(AppLocalizations.of(context)!.machines,
                       style: Theme.of(ctx)
                           .textTheme
                           .titleMedium
@@ -49,7 +55,7 @@ class MachineSelector extends StatelessWidget {
                               builder: (_) => const MachinesScreen()));
                     },
                     icon: const Icon(Icons.settings, size: 18),
-                    label: const Text('Manage'),
+                    label: Text(AppLocalizations.of(context)!.manage),
                   ),
                 ],
               ),

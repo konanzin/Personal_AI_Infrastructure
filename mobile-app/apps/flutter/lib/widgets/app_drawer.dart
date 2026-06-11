@@ -6,6 +6,7 @@ import '../providers/machine_store.dart';
 import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import 'machine_selector.dart';
+import '../l10n/app_localizations.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -57,19 +58,21 @@ class _AppDrawerState extends State<AppDrawer> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Rename'),
+        title: Text(AppLocalizations.of(ctx)!.rename),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Session name'),
+          decoration: InputDecoration(
+              hintText: AppLocalizations.of(ctx)!.sessionName),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppLocalizations.of(ctx)!.cancel)),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, controller.text),
-              child: const Text('Save')),
+              child: Text(AppLocalizations.of(ctx)!.save)),
         ],
       ),
     );
@@ -85,17 +88,17 @@ class _AppDrawerState extends State<AppDrawer> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete?'),
-        content: Text('"$name" will be permanently deleted.'),
+        title: Text(AppLocalizations.of(ctx)!.deleteQuestion),
+        content: Text(AppLocalizations.of(ctx)!.deleteConfirmBody(name)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(AppLocalizations.of(ctx)!.cancel)),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
                 backgroundColor: Theme.of(ctx).colorScheme.error),
-            child: const Text('Delete'),
+            child: Text(AppLocalizations.of(ctx)!.delete),
           ),
         ],
       ),
@@ -120,12 +123,12 @@ class _AppDrawerState extends State<AppDrawer> {
                 width: 32,
                 height: 4,
                 decoration: BoxDecoration(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Rename'),
+              title: Text(AppLocalizations.of(context)!.rename),
               onTap: () {
                 Navigator.pop(ctx);
                 Future.microtask(
@@ -135,7 +138,7 @@ class _AppDrawerState extends State<AppDrawer> {
             ListTile(
               leading: Icon(Icons.delete_outline,
                   color: Theme.of(ctx).colorScheme.error),
-              title: Text('Delete',
+              title: Text(AppLocalizations.of(context)!.delete,
                   style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -180,24 +183,25 @@ class _AppDrawerState extends State<AppDrawer> {
                 children: [
                   Text('PAI', style: theme.textTheme.titleLarge),
                   const SizedBox(width: 8),
-                  const MachineSelector(),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.search, size: 22),
-                    onPressed: () {},
-                  ),
-                  if (context.read<MachineStore>().activeMachine?.ssh != null)
-                    IconButton(
-                      icon: const Icon(Icons.terminal, size: 22),
-                      tooltip: 'Terminal',
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(context, '/terminal');
-                      },
+                  const Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: MachineSelector(),
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.terminal, size: 22),
+                    tooltip: AppLocalizations.of(context)!.terminal,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pushNamed(context, '/terminal');
+                    },
+                  ),
                   IconButton(
                     icon: const Icon(Icons.extension_outlined, size: 22),
-                    tooltip: 'AI Providers',
+                    tooltip: AppLocalizations.of(context)!.aiProviders,
+                    visualDensity: VisualDensity.compact,
                     onPressed: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/providers');
@@ -205,6 +209,8 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, size: 22),
+                    tooltip: AppLocalizations.of(context)!.settings,
+                    visualDensity: VisualDensity.compact,
                     onPressed: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/settings');
@@ -224,7 +230,7 @@ class _AppDrawerState extends State<AppDrawer> {
                 child: TextButton.icon(
                   onPressed: _createNewSession,
                   icon: const Icon(Icons.add, size: 20),
-                  label: const Text('New chat'),
+                  label: Text(AppLocalizations.of(context)!.newChat),
                   style: TextButton.styleFrom(
                     alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.symmetric(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_lock_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key});
@@ -34,7 +35,7 @@ class _LockScreenState extends State<LockScreen> {
 
     setState(() {
       _authInProgress = false;
-      _error = ok ? null : 'Authentication was cancelled or failed.';
+      _error = ok ? null : AppLocalizations.of(context)!.authCancelledOrFailed;
     });
   }
 
@@ -42,24 +43,28 @@ class _LockScreenState extends State<LockScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final lockProvider = context.watch<AppLockProvider>();
+    final l10n = AppLocalizations.of(context)!;
     final label = lockProvider.biometricAvailable
-        ? 'Unlock with biometrics or device PIN'
-        : 'Unlock with device PIN';
+        ? l10n.unlockHintBiometrics
+        : l10n.unlockHintPin;
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.lock_outline,
-                size: 56,
-                color: theme.colorScheme.primary,
-              ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outline,
+                  size: 56,
+                  color: theme.colorScheme.primary,
+                ),
               const SizedBox(height: 16),
-              Text('PAI is locked', style: theme.textTheme.titleLarge),
+              Text(l10n.paiLocked, style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
                 label,
@@ -88,17 +93,18 @@ class _LockScreenState extends State<LockScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.fingerprint),
-                label: Text(_authInProgress ? 'Authenticating...' : 'Unlock'),
+                label: Text(_authInProgress ? l10n.authenticating : l10n.unlock),
               ),
               if (!lockProvider.deviceAuthAvailable) ...[
                 const SizedBox(height: 16),
                 Text(
-                  'Set up a screen lock in Android settings to use app lock.',
+                  l10n.setupScreenLock,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: theme.colorScheme.error),
                 ),
               ],
-            ],
+              ],
+            ),
           ),
         ),
       ),

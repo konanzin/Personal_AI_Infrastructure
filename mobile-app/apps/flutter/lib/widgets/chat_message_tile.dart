@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/chat_message.dart';
 import '../models/file_change.dart';
 import '../models/message_part.dart';
 import 'code_block_widget.dart';
@@ -13,6 +13,8 @@ import 'reasoning_message_bubble.dart';
 import 'shell_command_bubble.dart';
 import 'tool_call_bubble.dart';
 import '../providers/opencode_provider.dart';
+import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 class _CodeBlockBuilder extends MarkdownElementBuilder {
   @override
@@ -119,6 +121,13 @@ class ChatMessageTile extends StatelessWidget {
     this.fileChanges = const [],
     this.answeredQuestions = const [],
   });
+
+  /// Footer copy is shown only for plain-text answers (no tool activity).
+  bool get _showFooterCopy =>
+      displayText.isNotEmpty &&
+      toolCalls.isEmpty &&
+      shellCommands.isEmpty &&
+      fileChanges.isEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -243,26 +252,36 @@ class ChatMessageTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (!isStreaming && displayText.isNotEmpty)
+              // The footer copy button is only for plain text answers. On
+              // messages that carry tool calls / shell / file changes it reads
+              // as "copy this tool call", which is confusing — there, copy
+              // lives inside each tool call's expanded view instead. Long-press
+              // (message actions) and selectable text still copy the answer.
+              // The undo/regenerate action stays available regardless.
+              if (!isStreaming && (_showFooterCopy || onRegenerate != null))
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      _ActionIconButton(
-                        icon: Icons.content_copy,
-                        tooltip: 'Copy',
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: displayText));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
-                          );
-                        },
-                      ),
+                      if (_showFooterCopy)
+                        _ActionIconButton(
+                          icon: Icons.content_copy,
+                          tooltip: AppLocalizations.of(context)!.copy,
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: displayText));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text(
+                                      AppLocalizations.of(context)!.copied),
+                                  duration: const Duration(seconds: 1)),
+                            );
+                          },
+                        ),
                       if (onRegenerate != null)
                         _ActionIconButton(
                           icon: Icons.undo,
-                          tooltip: 'Undo',
+                          tooltip: AppLocalizations.of(context)!.undo,
                           onTap: onRegenerate!,
                         ),
                     ],
@@ -383,7 +402,7 @@ class _AnsweredQuestionBubbleState extends State<_AnsweredQuestionBubble> {
                   Icon(Icons.chat_bubble_outline, size: 14, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Question',
+                    AppLocalizations.of(context)!.question,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.onSurface,
@@ -391,9 +410,9 @@ class _AnsweredQuestionBubbleState extends State<_AnsweredQuestionBubble> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Answered',
+                    AppLocalizations.of(context)!.answered,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.green,
+                      color: theme.semanticColors.success,
                       fontWeight: FontWeight.w500,
                       fontSize: 11,
                     ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/permission_service.dart';
 import '../services/voice_service.dart';
+import '../l10n/app_localizations.dart';
 
 /// Estados do botão de voz
 enum VoiceState {
@@ -117,7 +118,7 @@ class _VoiceFabState extends State<VoiceFab> with SingleTickerProviderStateMixin
       if (!hasPermission) {
         setState(() {
           _state = VoiceState.error;
-          _errorMessage = 'Permissão de microfone necessária';
+          _errorMessage = AppLocalizations.of(context)!.micPermissionNeeded;
         });
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {

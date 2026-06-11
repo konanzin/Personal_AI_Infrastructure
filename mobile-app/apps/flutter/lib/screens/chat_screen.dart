@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -15,18 +14,23 @@ import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/git_status_service.dart';
+import '../services/ssh_gate_service.dart';
 import '../services/ssh_service.dart';
 import '../widgets/git_status_badge.dart';
 import '../widgets/workspace_picker.dart';
 import '../services/voice_service.dart';
 import '../widgets/date_header.dart';
 import '../widgets/chat_permission_area.dart';
+import '../models/chat_message.dart';
 import '../models/file_change.dart';
 import '../models/message_part.dart';
-import '../widgets/autocomplete_overlay.dart';
+import '../services/chat_formatting.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/chat_autocomplete_controller.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/chat_message_tile.dart';
+import '../theme.dart';
+import '../l10n/app_localizations.dart';
 
 // ── Chat list item helper ────────────────────────────────────────────────
 
@@ -70,15 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
   List<int> _searchMatchIndices = [];
   int _currentSearchMatch = -1;
 
-  // Autocomplete state
-  final LayerLink _inputLayerLink = LayerLink();
-  OverlayEntry? _overlayEntry;
-  List<AutocompleteSuggestion> _acSuggestions = [];
-  int _acHighlight = -1;
-  String _acTrigger = ''; // '/' or '@'
-  int _acTriggerOffset = 0; // cursor offset where trigger started
-  List<dynamic>? _cachedCommands;
-  int _acDebounceSeq = 0;
+  late final ChatAutocompleteController _autocomplete;
 
   // Memoized stylesheet — rebuilt only when theme changes
   MarkdownStyleSheet? _cachedMarkdownStyleSheet;
@@ -93,7 +89,12 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _textController.addListener(_onTextChanged);
+    _autocomplete = ChatAutocompleteController(
+      textController: _textController,
+      provider: () => _provider,
+      context: () => context,
+      mounted: () => mounted,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeChat();
     });
@@ -109,12 +110,11 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
-    _textController.removeListener(_onTextChanged);
     try {
       context.read<ClientProvider>().removeListener(_onClientReady);
     } catch (_) {}
     _sendSubscription?.cancel();
-    _dismissOverlay();
+    _autocomplete.dispose();
     _voiceService.dispose();
     _textController.dispose();
     _chatSearchController.dispose();
@@ -131,7 +131,7 @@ class _ChatScreenState extends State<ChatScreen> {
       clientProvider.addListener(_onClientReady);
       setState(() {
         _isLoading = false;
-        _error = 'Server not configured. Please go to Settings.';
+        _error = AppLocalizations.of(context)!.serverNotConfigured;
       });
       return;
     }
@@ -174,7 +174,33 @@ class _ChatScreenState extends State<ChatScreen> {
     );
     if (!mounted) return;
 
-    final sessionId = sessionProvider.currentSessionId;
+    var sessionId = sessionProvider.currentSessionId;
+    if (sessionId != null) {
+      // Bijective session rule: never attach a restored session that no
+      // longer exists or belongs to a different directory on this machine.
+      final scopeOk = await sessionProvider.verifySessionScope(
+        sessionId,
+        expectedDirectory: provider.directory,
+      );
+      if (!mounted) return;
+      if (!scopeOk) {
+        await sessionProvider.clearCurrentSession(
+          machineId: machineId,
+          directory: provider.directory,
+        );
+        if (provider.currentSessionId == sessionId) {
+          provider.clearSession();
+        }
+        sessionId = null;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                AppLocalizations.of(context)!.savedSessionOtherDirectory),
+            duration: const Duration(seconds: 5),
+          ));
+        }
+      }
+    }
     if (sessionId != null) {
       try {
         if (sessionId != provider.currentSessionId) {
@@ -186,7 +212,7 @@ class _ChatScreenState extends State<ChatScreen> {
         debugPrint('[PAI_UI] Failed to load session history: $e');
         if (mounted) {
           setState(() {
-            _error = 'Failed to load session history: $e';
+            _error = AppLocalizations.of(context)!.failedLoadHistory('$e');
             _isLoading = false;
           });
           return;
@@ -213,13 +239,13 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _textController.text.trim();
     if (text.isEmpty || _provider == null) return;
 
-    _dismissOverlay();
+    _autocomplete.dismiss();
     _textController.clear();
     final attachments = <FileAttachment>[];
     for (final f in _pendingAttachments) {
       attachments.add(FileAttachment(
         name: f.path.split('/').last,
-        mimeType: _guessMime(f.path),
+        mimeType: guessMimeType(f.path),
         bytes: await f.readAsBytes(),
       ));
     }
@@ -244,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
       } catch (e) {
         if (mounted) {
           setState(() {
-            _error = 'Failed to create session: $e';
+            _error = AppLocalizations.of(context)!.failedCreateSession('$e');
           });
         }
         return;
@@ -273,10 +299,11 @@ class _ChatScreenState extends State<ChatScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $error'),
+            content:
+                Text(AppLocalizations.of(context)!.errorWithDetail('$error')),
             duration: const Duration(seconds: 8),
             action: SnackBarAction(
-              label: 'Retry',
+              label: AppLocalizations.of(context)!.retry,
               onPressed: () {
                 _textController.text = text;
                 _sendMessage();
@@ -304,7 +331,7 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
+              title: Text(AppLocalizations.of(context)!.camera),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickFromCamera();
@@ -312,7 +339,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
+              title: Text(AppLocalizations.of(context)!.gallery),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickFromGallery();
@@ -320,7 +347,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.attach_file),
-              title: const Text('File'),
+              title: Text(AppLocalizations.of(context)!.file),
               onTap: () {
                 Navigator.pop(ctx);
                 _pickFile();
@@ -353,20 +380,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  String _guessMime(String path) {
-    final ext = path.split('.').last.toLowerCase();
-    return switch (ext) {
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'png' => 'image/png',
-      'gif' => 'image/gif',
-      'webp' => 'image/webp',
-      'pdf' => 'application/pdf',
-      'txt' || 'md' => 'text/plain',
-      'json' => 'application/json',
-      'dart' => 'text/x-dart',
-      _ => 'application/octet-stream',
-    };
-  }
 
   // ── Git status ──────────────────────────────────────────────────────────
 
@@ -376,7 +389,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final machine = context.read<MachineStore>().activeMachine;
     final ssh = machine?.ssh;
-    if (ssh == null) {
+    if (ssh == null || machine == null) {
+      _gitStatus = null;
+      return;
+    }
+
+    // Git status is a background, read-only nicety. Only use the SSH
+    // credential if it's already unlocked this session — never trigger a
+    // surprise auth prompt just for a directory change.
+    if (!SshGateService.isUnlocked(machine.id)) {
       _gitStatus = null;
       return;
     }
@@ -390,6 +411,7 @@ class _ChatScreenState extends State<ChatScreen> {
           username: ssh.username,
           privateKeyPem: ssh.privateKey,
           password: ssh.password,
+          expectedHostKeyFingerprint: ssh.hostKeyFingerprint,
         );
         final status = await GitStatusService(sshService).getStatus(directory);
         if (mounted && _gitStatusDirectory == directory) {
@@ -475,7 +497,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     if (result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Session summarized')),
+        SnackBar(
+            content:
+                Text(AppLocalizations.of(context)!.sessionSummarized)),
       );
     }
   }
@@ -521,7 +545,9 @@ class _ChatScreenState extends State<ChatScreen> {
       if (models.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No models available')),
+            SnackBar(
+            content:
+                Text(AppLocalizations.of(context)!.noModelsAvailable)),
           );
         }
         return;
@@ -552,18 +578,19 @@ class _ChatScreenState extends State<ChatScreen> {
                   width: 32,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey[600],
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child:
-                      Text('Select Model', style: theme.textTheme.titleMedium),
+                      Text(AppLocalizations.of(context)!.selectModel,
+                          style: theme.textTheme.titleMedium),
                 ),
                 ListTile(
                   leading: const Icon(Icons.auto_awesome),
-                  title: const Text('Default (server)'),
+                  title: Text(AppLocalizations.of(context)!.defaultServerModel),
                   trailing: current == null
                       ? Icon(Icons.check, color: theme.colorScheme.primary)
                       : null,
@@ -615,7 +642,9 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load models: $e')),
+          SnackBar(
+              content: Text(
+                  AppLocalizations.of(context)!.failedLoadModels('$e'))),
         );
       }
     }
@@ -638,13 +667,13 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Session Todos',
+              child: Text(AppLocalizations.of(context)!.sessionTodos,
                   style: Theme.of(ctx).textTheme.titleMedium),
             ),
             if (todos.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Text('No todos in this session'),
+              Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(AppLocalizations.of(context)!.noTodos),
               )
             else
               Expanded(
@@ -663,9 +692,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ? Icons.play_circle
                                 : Icons.circle_outlined,
                         color: status == 'completed'
-                            ? Colors.green
+                            ? Theme.of(ctx).semanticColors.success
                             : status == 'in_progress'
-                                ? Colors.orange
+                                ? Theme.of(ctx).semanticColors.warning
                                 : null,
                       ),
                       title: Text(content),
@@ -686,11 +715,15 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) {
       if (share != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Share link: $share')),
+          SnackBar(
+              content: Text(
+                  AppLocalizations.of(context)!.shareLinkMessage(share))),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Share created (check session info)')),
+          SnackBar(
+              content:
+                  Text(AppLocalizations.of(context)!.shareCreated)),
         );
       }
     }
@@ -704,7 +737,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final info = _provider!.sessionInfo;
     if (info == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No session info available')),
+        SnackBar(
+            content:
+                Text(AppLocalizations.of(context)!.noSessionInfo)),
       );
       return;
     }
@@ -725,13 +760,14 @@ class _ChatScreenState extends State<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Session Info', style: Theme.of(ctx).textTheme.titleMedium),
+              Text(AppLocalizations.of(ctx)!.sessionInfo,
+                  style: Theme.of(ctx).textTheme.titleMedium),
               const Divider(),
-              _infoRow('Model', _formatModel(info)),
+              _infoRow(AppLocalizations.of(ctx)!.modelLabel, _formatModel(info)),
               _infoRow('Agent', info['agent'] ?? 'default'),
               if (info['cost'] != null) _infoRow('Cost', '\$${info['cost']}'),
               if (info['tokens'] != null)
-                _infoRow('Tokens', _formatTokens(info['tokens'])),
+                _infoRow('Tokens', formatTokenUsage(info['tokens'])),
               if (info['directory'] != null)
                 _infoRow('Directory', info['directory']),
               if (info['parentID'] != null)
@@ -740,7 +776,7 @@ class _ChatScreenState extends State<ChatScreen> {
               _infoRow('ID', info['id'] ?? '-'),
               if (children.isNotEmpty) ...[
                 const Divider(),
-                Text('Child Sessions (${children.length})',
+                Text(AppLocalizations.of(ctx)!.childSessions(children.length),
                     style: Theme.of(ctx).textTheme.labelLarge),
                 ...children.take(5).map((c) {
                   final title =
@@ -765,20 +801,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return info['modelID']?.toString() ?? 'default';
   }
 
-  String _formatTokens(dynamic tokens) {
-    if (tokens is Map) {
-      final input = tokens['input'] ?? 0;
-      final output = tokens['output'] ?? 0;
-      final reasoning = tokens['reasoning'] ?? 0;
-      final cache = tokens['cache'];
-      final cacheRead = cache is Map ? (cache['read'] ?? 0) : 0;
-      final parts = <String>['in: $input', 'out: $output'];
-      if (reasoning != 0) parts.add('reason: $reasoning');
-      if (cacheRead != 0) parts.add('cache: $cacheRead');
-      return parts.join(', ');
-    }
-    return '$tokens';
-  }
 
   Widget _infoRow(String label, dynamic value) {
     return Padding(
@@ -798,166 +820,6 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
-  }
-
-  // ── Autocomplete logic ──────────────────────────────────────────────────
-
-  void _onTextChanged() {
-    final text = _textController.text;
-    final cursor = _textController.selection.baseOffset;
-    if (cursor < 0) {
-      _dismissOverlay();
-      return;
-    }
-
-    // Slash trigger: text starts with "/" and cursor is still in the command word
-    if (text.startsWith('/')) {
-      final afterSlash = text.substring(1, cursor.clamp(1, text.length));
-      if (!afterSlash.contains(' ')) {
-        _acTrigger = '/';
-        _acTriggerOffset = 0;
-        _fetchSlashSuggestions(afterSlash);
-        return;
-      }
-    }
-
-    // At trigger: find the last "@" before the cursor with no space between it and cursor
-    final textBeforeCursor = text.substring(0, cursor.clamp(0, text.length));
-    final atIdx = textBeforeCursor.lastIndexOf('@');
-    if (atIdx >= 0) {
-      final query = textBeforeCursor.substring(atIdx + 1);
-      if (!query.contains(' ')) {
-        _acTrigger = '@';
-        _acTriggerOffset = atIdx;
-        _fetchFileSuggestions(query);
-        return;
-      }
-    }
-
-    _dismissOverlay();
-  }
-
-  Future<void> _fetchSlashSuggestions(String prefix) async {
-    if (_provider == null) return;
-    _cachedCommands ??= await _provider!.client.getCommands();
-    final cmds = _cachedCommands!;
-    final filtered = prefix.isEmpty
-        ? cmds
-        : cmds.where((c) {
-            final name = (c is Map ? c['name'] : '$c') as String? ?? '';
-            return name.toLowerCase().startsWith(prefix.toLowerCase());
-          }).toList();
-
-    final suggestions = filtered.map((c) {
-      final name = c is Map ? c['name'] as String? ?? '' : '$c';
-      final desc = c is Map ? c['description'] as String? : null;
-      return AutocompleteSuggestion(
-        icon: Icons.terminal,
-        title: '/$name',
-        subtitle: desc,
-        insertText: '/$name ',
-      );
-    }).toList();
-
-    _showSuggestions(suggestions);
-  }
-
-  Future<void> _fetchFileSuggestions(String query) async {
-    if (_provider == null) return;
-    final seq = ++_acDebounceSeq;
-    // Debounce: wait 200ms before hitting the server
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (seq != _acDebounceSeq || !mounted) return;
-
-    try {
-      final files = await _provider!.client.findFiles(
-        query,
-        limit: 15,
-        directory: _provider!.directory,
-      );
-      if (seq != _acDebounceSeq || !mounted) return;
-
-      final suggestions = files.map((path) {
-        final isDir = path.endsWith('/');
-        return AutocompleteSuggestion(
-          icon: isDir ? Icons.folder : Icons.insert_drive_file,
-          title: path,
-          insertText: '@$path ',
-        );
-      }).toList();
-
-      _showSuggestions(suggestions);
-    } catch (_) {
-      _dismissOverlay();
-    }
-  }
-
-  void _showSuggestions(List<AutocompleteSuggestion> suggestions) {
-    if (!mounted) return;
-    _acSuggestions = suggestions;
-    _acHighlight = suggestions.isNotEmpty ? 0 : -1;
-    if (suggestions.isEmpty) {
-      _dismissOverlay();
-      return;
-    }
-    if (_overlayEntry != null) {
-      _overlayEntry!.markNeedsBuild();
-    } else {
-      _overlayEntry = OverlayEntry(
-        builder: (_) => Positioned(
-          width: 340,
-          child: CompositedTransformFollower(
-            link: _inputLayerLink,
-            showWhenUnlinked: false,
-            offset: const Offset(0, -8),
-            followerAnchor: Alignment.bottomLeft,
-            targetAnchor: Alignment.topLeft,
-            child: _buildOverlayContent(),
-          ),
-        ),
-      );
-      Overlay.of(context).insert(_overlayEntry!);
-    }
-  }
-
-  Widget _buildOverlayContent() {
-    return AutocompleteOverlay(
-      suggestions: _acSuggestions,
-      highlightIndex: _acHighlight,
-      onSelect: _onSuggestionSelected,
-    );
-  }
-
-  void _onSuggestionSelected(AutocompleteSuggestion s) {
-    final text = _textController.text;
-    if (_acTrigger == '/') {
-      _textController.text = s.insertText;
-      _textController.selection =
-          TextSelection.collapsed(offset: s.insertText.length);
-    } else {
-      final before = text.substring(0, _acTriggerOffset);
-      final afterCursor = _textController.selection.baseOffset < text.length
-          ? text.substring(_textController.selection.baseOffset)
-          : '';
-      final newText = '$before${s.insertText}$afterCursor';
-      _textController.text = newText;
-      _textController.selection = TextSelection.collapsed(
-        offset: before.length + s.insertText.length,
-      );
-    }
-    _dismissOverlay();
-  }
-
-  void _dismissOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-    if (_acSuggestions.isNotEmpty) {
-      setState(() {
-        _acSuggestions = [];
-        _acHighlight = -1;
-        _acTrigger = '';
-      });
-    }
   }
 
   /// Handles slash commands typed in the input (e.g. /compact, /model).
@@ -980,13 +842,17 @@ class _ChatScreenState extends State<ChatScreen> {
         .then((_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Command /$command executed')),
+          SnackBar(
+              content: Text(AppLocalizations.of(context)!
+                  .commandExecuted(command))),
         );
       }
     }).catchError((e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Command failed: $e')),
+          SnackBar(
+              content: Text(
+                  AppLocalizations.of(context)!.commandFailed('$e'))),
         );
       }
     });
@@ -1201,38 +1067,38 @@ class _ChatScreenState extends State<ChatScreen> {
                     icon: const Icon(Icons.more_vert, size: 22),
                     onSelected: (value) => _handleMenuAction(value),
                     itemBuilder: (context) => [
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'todos',
                         child: ListTile(
-                          leading: Icon(Icons.checklist),
-                          title: Text('Todos'),
+                          leading: const Icon(Icons.checklist),
+                          title: Text(AppLocalizations.of(context)!.todos),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'share',
                         child: ListTile(
-                          leading: Icon(Icons.share),
-                          title: Text('Share'),
+                          leading: const Icon(Icons.share),
+                          title: Text(AppLocalizations.of(context)!.share),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'info',
                         child: ListTile(
-                          leading: Icon(Icons.info_outline),
-                          title: Text('Session Info'),
+                          leading: const Icon(Icons.info_outline),
+                          title: Text(AppLocalizations.of(context)!.sessionInfo),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'summarize',
                         child: ListTile(
-                          leading: Icon(Icons.summarize),
-                          title: Text('Summarize'),
+                          leading: const Icon(Icons.summarize),
+                          title: Text(AppLocalizations.of(context)!.summarize),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
@@ -1252,8 +1118,8 @@ class _ChatScreenState extends State<ChatScreen> {
     return TextField(
       controller: _chatSearchController,
       autofocus: true,
-      decoration: const InputDecoration(
-        hintText: 'Search in chat...',
+      decoration: InputDecoration(
+        hintText: AppLocalizations.of(context)!.searchInChat,
         border: InputBorder.none,
       ),
       style: const TextStyle(fontSize: 16),
@@ -1304,13 +1170,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Initializing chat...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(AppLocalizations.of(context)!.initializingChat),
           ],
         ),
       );
@@ -1331,7 +1197,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ElevatedButton.icon(
                 onPressed: () => Navigator.pushNamed(context, '/settings'),
                 icon: const Icon(Icons.settings),
-                label: const Text('Go to Settings'),
+                label: Text(AppLocalizations.of(context)!.goToSettings),
               ),
             ],
           ),
@@ -1372,11 +1238,11 @@ class _ChatScreenState extends State<ChatScreen> {
                           debugPrint('[PAI_UI] Retry loadHistory failed: $e');
                         }
                       },
-                      child: const Text('Retry'),
+                      child: Text(AppLocalizations.of(context)!.retry),
                     ),
                   TextButton(
                     onPressed: () => _provider!.clearError(),
-                    child: const Text('Dismiss'),
+                    child: Text(AppLocalizations.of(context)!.dismiss),
                   ),
                 ],
               ),
@@ -1395,11 +1261,17 @@ class _ChatScreenState extends State<ChatScreen> {
                       itemBuilder: (context, index) {
                         final item = chatItems[index];
                         if (item.isDateHeader) {
-                          return DateHeader(date: item.date!);
+                          return DateHeader(
+                            key: ValueKey('date-${item.date}'),
+                            date: item.date!,
+                          );
                         }
-                        return _buildMessageBubble(
-                          item.message!,
-                          item.historyIndex!,
+                        return KeyedSubtree(
+                          key: ValueKey('msg-${item.historyIndex}'),
+                          child: _buildMessageBubble(
+                            item.message!,
+                            item.historyIndex!,
+                          ),
                         );
                       },
                     ),
@@ -1429,7 +1301,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     _TypingDots(),
                     const SizedBox(width: 8),
-                    Text('Generating...',
+                    Text(AppLocalizations.of(context)!.generating,
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1454,7 +1326,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: TextButton.icon(
                   onPressed: () => _provider!.abortSession(),
                   icon: const Icon(Icons.stop_circle_outlined, size: 20),
-                  label: const Text('Stop'),
+                  label: Text(AppLocalizations.of(context)!.stop),
                   style: TextButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.error,
                   ),
@@ -1483,14 +1355,14 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            'Como posso ajudar?',
+            AppLocalizations.of(context)!.chatEmptyTitle,
             style: theme.textTheme.titleLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Envie uma mensagem para começar',
+            AppLocalizations.of(context)!.chatEmptySubtitle,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant.withAlpha(180),
             ),
@@ -1559,36 +1431,39 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.copy),
-              title: const Text('Copy'),
+              title: Text(AppLocalizations.of(context)!.copy),
               onTap: () {
                 Clipboard.setData(ClipboardData(text: message.text ?? ''));
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Copied'), duration: Duration(seconds: 1)),
+                  SnackBar(
+                      content: Text(AppLocalizations.of(context)!.copied),
+                      duration: const Duration(seconds: 1)),
                 );
               },
             ),
             if (!isUser && messageId != null) ...[
               ListTile(
                 leading: const Icon(Icons.undo),
-                title: const Text('Revert changes'),
-                subtitle: const Text('Undo file changes from this message'),
+                title: Text(AppLocalizations.of(context)!.revertChanges),
+                subtitle: Text(AppLocalizations.of(context)!.revertChangesSubtitle),
                 onTap: () async {
                   Navigator.pop(ctx);
                   final ok = await _provider!.revertMessage(messageId);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                          content: Text(ok ? 'Reverted' : 'Revert failed')),
+                          content: Text(ok
+                              ? AppLocalizations.of(context)!.reverted
+                              : AppLocalizations.of(context)!.revertFailed)),
                     );
                   }
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.fork_right),
-                title: const Text('Fork from here'),
-                subtitle: const Text('Branch into a new session'),
+                title: Text(AppLocalizations.of(context)!.forkFromHere),
+                subtitle: Text(AppLocalizations.of(context)!.forkSubtitle),
                 onTap: () async {
                   Navigator.pop(ctx);
                   final newId = await _provider!.forkSession(messageId);
@@ -1626,7 +1501,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildInput() {
     return ChatInputBar(
       controller: _textController,
-      layerLink: _inputLayerLink,
+      layerLink: _autocomplete.layerLink,
       voiceService: _voiceService,
       pendingAttachments: _pendingAttachments,
       onSend: _sendMessage,
@@ -1634,7 +1509,7 @@ class _ChatScreenState extends State<ChatScreen> {
       onVoiceResult: _sendVoiceText,
       onRemoveAttachment: (i) =>
           setState(() => _pendingAttachments.removeAt(i)),
-      guessMime: _guessMime,
+      guessMime: guessMimeType,
     );
   }
 }

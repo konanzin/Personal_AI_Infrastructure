@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/chat_event.dart';
+import '../l10n/app_localizations.dart';
 
 class PermissionCard extends StatelessWidget {
   final PermissionRequest request;
@@ -36,7 +37,7 @@ class PermissionCard extends StatelessWidget {
                 Icon(Icons.lock_outline, size: 18, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'Permission Required',
+                  AppLocalizations.of(context)!.permissionRequired,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -46,7 +47,7 @@ class PermissionCard extends StatelessWidget {
             const SizedBox(height: 12),
 
             Text(
-              'PAI wants to execute:',
+              AppLocalizations.of(context)!.paiWantsToExecute,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -71,7 +72,7 @@ class PermissionCard extends StatelessWidget {
             if (request.patterns.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
-                'Patterns affected:',
+                AppLocalizations.of(context)!.patternsAffected,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -111,7 +112,7 @@ class PermissionCard extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
-                    child: const Text('Allow'),
+                    child: Text(AppLocalizations.of(context)!.allow),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -124,7 +125,7 @@ class PermissionCard extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
-                    child: const Text('Once'),
+                    child: Text(AppLocalizations.of(context)!.once),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -137,7 +138,7 @@ class PermissionCard extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
-                    child: const Text('Deny'),
+                    child: Text(AppLocalizations.of(context)!.deny),
                   ),
                 ),
               ],

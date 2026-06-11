@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/connectivity_service.dart';
+import '../theme.dart';
 
 /// Indicador de status de conexão minimalista
 class ConnectionStatusIndicator extends StatelessWidget {
@@ -18,17 +19,18 @@ class ConnectionStatusIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (compact) {
-      return _buildCompact();
+      return _buildCompact(context);
     }
     return _buildFull(context);
   }
 
-  Widget _buildCompact() {
+  Widget _buildCompact(BuildContext context) {
+    final theme = Theme.of(context);
     final (color, icon) = switch (state) {
-      ConnectionStatus.online => (Colors.green, Icons.cloud_done),
-      ConnectionStatus.connecting => (Colors.orange, Icons.cloud_sync),
-      ConnectionStatus.offline => (Colors.red, Icons.cloud_off),
-      ConnectionStatus.error => (Colors.red.shade700, Icons.error_outline),
+      ConnectionStatus.online => (theme.semanticColors.success, Icons.cloud_done),
+      ConnectionStatus.connecting => (theme.semanticColors.warning, Icons.cloud_sync),
+      ConnectionStatus.offline => (theme.colorScheme.error, Icons.cloud_off),
+      ConnectionStatus.error => (theme.colorScheme.error, Icons.error_outline),
     };
 
     final child = state == ConnectionStatus.connecting
@@ -59,14 +61,14 @@ class ConnectionStatusIndicator extends StatelessWidget {
       case ConnectionStatus.online:
         return _buildStatus(
           theme,
-          color: Colors.green,
+          color: theme.semanticColors.success,
           icon: Icons.cloud_done,
           label: 'Online',
         );
       case ConnectionStatus.connecting:
         return _buildStatus(
           theme,
-          color: Colors.orange,
+          color: theme.semanticColors.warning,
           icon: Icons.cloud_sync,
           label: 'Connecting...',
           showSpinner: true,
@@ -76,7 +78,7 @@ class ConnectionStatusIndicator extends StatelessWidget {
           onTap: onReconnect,
           child: _buildStatus(
             theme,
-            color: Colors.red,
+            color: theme.colorScheme.error,
             icon: Icons.cloud_off,
             label: 'Offline - Tap to reconnect',
           ),
@@ -86,7 +88,7 @@ class ConnectionStatusIndicator extends StatelessWidget {
           onTap: onReconnect,
           child: _buildStatus(
             theme,
-            color: Colors.red.shade700,
+            color: theme.colorScheme.error,
             icon: Icons.error_outline,
             label: 'Error - Tap to retry',
           ),

@@ -6,6 +6,7 @@ import '../providers/machine_store.dart';
 import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import 'chat_screen.dart';
+import '../l10n/app_localizations.dart';
 
 class SessionsScreen extends StatefulWidget {
   const SessionsScreen({super.key});
@@ -72,24 +73,24 @@ class _SessionsScreenState extends State<SessionsScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rename Session'),
+        title: Text(AppLocalizations.of(context)!.renameSession),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Name',
-            hintText: 'Enter session name',
+          decoration: InputDecoration(
+            labelText: AppLocalizations.of(context)!.name,
+            hintText: AppLocalizations.of(context)!.enterSessionName,
           ),
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
+            child: Text(AppLocalizations.of(context)!.save),
           ),
         ],
       ),
@@ -109,19 +110,20 @@ class _SessionsScreenState extends State<SessionsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.delete_outline),
-        title: const Text('Delete Session?'),
-        content: Text('"$sessionName" will be permanently deleted.'),
+        title: Text(AppLocalizations.of(context)!.deleteSessionTitle),
+        content:
+            Text(AppLocalizations.of(context)!.deleteConfirmBody(sessionName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('Delete'),
+            child: Text(AppLocalizations.of(context)!.delete),
           ),
         ],
       ),
@@ -152,7 +154,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chats'),
+        title: Text(AppLocalizations.of(context)!.chats),
         centerTitle: false,
         actions: [
           IconButton(
@@ -167,7 +169,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search chats...',
+                hintText: AppLocalizations.of(context)!.searchChats,
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -196,7 +198,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createNewSession,
         icon: const Icon(Icons.edit),
-        label: const Text('New chat'),
+        label: Text(AppLocalizations.of(context)!.newChat),
       ),
       body: Consumer<SessionProvider>(
         builder: (context, provider, child) {
@@ -228,7 +230,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                     FilledButton.icon(
                       onPressed: provider.loadSessions,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
+                      label: Text(AppLocalizations.of(context)!.retry),
                     ),
                   ],
                 ),
@@ -248,14 +250,14 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'No chats yet',
+                    AppLocalizations.of(context)!.noChatsYet,
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start a new conversation',
+                    AppLocalizations.of(context)!.startNewConversation,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -278,7 +280,8 @@ class _SessionsScreenState extends State<SessionsScreen> {
               directory: context.read<OpenCodeProvider>().directory,
             ),
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: EdgeInsets.fromLTRB(
+                  0, 8, 0, 88 + MediaQuery.of(context).viewPadding.bottom),
               itemCount: filtered.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
@@ -286,6 +289,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                 final isActive = session.id == provider.currentSessionId;
 
                 return InkWell(
+                  key: ValueKey('session-${session.id}'),
                   onTap: () => _openSession(session),
                   onLongPress: () {
                     showModalBottomSheet(
@@ -296,7 +300,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                           children: [
                             ListTile(
                               leading: const Icon(Icons.edit_outlined),
-                              title: const Text('Rename'),
+                              title: Text(AppLocalizations.of(context)!.rename),
                               onTap: () {
                                 Navigator.pop(context);
                                 _renameSession(session.id, session.displayName);
@@ -308,7 +312,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                                 color: colorScheme.error,
                               ),
                               title: Text(
-                                'Delete',
+                                AppLocalizations.of(context)!.delete,
                                 style: TextStyle(color: colorScheme.error),
                               ),
                               onTap: () {

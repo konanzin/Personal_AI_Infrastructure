@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../models/chat_event.dart';
+import '../theme.dart';
 import '../services/opencode_client.dart';
 
 class EventsScreen extends StatefulWidget {
@@ -28,6 +29,10 @@ class _EventsScreenState extends State<EventsScreen> {
   bool _isConnecting = false;
   String _status = 'Disconnected';
   
+  /// Oldest events are dropped past this point so a long-lived SSE
+  /// subscription can't grow the list without bound.
+  static const int _maxEvents = 200;
+
   final List<ChatEvent> _events = [];
   final ScrollController _scrollController = ScrollController();
   
@@ -134,6 +139,9 @@ class _EventsScreenState extends State<EventsScreen> {
       (event) {
         setState(() {
           _events.add(event);
+          if (_events.length > _maxEvents) {
+            _events.removeRange(0, _events.length - _maxEvents);
+          }
           if (event is ConnectedEvent) {
             _isConnected = true;
             _isConnecting = false;
@@ -247,7 +255,8 @@ class _EventsScreenState extends State<EventsScreen> {
                         icon: const Icon(Icons.link_off),
                         label: const Text('Disconnect'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade100,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.errorContainer,
                         ),
                       ),
                     ),
@@ -262,10 +271,10 @@ class _EventsScreenState extends State<EventsScreen> {
                       height: 12,
                       decoration: BoxDecoration(
                         color: _isConnected
-                            ? Colors.green
+                            ? Theme.of(context).semanticColors.success
                             : _isConnecting
-                                ? Colors.orange
-                                : Colors.red,
+                                ? Theme.of(context).semanticColors.warning
+                                : Theme.of(context).colorScheme.error,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -290,11 +299,13 @@ class _EventsScreenState extends State<EventsScreen> {
           // Events list
           Expanded(
             child: _events.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'No events yet.\nConnect to see SSE events.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   )
                 : ListView.builder(
@@ -303,18 +314,20 @@ class _EventsScreenState extends State<EventsScreen> {
                     itemCount: _events.length,
                     itemBuilder: (context, index) {
                       final event = _events[index];
-                      return _EventCard(event: event);
+                      return _EventCard(key: ObjectKey(event), event: event);
                     },
                   ),
           ),
           // Session controls
           if (_isConnected)
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(
+                  16, 16, 16, 16 + MediaQuery.of(context).viewPadding.bottom),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
                 border: Border(
-                  top: BorderSide(color: Colors.grey.shade300),
+                  top: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant),
                 ),
               ),
               child: Column(
@@ -379,22 +392,22 @@ class _EventsScreenState extends State<EventsScreen> {
 class _EventCard extends StatelessWidget {
   final ChatEvent event;
 
-  const _EventCard({required this.event});
+  const _EventCard({super.key, required this.event});
 
-  Color _getEventColor() {
+  Color _getEventColor(ThemeData theme) {
     switch (event.type) {
       case 'connected':
-        return Colors.green;
+        return theme.semanticColors.success;
       case 'message':
-        return Colors.blue;
+        return theme.colorScheme.primary;
       case 'status':
-        return Colors.orange;
+        return theme.semanticColors.warning;
       case 'error':
-        return Colors.red;
+        return theme.colorScheme.error;
       case 'disconnected':
-        return Colors.grey;
+        return theme.colorScheme.onSurfaceVariant;
       default:
-        return Colors.purple;
+        return theme.colorScheme.tertiary;
     }
   }
 
@@ -448,12 +461,12 @@ class _EventCard extends StatelessWidget {
       child: ExpansionTile(
         leading: Icon(
           _getEventIcon(),
-          color: _getEventColor(),
+          color: _getEventColor(Theme.of(context)),
         ),
         title: Text(
           event.type.toUpperCase(),
           style: TextStyle(
-            color: _getEventColor(),
+            color: _getEventColor(Theme.of(context)),
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
@@ -482,7 +495,9 @@ class _EventCard extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(

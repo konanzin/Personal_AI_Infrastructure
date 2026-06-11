@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/message_part.dart';
+import '../theme.dart';
 
 /// Widget that renders a shell command with its output.
-/// 
+///
 /// Shows the command in a terminal-like container with:
 /// - Command in green monospace with copy button
 /// - Scrollable output in dark container
 /// - Copy button for output
+///
+/// The grey shades here are deliberate: the bubble mimics a terminal and
+/// stays dark in both light and dark themes (like fenced code blocks), so it
+/// intentionally does not follow the ColorScheme surfaces.
 class ShellCommandBubble extends StatelessWidget {
   final ShellPart shell;
 
@@ -46,7 +51,7 @@ class ShellCommandBubble extends StatelessWidget {
                 Icon(
                   Icons.terminal,
                   size: 16,
-                  color: Colors.green.shade400,
+                  color: Theme.of(context).semanticColors.success,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -54,7 +59,7 @@ class ShellCommandBubble extends StatelessWidget {
                     '\$ ${shell.command}',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      color: Colors.green.shade400,
+                      color: Theme.of(context).semanticColors.success,
                       fontSize: 13,
                     ),
                   ),

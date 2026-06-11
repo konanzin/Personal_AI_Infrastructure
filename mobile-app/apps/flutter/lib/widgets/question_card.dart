@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/chat_event.dart';
+import '../l10n/app_localizations.dart';
 
 /// Card que exibe uma pergunta (question) do agente PAI.
 ///
@@ -118,7 +119,7 @@ class _QuestionCardState extends State<QuestionCard> {
                 Icon(Icons.help_outline, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'Question',
+                  AppLocalizations.of(context)!.question,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.primary,
@@ -143,14 +144,14 @@ class _QuestionCardState extends State<QuestionCard> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: widget.onReject,
-                    child: const Text('Cancel'),
+                    child: Text(AppLocalizations.of(context)!.cancel),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _canSubmit ? _onSubmit : null,
-                    child: const Text('Answer'),
+                    child: Text(AppLocalizations.of(context)!.answer),
                   ),
                 ),
               ],
@@ -255,7 +256,7 @@ class _QuestionCardState extends State<QuestionCard> {
         TextField(
           controller: _customControllers[index],
           decoration: InputDecoration(
-            hintText: 'Custom answer...',
+            hintText: AppLocalizations.of(context)!.customAnswerHint,
             filled: true,
             fillColor: theme.colorScheme.surfaceContainerHighest,
             border: OutlineInputBorder(

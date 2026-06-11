@@ -210,6 +210,67 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Theme appearance (seed / dynamic color / pure black) ──────────────
+  Color? _seedColor;
+  bool _useDynamicColor = false;
+  bool _pureBlack = false;
+
+  /// User-selected seed; null means the app default.
+  Color? get seedColor => _seedColor;
+  bool get useDynamicColor => _useDynamicColor;
+  bool get pureBlack => _pureBlack;
+
+  Future<void> loadThemeAppearance() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seed = prefs.getInt('theme_seed_color');
+    _seedColor = seed != null ? Color(seed) : null;
+    _useDynamicColor = prefs.getBool('theme_dynamic_color') ?? false;
+    _pureBlack = prefs.getBool('theme_pure_black') ?? false;
+    final variantName = prefs.getString('theme_scheme_variant');
+    _schemeVariant = DynamicSchemeVariant.values.firstWhere(
+      (v) => v.name == variantName,
+      orElse: () => DynamicSchemeVariant.tonalSpot,
+    );
+    notifyListeners();
+  }
+
+  Future<void> setSeedColor(Color? color) async {
+    _seedColor = color;
+    final prefs = await SharedPreferences.getInstance();
+    if (color != null) {
+      await prefs.setInt('theme_seed_color', color.toARGB32());
+    } else {
+      await prefs.remove('theme_seed_color');
+    }
+    notifyListeners();
+  }
+
+  Future<void> setUseDynamicColor(bool value) async {
+    _useDynamicColor = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('theme_dynamic_color', value);
+    notifyListeners();
+  }
+
+  Future<void> setPureBlack(bool value) async {
+    _pureBlack = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('theme_pure_black', value);
+    notifyListeners();
+  }
+
+  /// M3 scheme variant: how strongly the generated palette follows the seed
+  /// (tonalSpot = soft default, vibrant/fidelity/expressive = stronger).
+  DynamicSchemeVariant _schemeVariant = DynamicSchemeVariant.tonalSpot;
+  DynamicSchemeVariant get schemeVariant => _schemeVariant;
+
+  Future<void> setSchemeVariant(DynamicSchemeVariant variant) async {
+    _schemeVariant = variant;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_scheme_variant', variant.name);
+    notifyListeners();
+  }
+
   // ── Show Thinking ────────────────────────────────────────────────────
   bool _showThinking = true;
   bool get showThinking => _showThinking;

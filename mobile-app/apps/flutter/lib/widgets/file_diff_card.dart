@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/file_change.dart';
+import '../theme.dart';
 
 /// Expandable card showing a file change with optional unified diff.
 class FileDiffCard extends StatefulWidget {
@@ -21,7 +22,7 @@ class _FileDiffCardState extends State<FileDiffCard> {
     final theme = Theme.of(context);
     final change = widget.change;
     final filename = change.path.split('/').last;
-    final (icon, color) = _iconForType(change.type);
+    final (icon, color) = _iconForType(change.type, theme);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6, left: 8, right: 8),
@@ -128,12 +129,16 @@ class _FileDiffCardState extends State<FileDiffCard> {
     );
   }
 
-  (IconData, Color) _iconForType(FileChangeType type) {
+  (IconData, Color) _iconForType(FileChangeType type, ThemeData theme) {
     return switch (type) {
-      FileChangeType.created => (Icons.add_circle_outline, Colors.green),
-      FileChangeType.deleted => (Icons.remove_circle_outline, Colors.red),
-      FileChangeType.edited => (Icons.edit_outlined, Colors.orange),
-      FileChangeType.diff => (Icons.difference_outlined, Colors.blue),
+      FileChangeType.created =>
+        (Icons.add_circle_outline, theme.semanticColors.diffAdded),
+      FileChangeType.deleted =>
+        (Icons.remove_circle_outline, theme.semanticColors.diffRemoved),
+      FileChangeType.edited =>
+        (Icons.edit_outlined, theme.semanticColors.warning),
+      FileChangeType.diff =>
+        (Icons.difference_outlined, theme.colorScheme.primary),
     };
   }
 }
@@ -146,19 +151,20 @@ class _DiffText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lines = diff.split('\n');
+    final theme = Theme.of(context);
     return RichText(
       text: TextSpan(
         style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
         children: lines.map((line) {
           final Color color;
           if (line.startsWith('+') && !line.startsWith('+++')) {
-            color = Colors.green.shade300;
+            color = theme.semanticColors.diffAdded;
           } else if (line.startsWith('-') && !line.startsWith('---')) {
-            color = Colors.red.shade300;
+            color = theme.semanticColors.diffRemoved;
           } else if (line.startsWith('@@')) {
-            color = Colors.cyan.shade300;
+            color = theme.colorScheme.tertiary;
           } else {
-            color = Colors.grey.shade400;
+            color = theme.colorScheme.onSurfaceVariant;
           }
           return TextSpan(text: '$line\n', style: TextStyle(color: color));
         }).toList(),

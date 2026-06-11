@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/voice_service.dart';
 import 'voice_fab.dart';
+import '../l10n/app_localizations.dart';
 
 class ChatInputBar extends StatelessWidget {
   final TextEditingController controller;
@@ -113,10 +114,11 @@ class ChatInputBar extends StatelessWidget {
                     Expanded(
                       child: TextField(
                         controller: controller,
-                        decoration: const InputDecoration(
-                          hintText: 'Peça ao PAI...',
+                        decoration: InputDecoration(
+                          hintText: AppLocalizations.of(context)!.askPaiHint,
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 14),
                         ),
                         style: theme.textTheme.bodyMedium,
                         keyboardType: TextInputType.multiline,

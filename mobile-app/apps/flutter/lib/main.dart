@@ -1,6 +1,9 @@
+import 'package:dynamic_color/dynamic_color.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'l10n/app_localizations.dart';
 import 'providers/app_lock_provider.dart';
 import 'providers/client_provider.dart';
 import 'providers/machine_store.dart';
@@ -32,7 +35,11 @@ class PaiMobileApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => SettingsProvider()..loadSettings()..loadThemeMode()..loadShowThinking(),
+          create: (_) => SettingsProvider()
+            ..loadSettings()
+            ..loadThemeMode()
+            ..loadThemeAppearance()
+            ..loadShowThinking(),
         ),
         ChangeNotifierProvider(
           create: (_) => MachineStore()..initialize(),
@@ -111,7 +118,13 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
     if (payload == null || !payload.startsWith('chat:')) return;
     final sessionId = payload.substring(5);
     final sessionProvider = context.read<SessionProvider>();
-    sessionProvider.selectSession(sessionId);
+    // Persist under the active machine+directory scope; an unscoped select
+    // writes to the legacy key, which the chat restore never reads back.
+    sessionProvider.selectSession(
+      sessionId,
+      machineId: context.read<MachineStore>().activeMachineId,
+      directory: context.read<OpenCodeProvider>().directory,
+    );
     _navigatorKey.currentState?.pushReplacementNamed('/chat');
   }
 
@@ -133,27 +146,36 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final settingsProvider = context.watch<SettingsProvider>();
     final machineStore = context.watch<MachineStore>();
-    final lockProvider = context.watch<AppLockProvider>();
     final hasMachine = machineStore.activeMachine != null;
     final isConfigured = hasMachine || settingsProvider.settings.isConfigured;
 
-    Widget home;
-    if (lockProvider.isLocked) {
-      home = const LockScreen();
-    } else if (isConfigured) {
-      home = const ChatScreen();
-    } else {
-      home = const _WelcomeScreen();
-    }
-
-    return MaterialApp(
+    return DynamicColorBuilder(
+        builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+      final useDynamic = settingsProvider.useDynamicColor;
+      return MaterialApp(
       navigatorKey: _navigatorKey,
       title: 'PAI — OpenCode AI',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('pt'), Locale('en')],
       themeMode: settingsProvider.themeMode,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      home: home,
+      theme: AppTheme.light(
+        seed: settingsProvider.seedColor,
+        dynamicScheme: useDynamic ? lightDynamic : null,
+        variant: settingsProvider.schemeVariant,
+      ),
+      darkTheme: AppTheme.dark(
+        seed: settingsProvider.seedColor,
+        dynamicScheme: useDynamic ? darkDynamic : null,
+        pureBlack: settingsProvider.pureBlack,
+        variant: settingsProvider.schemeVariant,
+      ),
+      home: isConfigured ? const ChatScreen() : const _WelcomeScreen(),
       routes: {
         '/settings': (context) => const SettingsScreen(),
         '/chat': (context) => const ChatScreen(),
@@ -161,7 +183,22 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
         '/providers': (context) => const ProvidersScreen(),
         '/terminal': (context) => const TerminalScreen(),
       },
-    );
+      // Render the lock as an overlay above the Navigator so it covers EVERY
+      // route (settings, terminal, providers…), not just the home route.
+      builder: (context, child) {
+        return Stack(
+          children: [
+            if (child != null) child,
+            Consumer<AppLockProvider>(
+              builder: (context, lock, _) => lock.isLocked
+                  ? const LockScreen()
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        );
+      },
+      );
+    });
   }
 }
 
@@ -192,7 +229,7 @@ class _WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Your Personal AI Assistant',
+                AppLocalizations.of(context)!.welcomeSubtitle,
                 style: TextStyle(
                   fontSize: 18,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -202,7 +239,7 @@ class _WelcomeScreen extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () => Navigator.pushNamed(context, '/machines'),
                 icon: const Icon(Icons.settings),
-                label: const Text('Set Up Machine'),
+                label: Text(AppLocalizations.of(context)!.setUpMachine),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,

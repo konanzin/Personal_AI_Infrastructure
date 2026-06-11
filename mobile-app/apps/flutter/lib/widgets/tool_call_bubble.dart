@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../models/message_part.dart';
+import '../theme.dart';
 
 class ToolCallBubble extends StatefulWidget {
   final ToolCallPart toolCall;
@@ -20,11 +22,35 @@ class ToolCallBubble extends StatefulWidget {
 class _ToolCallBubbleState extends State<ToolCallBubble> {
   bool _expanded = false;
 
+  /// OpenCode spawns subagents through a tool named `task`, whose input
+  /// carries `subagent_type` and a `description`. We render those as a
+  /// distinct "subagent" row instead of a generic tool call.
+  bool get _isSubagent => widget.toolCall.name == 'task';
+
+  String get _subagentType => (widget.toolCall.input['subagent_type'] ??
+          widget.toolCall.input['subagentType'] ??
+          'agent')
+      .toString();
+
+  String? get _subagentDescription {
+    final d = widget.toolCall.input['description']?.toString();
+    return (d != null && d.trim().isNotEmpty) ? d.trim() : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (color, icon, statusText) = _getStateConfig(theme);
     final hasExpandableContent = _hasContent();
+
+    final isSub = _isSubagent;
+    final label = isSub
+        ? (_subagentDescription ?? '$_subagentType subagent')
+        : widget.toolCall.name;
+    final leadingIcon = isSub
+        ? Icon(Icons.account_tree_outlined,
+            size: 16, color: theme.colorScheme.primary)
+        : icon;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -38,19 +64,43 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+                color: isSub
+                    ? theme.colorScheme.primaryContainer.withAlpha(60)
+                    : theme.colorScheme.surfaceContainerHighest.withAlpha(80),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  icon,
+                  leadingIcon,
                   const SizedBox(width: 8),
-                  Text(
-                    widget.toolCall.name,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface,
+                  if (isSub)
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withAlpha(40),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _subagentType,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -102,6 +152,28 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: Tooltip(
+              message: 'Copy',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: _copyableText()));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Copied'),
+                        duration: Duration(seconds: 1)),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.content_copy,
+                      size: 14, color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+            ),
+          ),
           if (widget.toolCall.state == ToolCallState.error && widget.toolCall.errorMessage != null)
             Text(
               widget.toolCall.errorMessage!,
@@ -114,6 +186,24 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
         ],
       ),
     );
+  }
+
+  /// Plain-text rendering of the tool call (input + output) for the clipboard.
+  String _copyableText() {
+    final buffer = StringBuffer();
+    final filtered = Map.fromEntries(
+      widget.toolCall.input.entries.where((e) => !e.key.startsWith('_')),
+    );
+    if (filtered.isNotEmpty) {
+      buffer.writeln(const JsonEncoder.withIndent('  ').convert(filtered));
+    }
+    if (widget.toolCall.errorMessage != null) {
+      buffer.writeln(widget.toolCall.errorMessage);
+    }
+    for (final item in widget.toolCall.content) {
+      if (item is ToolTextContent) buffer.writeln(item.text);
+    }
+    return buffer.toString().trimRight();
   }
 
   Widget _buildInput(ThemeData theme) {
@@ -170,8 +260,8 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
     switch (widget.toolCall.state) {
       case ToolCallState.pending:
         return (
-          Colors.orange,
-          const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.orange)),
+          theme.semanticColors.warning,
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: theme.semanticColors.warning)),
           'Preparing...',
         );
       case ToolCallState.running:
@@ -182,8 +272,8 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
         );
       case ToolCallState.completed:
         return (
-          Colors.green,
-          const Icon(Icons.check_circle, color: Colors.green, size: 16),
+          theme.semanticColors.success,
+          Icon(Icons.check_circle, color: theme.semanticColors.success, size: 16),
           'Done',
         );
       case ToolCallState.error:
@@ -191,6 +281,13 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
           theme.colorScheme.error,
           Icon(Icons.error_outline, color: theme.colorScheme.error, size: 16),
           'Failed',
+        );
+      case ToolCallState.interrupted:
+        return (
+          theme.colorScheme.onSurfaceVariant,
+          Icon(Icons.do_not_disturb_on_outlined,
+              color: theme.colorScheme.onSurfaceVariant, size: 16),
+          'Interrupted',
         );
     }
   }
