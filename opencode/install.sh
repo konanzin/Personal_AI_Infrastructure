@@ -289,7 +289,7 @@ install_broker() {
     log "Installing Pulse Broker..."
 
     mkdir -p "$PAI_DIR/broker"
-    cp -f "${REPO_DIR}/opencode/broker/"*.ts "$PAI_DIR/broker/" 2>/dev/null || true
+    cp -f "${REPO_DIR}/opencode/broker/"*.ts "${REPO_DIR}/opencode/broker/"*.py "$PAI_DIR/broker/" 2>/dev/null || true
     cp -f "${REPO_DIR}/opencode/config/pulse-broker.service.template" "$PAI_DIR/broker/" 2>/dev/null || true
 
     success "Pulse Broker installed (optional — see PAI/broker/pulse-broker.service.template)"

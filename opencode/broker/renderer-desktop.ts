@@ -25,7 +25,42 @@ async function hasBin(bin: string): Promise<boolean> {
 }
 
 const canNotify = await hasBin('notify-send');
-const ttsBin = (await hasBin('spd-say')) ? 'spd-say' : (await hasBin('espeak-ng')) ? 'espeak-ng' : null;
+
+// ─── Speech engine: Kokoro (persistent child, model loaded once) ───
+// Platform TTS (spd-say/espeak) was deliberately dropped — quality is not
+// worth shipping. Override the speaker entirely with PULSE_TTS_CMD
+// (a command that reads one utterance per stdin line).
+function resolveSpeakerCmd(): string[] | null {
+  if (process.env.PULSE_TTS_CMD) return process.env.PULSE_TTS_CMD.split(' ');
+  const home = process.env.HOME || '';
+  const kokoroPython = `${home}/.local/share/pipx/venvs/kokoro-tts/bin/python`;
+  const sayScript = new URL('./kokoro-say.py', import.meta.url).pathname;
+  try {
+    if (Bun.file(kokoroPython).size > 0 && Bun.file(sayScript).size > 0) {
+      return [kokoroPython, sayScript];
+    }
+  } catch {}
+  return null;
+}
+
+let speaker: ReturnType<typeof Bun.spawn> | null = null;
+if (TTS) {
+  const cmd = resolveSpeakerCmd();
+  if (cmd) {
+    speaker = Bun.spawn(cmd, { stdin: 'pipe', stdout: 'inherit', stderr: 'inherit' });
+    console.log(`[renderer] speech engine: ${cmd.join(' ')}`);
+  } else {
+    console.log('[renderer] --tts requested but no speech engine found (install kokoro-tts via pipx or set PULSE_TTS_CMD)');
+  }
+}
+
+function speak(text: string) {
+  if (!speaker?.stdin) return;
+  try {
+    speaker.stdin.write(text.replace(/\n+/g, ' ').trim() + '\n');
+    speaker.stdin.flush();
+  } catch {}
+}
 
 function render(delivery: { event: any; render: { speak: boolean; reason: string }; dedupe_key: string }) {
   const { event, render: decision } = delivery;
@@ -36,8 +71,8 @@ function render(delivery: { event: any; render: { speak: boolean; reason: string
   if (canNotify && (decision.speak || event.level === 'attention')) {
     Bun.spawn(['notify-send', '-a', 'PAI', event.title || 'PAI', event.speak || event.event]);
   }
-  if (TTS && ttsBin && decision.speak && event.speak) {
-    Bun.spawn([ttsBin, event.speak]);
+  if (decision.speak && event.speak) {
+    speak(event.speak);
   }
 }
 

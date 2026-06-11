@@ -83,6 +83,22 @@ systemctl --user daemon-reload && systemctl --user enable --now pulse-broker
 bun ~/.config/opencode/PAI/broker/renderer-desktop.ts --tts
 ```
 
+### Desktop voice (Kokoro)
+
+The desktop renderer's `--tts` uses **Kokoro** (high-quality open TTS, pt-BR voices) through a persistent speaker process (`PAI/broker/kokoro-say.py`, model loaded once). Platform TTS (spd-say/espeak) was deliberately dropped. One-time setup:
+
+```bash
+sudo apt install -y libportaudio2
+pipx install kokoro-tts
+mkdir -p ~/.local/share/kokoro && cd ~/.local/share/kokoro
+curl -sLO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+curl -sLO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+# pt-br needs kokoro-onnx >= 0.5 (the CLI pin is older; the speaker bypasses the CLI):
+~/.local/share/pipx/venvs/kokoro-tts/bin/python -m pip install -U kokoro-onnx
+```
+
+Tune with `KOKORO_VOICE` (default `pf_dora`), `KOKORO_LANG` (`pt-br`), `KOKORO_SPEED`, or replace the engine entirely with `PULSE_TTS_CMD` (one utterance per stdin line).
+
 ## Path Migration
 
 Upstream PAI was built for Claude Code and hardcodes `~/.claude/` across vendored skills and docs. The installer rewrites those to `~/.config/opencode/` in the **installed copies** (`patch_installed_paths` step). Files in the repo stay pristine so diffs against upstream remain clean; only the installed tree is patched. `~/.config/opencode/PAI/bin/` scripts are excluded (they are repo-native and scan for leftover legacy paths themselves).

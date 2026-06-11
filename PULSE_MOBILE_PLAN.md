@@ -111,8 +111,8 @@ Battery impact over a workday; delivery reliability under Doze (test: phone idle
 
 ### C2. Desktop renderer (validation harness)
 
-- Minimal consumer: `notify-send` + system TTS (`espeak-ng`/`spd-say`), subscribes as `device: desktop`.
-- Purpose: exercise the broker protocol and routing policy with two fake renderers before any Android work. Lives in `opencode/bin/` or a small `broker/` dir.
+- Minimal consumer: `notify-send` + **Kokoro TTS** (persistent `kokoro-say.py` speaker, voice `pf_dora`, lang `pt-br`), subscribes as `device: desktop`. Platform TTS (spd-say/espeak) was evaluated and dropped — quality unacceptable (user decision 2026-06-11). `PULSE_TTS_CMD` overrides the engine.
+- Purpose: exercise the broker protocol and routing policy with two fake renderers before any Android work. Lives in `opencode/broker/`.
 
 ### C3. App integration (depends on Phase B decision)
 
