@@ -194,5 +194,11 @@
   "colorStyleSoft": "Suave",
   "colorStyleVibrant": "Vibrante",
   "colorStyleFaithful": "Fiel",
-  "colorStyleExpressive": "Expressivo"
+  "colorStyleExpressive": "Expressivo",
+  "pulseSectionTitle": "PAI Pulse (voz)",
+  "pulseEnableTitle": "Notificações em segundo plano",
+  "pulseEnableSubtitle": "Ouça o progresso dos agentes mesmo com o app em segundo plano",
+  "pulseMilestones": "Falar marcos (milestones)",
+  "pulseAttention": "Falar alertas (attention)",
+  "pulseDigests": "Falar resumos de sessão"
 }

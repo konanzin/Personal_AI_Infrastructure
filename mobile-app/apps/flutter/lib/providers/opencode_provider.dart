@@ -13,6 +13,7 @@ import '../services/api_errors.dart';
 import '../services/notification_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/opencode_client.dart';
+import '../services/pulse/pulse_listener_service.dart';
 import '../services/secure_storage.dart';
 import '../services/sse_payload_parsing.dart';
 
@@ -39,11 +40,20 @@ class AnsweredQuestionData {
 /// - Histórico de mensagens
 /// - Tool calls (futuro)
 class _LifecycleObserver with WidgetsBindingObserver {
+  _LifecycleObserver({this.onChanged});
+
   bool isInForeground = true;
+  final void Function(bool foregrounded)? onChanged;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    isInForeground = state == AppLifecycleState.resumed;
+    final next = state == AppLifecycleState.resumed;
+    if (next != isInForeground) {
+      isInForeground = next;
+      onChanged?.call(next);
+    } else {
+      isInForeground = next;
+    }
   }
 }
 
@@ -51,7 +61,12 @@ class OpenCodeProvider with ChangeNotifier {
   OpenCodeClient? _client;
   OpenCodeClient? get clientOrNull => _client;
   OpenCodeClient get client => _client!;
-  final _lifecycleObserver = _LifecycleObserver();
+  late final _lifecycleObserver = _LifecycleObserver(
+    onChanged: (foregrounded) => PulseServiceController.pushPresence(
+      focusedSession: _currentSessionId,
+      foregrounded: foregrounded,
+    ),
+  );
   bool get _isInForeground => _lifecycleObserver.isInForeground;
   String? _currentSessionId;
   String? _directory;
@@ -209,6 +224,10 @@ class OpenCodeProvider with ChangeNotifier {
     _sseSubscription?.cancel();
     _client?.unsubscribe();
     _currentSessionId = sessionId;
+    PulseServiceController.pushPresence(
+      focusedSession: sessionId,
+      foregrounded: _isInForeground,
+    );
     _clearBuffers();
     if (sessionId != null) {
       await loadHistory();

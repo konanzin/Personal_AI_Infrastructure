@@ -124,5 +124,11 @@
   "colorStyleSoft": "Soft",
   "colorStyleVibrant": "Vibrant",
   "colorStyleFaithful": "Faithful",
-  "colorStyleExpressive": "Expressive"
+  "colorStyleExpressive": "Expressive",
+  "pulseSectionTitle": "PAI Pulse (voice)",
+  "pulseEnableTitle": "Background notifications",
+  "pulseEnableSubtitle": "Listen to agent progress even with the app in the background",
+  "pulseMilestones": "Speak milestones",
+  "pulseAttention": "Speak alerts (attention)",
+  "pulseDigests": "Speak session digests"
 }

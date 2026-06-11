@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/pulse/pulse_listener_service.dart';
 
 import '../services/opencode_client.dart';
 import '../services/secure_storage.dart';
@@ -186,6 +189,72 @@ class SettingsProvider extends ChangeNotifier {
     await SecureStorageService.clearCredentials();
     _settings = const AppSettings();
     notifyListeners();
+  }
+
+  // ── Pulse notifications (Phase C3) ───────────────────────────────────
+  bool _pulseEnabled = false;
+  bool _pulseSpeakMilestone = true;
+  bool _pulseSpeakAttention = true;
+  bool _pulseSpeakDigest = true;
+
+  bool get pulseEnabled => _pulseEnabled;
+  bool get pulseSpeakMilestone => _pulseSpeakMilestone;
+  bool get pulseSpeakAttention => _pulseSpeakAttention;
+  bool get pulseSpeakDigest => _pulseSpeakDigest;
+
+  Future<void> loadPulseSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _pulseEnabled = prefs.getBool('pulse_enabled') ?? false;
+    _pulseSpeakMilestone = prefs.getBool('pulse_speak_milestone') ?? true;
+    _pulseSpeakAttention = prefs.getBool('pulse_speak_attention') ?? true;
+    _pulseSpeakDigest = prefs.getBool('pulse_speak_digest') ?? true;
+    await _persistPulseTaskData();
+    PulseRuntime.enabled = _pulseEnabled;
+    await PulseRuntime.sync();
+    notifyListeners();
+  }
+
+  Future<void> setPulseEnabled(bool value) async {
+    _pulseEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('pulse_enabled', value);
+    PulseRuntime.enabled = value;
+    await PulseRuntime.sync();
+    notifyListeners();
+  }
+
+  Future<void> setPulseLevel({bool? milestone, bool? attention, bool? digest}) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (milestone != null) {
+      _pulseSpeakMilestone = milestone;
+      await prefs.setBool('pulse_speak_milestone', milestone);
+    }
+    if (attention != null) {
+      _pulseSpeakAttention = attention;
+      await prefs.setBool('pulse_speak_attention', attention);
+    }
+    if (digest != null) {
+      _pulseSpeakDigest = digest;
+      await prefs.setBool('pulse_speak_digest', digest);
+    }
+    await _persistPulseTaskData();
+    PulseServiceController.pushSettings(
+      milestone: milestone,
+      attention: attention,
+      digest: digest,
+    );
+    notifyListeners();
+  }
+
+  /// Mirrors the toggles into the task-isolate store so a restarted service
+  /// boots with current values.
+  Future<void> _persistPulseTaskData() async {
+    await FlutterForegroundTask.saveData(
+        key: kPulseSpeakMilestoneKey, value: _pulseSpeakMilestone);
+    await FlutterForegroundTask.saveData(
+        key: kPulseSpeakAttentionKey, value: _pulseSpeakAttention);
+    await FlutterForegroundTask.saveData(
+        key: kPulseSpeakDigestKey, value: _pulseSpeakDigest);
   }
 
   // ── Theme ─────────────────────────────────────────────────────────────

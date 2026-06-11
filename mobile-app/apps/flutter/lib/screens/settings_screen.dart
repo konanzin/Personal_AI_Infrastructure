@@ -129,6 +129,41 @@ class SettingsScreen extends StatelessWidget {
             const Divider(),
             const SizedBox(height: 16),
 
+            Text(l10n.pulseSectionTitle,
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              title: Text(l10n.pulseEnableTitle),
+              subtitle: Text(l10n.pulseEnableSubtitle),
+              value: settings.pulseEnabled,
+              onChanged: settings.setPulseEnabled,
+              contentPadding: EdgeInsets.zero,
+            ),
+            if (settings.pulseEnabled) ...[
+              SwitchListTile(
+                title: Text(l10n.pulseMilestones),
+                value: settings.pulseSpeakMilestone,
+                onChanged: (v) => settings.setPulseLevel(milestone: v),
+                contentPadding: EdgeInsets.zero,
+              ),
+              SwitchListTile(
+                title: Text(l10n.pulseAttention),
+                value: settings.pulseSpeakAttention,
+                onChanged: (v) => settings.setPulseLevel(attention: v),
+                contentPadding: EdgeInsets.zero,
+              ),
+              SwitchListTile(
+                title: Text(l10n.pulseDigests),
+                value: settings.pulseSpeakDigest,
+                onChanged: (v) => settings.setPulseLevel(digest: v),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+
             Text(l10n.security, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Consumer<AppLockProvider>(

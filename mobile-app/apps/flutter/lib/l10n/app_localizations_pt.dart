@@ -413,4 +413,23 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get colorStyleExpressive => 'Expressivo';
+
+  @override
+  String get pulseSectionTitle => 'PAI Pulse (voz)';
+
+  @override
+  String get pulseEnableTitle => 'Notificações em segundo plano';
+
+  @override
+  String get pulseEnableSubtitle =>
+      'Ouça o progresso dos agentes mesmo com o app em segundo plano';
+
+  @override
+  String get pulseMilestones => 'Falar marcos (milestones)';
+
+  @override
+  String get pulseAttention => 'Falar alertas (attention)';
+
+  @override
+  String get pulseDigests => 'Falar resumos de sessão';
 }

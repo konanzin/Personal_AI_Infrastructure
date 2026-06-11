@@ -847,6 +847,42 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Expressivo'**
   String get colorStyleExpressive;
+
+  /// No description provided for @pulseSectionTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'PAI Pulse (voz)'**
+  String get pulseSectionTitle;
+
+  /// No description provided for @pulseEnableTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Notificações em segundo plano'**
+  String get pulseEnableTitle;
+
+  /// No description provided for @pulseEnableSubtitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Ouça o progresso dos agentes mesmo com o app em segundo plano'**
+  String get pulseEnableSubtitle;
+
+  /// No description provided for @pulseMilestones.
+  ///
+  /// In pt, this message translates to:
+  /// **'Falar marcos (milestones)'**
+  String get pulseMilestones;
+
+  /// No description provided for @pulseAttention.
+  ///
+  /// In pt, this message translates to:
+  /// **'Falar alertas (attention)'**
+  String get pulseAttention;
+
+  /// No description provided for @pulseDigests.
+  ///
+  /// In pt, this message translates to:
+  /// **'Falar resumos de sessão'**
+  String get pulseDigests;
 }
 
 class _AppLocalizationsDelegate

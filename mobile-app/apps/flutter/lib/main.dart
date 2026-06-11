@@ -18,6 +18,7 @@ import 'screens/providers_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/terminal_screen.dart';
 import 'services/notification_service.dart';
+import 'services/pulse/pulse_listener_service.dart';
 import 'services/permission_service.dart';
 import 'theme.dart';
 
@@ -39,7 +40,8 @@ class PaiMobileApp extends StatelessWidget {
             ..loadSettings()
             ..loadThemeMode()
             ..loadThemeAppearance()
-            ..loadShowThinking(),
+            ..loadShowThinking()
+            ..loadPulseSettings(),
         ),
         ChangeNotifierProvider(
           create: (_) => MachineStore()..initialize(),
@@ -56,6 +58,8 @@ class PaiMobileApp extends StatelessWidget {
             final machine = machineStore.activeMachine;
             if (machine != null) {
               prev!.initializeFromMachine(machine);
+              PulseRuntime.serverUrl = machine.serverUrl;
+              PulseRuntime.sync();
             }
             return prev!;
           },

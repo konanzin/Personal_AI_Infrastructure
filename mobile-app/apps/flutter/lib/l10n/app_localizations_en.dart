@@ -410,4 +410,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get colorStyleExpressive => 'Expressive';
+
+  @override
+  String get pulseSectionTitle => 'PAI Pulse (voice)';
+
+  @override
+  String get pulseEnableTitle => 'Background notifications';
+
+  @override
+  String get pulseEnableSubtitle =>
+      'Listen to agent progress even with the app in the background';
+
+  @override
+  String get pulseMilestones => 'Speak milestones';
+
+  @override
+  String get pulseAttention => 'Speak alerts (attention)';
+
+  @override
+  String get pulseDigests => 'Speak session digests';
 }
