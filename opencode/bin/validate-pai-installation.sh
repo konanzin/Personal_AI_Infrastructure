@@ -192,7 +192,15 @@ check_config() {
         fail "Default build agent is not PAI-aware"
     fi
     checks=$((checks + 1))
-    
+
+    if grep -q '"build-mobile"' "${OPENCODE_DIR}/opencode.jsonc"; then
+        pass "build-mobile lean-profile agent configured"
+        passed=$((passed + 1))
+    else
+        fail "build-mobile agent missing from opencode.jsonc"
+    fi
+    checks=$((checks + 1))
+
     if [ -f "$PAI_DIR/.version.json" ]; then
         pass ".version.json exists"
         passed=$((passed + 1))
@@ -410,16 +418,16 @@ check_agents() {
     local passed=0
     
     local agent_count=$(ls "${OPENCODE_DIR}/agents/"*.md 2>/dev/null | wc -l)
-    if [ "$agent_count" -ge 18 ]; then
+    if [ "$agent_count" -ge 15 ]; then
         pass "$agent_count agents installed"
         passed=$((passed + 1))
     else
         fail "Only $agent_count agents found"
     fi
     checks=$((checks + 1))
-    
-    local agents=("Algorithm" "Anvil" "Architect" "Arthur" "Artist" "BrowserAgent" "Cato" "ClaudeResearcher" "CodexResearcher" "Designer" "Engineer" "Forge" "GeminiResearcher" "GrokResearcher" "PerplexityResearcher" "QATester" "Silas" "UIReviewer")
-    
+
+    local agents=("Algorithm" "Anvil" "Architect" "Arthur" "Artist" "Cato" "ClaudeResearcher" "CodexResearcher" "Designer" "Engineer" "Forge" "GeminiResearcher" "GrokResearcher" "PerplexityResearcher" "Silas")
+
     for agent in "${agents[@]}"; do
         if [ -f "${OPENCODE_DIR}/agents/${agent}.md" ]; then
             pass "${agent}.md exists"
@@ -429,6 +437,29 @@ check_agents() {
         fi
         checks=$((checks + 1))
     done
+
+    # Deprecated agents must NOT be installed (replaced by the Interceptor skill)
+    local deprecated=("BrowserAgent" "QATester" "UIReviewer")
+    for agent in "${deprecated[@]}"; do
+        if [ ! -f "${OPENCODE_DIR}/agents/${agent}.md" ]; then
+            pass "${agent}.md absent (deprecated, replaced by Interceptor skill)"
+            passed=$((passed + 1))
+        else
+            fail "${agent}.md still installed (deprecated, should be removed)"
+        fi
+        checks=$((checks + 1))
+    done
+
+    # Specialists are subagents: they must not appear in client agent pickers
+    # (Shift+Tab cycle, mobile picker). Only build/build-mobile are primary.
+    local no_mode=$(grep -L "^mode: subagent" "${OPENCODE_DIR}/agents/"*.md 2>/dev/null | wc -l)
+    if [ "$no_mode" -eq 0 ]; then
+        pass "All installed agents declare mode: subagent"
+        passed=$((passed + 1))
+    else
+        fail "$no_mode agent files missing 'mode: subagent' (would pollute agent pickers)"
+    fi
+    checks=$((checks + 1))
     
     if grep -q '"pai"' "${OPENCODE_DIR}/opencode.jsonc" && grep -q '"agent": "Algorithm"' "${OPENCODE_DIR}/opencode.jsonc"; then
         pass "Algorithm command references Algorithm agent"
@@ -478,7 +509,17 @@ check_commands() {
         fail "/rate command still present in runtime config"
     fi
     checks=$((checks + 1))
-    
+
+    for cmd in "context-search" "cs" "pu"; do
+        if grep -q "\"${cmd}\"" "${OPENCODE_DIR}/opencode.jsonc"; then
+            pass "/${cmd} command registered"
+            passed=$((passed + 1))
+        else
+            fail "/${cmd} missing"
+        fi
+        checks=$((checks + 1))
+    done
+
     echo "  Score: $passed/$checks"
     return $((checks - passed))
 }
@@ -554,12 +595,15 @@ check_pulse() {
     fi
     checks=$((checks + 1))
     
-    local claude_refs=$(grep -r "\.claude/" "$PAI_DIR/PULSE/" --include="*.ts" --include="*.sh" --include="*.toml" -l --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out 2>/dev/null | grep -v patch-paths.sh | wc -l)
+    # Installed content must have no legacy Claude Code paths anywhere —
+    # PAI core, skills, agents, and commands (install.sh patch_installed_paths
+    # rewrites them at install time).
+    local claude_refs=$(grep -rlI "\.claude/" "$PAI_DIR" "${OPENCODE_DIR}/skills" "${OPENCODE_DIR}/agents" "${OPENCODE_DIR}/commands" --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out 2>/dev/null | grep -v patch-paths.sh | grep -v "$PAI_DIR/bin/" | wc -l)
     if [ "$claude_refs" -eq 0 ]; then
-        pass "No hardcoded ~/.claude/ paths (all migrated to ~/.config/opencode/)"
+        pass "No hardcoded ~/.claude/ paths in installed content (all migrated to ~/.config/opencode/)"
         passed=$((passed + 1))
     else
-        fail "$claude_refs files still have ~/.claude/ refs (should be ~/.config/opencode/)"
+        fail "$claude_refs installed files still have ~/.claude/ refs (should be ~/.config/opencode/)"
     fi
     checks=$((checks + 1))
     

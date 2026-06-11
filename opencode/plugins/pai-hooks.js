@@ -19,7 +19,7 @@
  * - F8:   WorkCompletionLearning (session.deleted) — Analyze patterns, write learning
  * - F9:   SessionEnd (session.deleted) — Destructive cleanup, archive, counts
  *
- * @version 2.9.1
+ * @version 2.10.0
  * @license MIT
  */
 
@@ -67,7 +67,7 @@ const console = PAI_DEBUG_UI
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const PLUGIN_VERSION = '2.9.1';
+const PLUGIN_VERSION = '2.10.0';
 const MIN_PROMPT_LENGTH = 3;
 
 function readText(path, maxChars = 3000) {
@@ -130,9 +130,25 @@ function readStoredClassification(sessionId) {
   }
 }
 
-function buildPAISystemContext(sessionId) {
+// Agents that get the lean injection profile (mobile/small-screen clients).
+// Override with PAI_LEAN_AGENTS (comma-separated agent names).
+const LEAN_AGENTS = new Set(
+  (process.env.PAI_LEAN_AGENTS || 'build-mobile').split(',').map((s) => s.trim()).filter(Boolean)
+);
+
+function readStoredClientAgent(sessionId) {
+  try {
+    const workPath = join(STATE_DIR, `current-work-${sessionId}.json`);
+    if (!existsSync(workPath)) return null;
+    const data = safeReadJson(workPath, {});
+    return data.client_agent || null;
+  } catch {
+    return null;
+  }
+}
+
+function buildPAISystemContext(sessionId, clientAgent = null) {
   const latest = readText(join(PAI_DIR, 'ALGORITHM', 'LATEST'), 80) || 'v6.3.0';
-  const claudeMd = readText(join(PAI_DIR, 'CLAUDE.md'), 8000);
   const identityContext = buildIdentityContext();
   const activeWork = buildActiveWorkContext();
 
@@ -141,6 +157,38 @@ function buildPAISystemContext(sessionId) {
   const classificationContext = storedClassification
     ? formatClassificationContext(storedClassification)
     : '';
+
+  // Lean profile for mobile/small-screen clients: skip the full CLAUDE.md
+  // operational doc, keep everything structural (identity, classification,
+  // mode rules, active work) and prescribe terse delivery.
+  if (clientAgent && LEAN_AGENTS.has(clientAgent)) {
+    return `# PAI System Context (lean profile — mobile client)
+
+You are operating inside PAI (Personal AI Infrastructure), a Life OS framework. This context is injected automatically for every prompt.
+
+## Identity & Relationship
+${identityContext}
+
+${classificationContext}
+
+## Mode Classification Rules (You Decide)
+- **MINIMAL** — greetings, ratings, single-token acknowledgments. Respond briefly.
+- **NATIVE** — single fact lookup OR single-line edit OR one command run. Light formatting.
+- **ALGORITHM** — everything else. Before substantive work, read ${PAI_DIR}/ALGORITHM/LATEST then ${PAI_DIR}/ALGORITHM/${latest}.md and follow it. Tiers E1–E5; /e1–/e5 forces tier; unsure → ALGORITHM E3.
+
+## Delivery Profile (MOBILE)
+- Small screen: answer directly and concisely; short paragraphs over long lists.
+- No decorative output sections (no STORY EXPLANATION, no multi-block emoji headers).
+- Keep everything structural: ISA updates, phase discipline, verification evidence.
+- Always end completed work with a '🎯 COMPLETED:' line of 8-16 speakable words.
+
+## Session
+session_id: ${sessionId || 'unknown'}
+
+${activeWork}`;
+  }
+
+  const claudeMd = readText(join(PAI_DIR, 'CLAUDE.md'), 8000);
 
   return `# PAI System Context
 
@@ -251,6 +299,10 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
       const content = extractTextParts(output.parts);
       if (!content) return;
 
+      // Which client agent sent this message (e.g. build vs build-mobile)?
+      // Persisted below so the system transform can pick the injection profile.
+      const clientAgent = output?.message?.agent || input?.agent || null;
+
       // Pre-sanitize blocked prompts before they reach model context
       const result = inspectPrompt(content);
       if (result.action === 'deny') {
@@ -305,6 +357,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         const currentWork = safeReadJson(workPath, { session_id: sessionId });
         currentWork.classification = classification;
         currentWork.classified_at = getISOTimestamp();
+        if (clientAgent) currentWork.client_agent = clientAgent;
         safeWriteJson(workPath, currentWork);
 
         // Update work.json registry
@@ -359,6 +412,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         // Fail-safe: write ALGORITHM E3 to state so system context knows
         const workPath = getCurrentWorkPath(sessionId);
         const currentWork = safeReadJson(workPath, { session_id: sessionId });
+        if (clientAgent) currentWork.client_agent = clientAgent;
         currentWork.classification = {
           mode: 'ALGORITHM',
           tier: 'E3',
@@ -389,7 +443,11 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
 
     "experimental.chat.system.transform": async (input, output) => {
       const sessionId = input.sessionID || 'unknown';
-      output.system.push(buildPAISystemContext(sessionId));
+      // Client agent decides the injection profile (full vs lean). Prefer the
+      // transform payload when OpenCode provides it; fall back to the agent
+      // captured from the latest chat.message for this session.
+      const clientAgent = input.agent || readStoredClientAgent(sessionId);
+      output.system.push(buildPAISystemContext(sessionId, clientAgent));
     },
 
     // ═══════════════════════════════════════════════════════════════

@@ -1,5 +1,37 @@
 # PAI OpenCode Port Changelog
 
+## [Unreleased] — Port Coherence Pass + Mobile Lean Profile
+
+### Added
+
+- **`build-mobile` lean-profile agent** (plugin v2.10.0): second primary agent in `opencode.jsonc.template` for mobile clients. Sent **per message** (`POST /session/{id}/message` accepts `agent`), so the same session hands off between desktop (full profile) and mobile (lean profile) without being locked to either. The plugin's system transform reads the client agent (from the transform payload or the latest `chat.message`, persisted as `client_agent` in `current-work-<session>.json`) and injects a lean context for agents in `LEAN_AGENTS` (env-overridable via `PAI_LEAN_AGENTS`): identity + classification + mode rules + active work + terse delivery instructions, skipping the full CLAUDE.md operational doc. Output ceremony is suppressed on mobile; the `🎯 COMPLETED:` voice line is mandatory in both profiles.
+- **Mobile app agent negotiation**: the Flutter client discovers server agents via `GET /agent` once per connection and attaches `agent: build-mobile` to outgoing messages only when the server defines it — plain OpenCode servers keep working untouched.
+
+- **Install-time path migration** (`patch_installed_paths` in `install.sh`): rewrites legacy upstream `~/.claude/` paths to `~/.config/opencode/` in installed skills/PAI core. Repo files stay pristine for clean upstream diffs. `PAI/bin/` scripts excluded (repo-native).
+- **Promise-integrity checks** in `test-behavioral.sh`: no installed agent references `~/.claude/`; no duplicated `PAI/PAI/` paths in installed `CLAUDE.md`; every installed command file is registered in `opencode.jsonc`; every static path promised by an agent exists post-install (TOOLS/ and MEMORY/ excluded by design).
+- **Helper fallbacks**: Forge, Cato, and Arthur now declare explicit `unavailable`/`skipped` behavior when their `PAI/TOOLS/` helpers are missing (same pattern Anvil already had). No improvised work when infrastructure is absent.
+- `/context-search`, `/cs`, and `/pu` commands registered in `opencode.jsonc.template` (files existed but were unregistered).
+
+### Changed
+
+- **All 15 specialist agents declare `mode: subagent`**: they no longer appear in client agent pickers (TUI Shift+Tab cycle, mobile picker). Only `build`/`build-mobile` are primary. Specialists remain invocable by the DA and by commands (`/pai` → Algorithm). New structural check enforces this.
+- **`install_agents` now removes retired agents** (`BrowserAgent`, `QATester`, `UIReviewer`, legacy `e1`–`e5`/`rate` agent files) before copying — `cp -f` never deletes, so stale files from old installs used to pollute agent pickers forever. Reinstalling cleans existing instances.
+- **Test isolation**: `bun test` now preloads `tests/setup.ts` (via `bunfig.toml`) pointing `PAI_DIR` at a temp dir, so running the suite no longer creates `~/.config/opencode/PAI` on the developer's machine.
+- **Voice notifications are now health-checked**: all 11 voice-enabled agents probe `localhost:31337/health` once per run (1s timeout) and skip every voice curl silently if Pulse is absent. Notify curls are fire-and-forget (`--max-time 2 ... || true`). The `🎯 COMPLETED:` output line is kept as the voice contract.
+- Validator agent roster: 18 → 15 named agents, plus negative checks that deprecated agents are absent.
+- Hardcoded-path check now scans all installed content (was PULSE/ only).
+
+### Removed
+
+- Deprecated agents `BrowserAgent`, `QATester`, `UIReviewer` (replaced by the Interceptor skill).
+
+### Fixed
+
+- 43 duplicated `~/.config/opencode/PAI/PAI/...` paths in `PAI/CLAUDE.md` context routing tables.
+- 2 legacy `~/.claude/` paths in `Arthur.md`.
+
+**Validation: 153/153 checks passing** (80 structural + 63 behavioral + 10 E2E runtime).
+
 ## [2.9.1] — Observability Parity (Headless / Non-Visual)
 
 ### Added
@@ -240,11 +272,11 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Config | `~/.config/opencode/opencode.jsonc` generated from `opencode/config/opencode.jsonc.template` |
 | Plugin | `pai-hooks.js` loaded explicitly through OpenCode `plugin` config |
 | Plugin lib | `plugins/lib/pai-hooks.lib.js`, not root auto-loaded |
-| Agents | 18 `.md` files installed under `~/.config/opencode/agents/` |
-| Commands | `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/e1`-`/e5` |
+| Agents | 15 `.md` files installed under `~/.config/opencode/agents/` |
+| Commands | `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/context-search`, `/cs`, `/pu`, `/e1`-`/e5` |
 | Memory | `~/.config/opencode/PAI/MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH}` |
 | Observability | 6 JSONL streams under `MEMORY/OBSERVABILITY/` |
-| Validation | 75 checks in `validate-pai-installation.sh` |
+| Validation | 78 checks in `validate-pai-installation.sh` |
 
 ### Parity Notes
 
@@ -266,9 +298,9 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 | Voice | External Pulse notification only; no OpenCode-native voice |
 | Statusline | Slash-command/status output instead of Claude Code sidebar |
 
-**Parity estimate: ~90-95%** (up from 88-93%). Remaining gaps are primarily platform-different (voice, statusline sidebar) rather than functional.
+**Parity estimate: ~90-95% over the core scope** (Algorithm, skills, agents, ISA sync, guards, observability). Subsystems excluded by design (Pulse runtime, voice rendering, Arbol, Feed/Fabric, TOOLS helpers) are listed in `REPO_MODEL.md` → "Out of Scope by Design".
 
-**Validation: 142/142 checks passing** (75 structural + 57 behavioral + 10 E2E runtime).
+**Validation: 153/153 checks passing** (80 structural + 63 behavioral + 10 E2E runtime).
 
 ### Behavioral Validation Matrix
 

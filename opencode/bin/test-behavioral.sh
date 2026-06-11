@@ -44,8 +44,8 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.9.1" \
-    "grep -q \"PLUGIN_VERSION = '2.9.1'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.10.0" \
+    "grep -q \"PLUGIN_VERSION = '2.10.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
@@ -136,6 +136,12 @@ echo "${BLUE}5. System Context (experimental.chat.system.transform)${RESET}"
 
 run_test "buildPAISystemContext function exists" \
     "grep -q 'function buildPAISystemContext' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "System transform supports lean profile (client agent)" \
+    "grep -q 'readStoredClientAgent' ${PLUGINS_DIR}/pai-hooks.js && grep -q 'LEAN_AGENTS' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "build-mobile agent defined in runtime config" \
+    "grep -q '\"build-mobile\"' ${OPENCODE_DIR}/opencode.jsonc"
 
 run_test "Context includes TELOS reference" \
     "grep -q 'TELOS' ${PLUGINS_DIR}/pai-hooks.js"
@@ -426,6 +432,60 @@ else
     fail "hashString functional test"
 fi
 TOTAL=$((TOTAL + 1))
+
+# ─── PROMISE INTEGRITY ────────────────────────────────────
+# Agents and instructions must not promise surfaces the install does not
+# provide: legacy paths, unregistered commands, missing context files.
+echo ""
+echo "${BLUE}Promise Integrity${RESET}"
+
+run_test "No installed agent references ~/.claude/" \
+    "! grep -rl '\.claude/' ${OPENCODE_DIR}/agents/"
+
+run_test "No duplicated PAI/PAI/ paths in installed CLAUDE.md" \
+    "! grep -q 'opencode/PAI/PAI/' ${PAI_DIR}/CLAUDE.md"
+
+# Every installed command file must be registered in opencode.jsonc
+COMMANDS_OK=true
+MISSING_COMMANDS=""
+for cmd_file in "${OPENCODE_DIR}/commands/"*.md; do
+    [ -f "$cmd_file" ] || continue
+    cmd_name=$(basename "$cmd_file" .md)
+    if ! grep -q "\"${cmd_name}\"" "${OPENCODE_DIR}/opencode.jsonc" 2>/dev/null; then
+        COMMANDS_OK=false
+        MISSING_COMMANDS="${MISSING_COMMANDS} ${cmd_name}"
+    fi
+done
+TOTAL=$((TOTAL + 1))
+if [ "$COMMANDS_OK" = true ]; then
+    pass "Every installed command file is registered in opencode.jsonc"
+    PASSED=$((PASSED + 1))
+else
+    fail "Unregistered commands:${MISSING_COMMANDS}"
+fi
+
+# Static paths promised by agents must exist after install.
+# Excluded: PAI/TOOLS/ (helpers with declared unavailable-fallback),
+# MEMORY/ (runtime-created), template paths containing placeholders.
+PROMISES_OK=true
+MISSING_PROMISES=""
+while IFS= read -r promised; do
+    case "$promised" in
+        *"{"*|*YYYY*|*/TOOLS/*|*/MEMORY/*|"~/.config/opencode/") continue ;;
+    esac
+    expanded="${promised/#\~/$HOME}"
+    if [ ! -e "$expanded" ]; then
+        PROMISES_OK=false
+        MISSING_PROMISES="${MISSING_PROMISES} ${promised}"
+    fi
+done < <(grep -rho '~/.config/opencode/[A-Za-z0-9_./{}-]*' "${OPENCODE_DIR}/agents/" 2>/dev/null | sort -u)
+TOTAL=$((TOTAL + 1))
+if [ "$PROMISES_OK" = true ]; then
+    pass "All static paths promised by agents exist"
+    PASSED=$((PASSED + 1))
+else
+    fail "Agents promise missing paths:${MISSING_PROMISES}"
+fi
 
 # ─── REPORT ───────────────────────────────────────────────
 echo ""

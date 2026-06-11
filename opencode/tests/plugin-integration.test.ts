@@ -45,9 +45,9 @@ describe("Plugin Integration — Hook Registration", () => {
     expect(plugin["tool.execute.after"]).toBeDefined();
   });
 
-  test("plugin version is 2.9.1", async () => {
+  test("plugin version is 2.10.0", async () => {
     const content = readFileSync(pluginPath, "utf-8");
-    expect(content).toContain("PLUGIN_VERSION = '2.9.1'");
+    expect(content).toContain("PLUGIN_VERSION = '2.10.0'");
   });
 });
 
@@ -178,5 +178,33 @@ describe("Plugin Integration — Context Injection", () => {
 
     expect(output.system.length).toBeGreaterThan(0);
     expect(output.system[0]).toContain("PAI");
+  });
+
+  test("system transform injects lean profile for build-mobile agent", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["experimental.chat.system.transform"];
+
+    const lean = { system: [] };
+    await hook({ sessionID: "test-session", agent: "build-mobile" }, lean);
+
+    const full = { system: [] };
+    await hook({ sessionID: "test-session" }, full);
+
+    expect(lean.system[0]).toContain("lean profile");
+    expect(lean.system[0]).toContain("🎯 COMPLETED");
+    expect(lean.system[0]).not.toContain("Operational Procedures");
+    expect(full.system[0]).toContain("Operational Procedures");
+    expect(full.system[0]).not.toContain("lean profile");
+  });
+
+  test("unknown agents get the full profile", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["experimental.chat.system.transform"];
+
+    const output = { system: [] };
+    await hook({ sessionID: "test-session", agent: "build" }, output);
+
+    expect(output.system[0]).toContain("Operational Procedures");
+    expect(output.system[0]).not.toContain("lean profile");
   });
 });
