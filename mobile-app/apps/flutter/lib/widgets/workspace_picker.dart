@@ -7,6 +7,9 @@ import '../providers/opencode_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/workspace_provider.dart';
+import '../theme.dart';
+import '../l10n/app_localizations.dart';
+import 'directory_browser.dart';
 
 /// Shows a bottom sheet for workspace selection.
 ///
@@ -17,13 +20,19 @@ Future<void> showWorkspacePicker(BuildContext context) {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (_) => ChangeNotifierProvider.value(
-      value: context.read<WorkspaceProvider>(),
-      child: _WorkspacePickerSheet(
-        machineStore: context.read<MachineStore>(),
-        openCodeProvider: context.read<OpenCodeProvider>(),
-        sessionProvider: context.read<SessionProvider>(),
-        settingsProvider: context.read<SettingsProvider>(),
+    // Lift the sheet above the keyboard, otherwise the manual-path field at
+    // the bottom gets covered when the keyboard opens.
+    builder: (sheetContext) => Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+      child: ChangeNotifierProvider.value(
+        value: context.read<WorkspaceProvider>(),
+        child: _WorkspacePickerSheet(
+          machineStore: context.read<MachineStore>(),
+          openCodeProvider: context.read<OpenCodeProvider>(),
+          sessionProvider: context.read<SessionProvider>(),
+          settingsProvider: context.read<SettingsProvider>(),
+        ),
       ),
     ),
   );
@@ -117,22 +126,38 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Switch workspace?'),
+        title: Text(AppLocalizations.of(ctx)!.switchWorkspaceTitle),
         content: Text(isStreaming
-            ? 'An active stream will be stopped and the current chat context will be closed.'
-            : 'Current chat context will be closed.'),
+            ? AppLocalizations.of(ctx)!.switchWorkspaceBodyStreaming
+            : AppLocalizations.of(ctx)!.switchWorkspaceBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(ctx)!.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Switch'),
+            child: Text(AppLocalizations.of(ctx)!.switchAction),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _browseFolders() async {
+    final client = widget.openCodeProvider.clientOrNull;
+    if (client == null) return;
+    final start = widget.openCodeProvider.directory ??
+        widget.machineStore.activeMachine?.defaultDirectory ??
+        '/';
+    final selected = await showDirectoryBrowser(
+      context,
+      client: client,
+      initialPath: start,
+    );
+    if (selected != null && mounted) {
+      await _selectWorkspace(selected);
+    }
   }
 
   void _submitManualPath() {
@@ -169,7 +194,7 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(
                 children: [
-                  Text('Workspace',
+                  Text(AppLocalizations.of(context)!.workspace,
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.w600)),
                   const Spacer(),
@@ -184,13 +209,14 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
             Expanded(
               child: ListView(
                 controller: scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.fromLTRB(16, 0, 16,
+                    MediaQuery.of(context).viewPadding.bottom),
                 children: [
                   // Default (~) option
                   if (defaultDir != null)
                     _WorkspaceTile(
                       icon: Icons.home_outlined,
-                      title: 'Default (~)',
+                      title: AppLocalizations.of(context)!.defaultHome,
                       subtitle: defaultDir,
                       isActive: currentDir == defaultDir,
                       onTap: () => _selectWorkspace(defaultDir),
@@ -206,7 +232,7 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 8),
-                            Text('Favorites',
+                            Text(AppLocalizations.of(context)!.favorites,
                                 style: theme.textTheme.labelMedium?.copyWith(
                                     color: theme.colorScheme.onSurfaceVariant)),
                             const SizedBox(height: 4),
@@ -217,8 +243,11 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
                                   isActive: currentDir == w.path,
                                   onTap: () => _selectWorkspace(w.path),
                                   trailing: IconButton(
-                                    icon: const Icon(Icons.star,
-                                        color: Colors.amber, size: 20),
+                                    icon: Icon(Icons.star,
+                                        color: Theme.of(context)
+                                            .semanticColors
+                                            .warning,
+                                        size: 20),
                                     onPressed: () =>
                                         wp.toggleFavorite(machineId, w.path),
                                   ),
@@ -247,7 +276,7 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 8),
-                            Text('Recent',
+                            Text(AppLocalizations.of(context)!.recent,
                                 style: theme.textTheme.labelMedium?.copyWith(
                                     color: theme.colorScheme.onSurfaceVariant)),
                             const SizedBox(height: 4),
@@ -273,7 +302,7 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
 
                   // Manual path entry
                   const SizedBox(height: 16),
-                  Text('Manual path',
+                  Text(AppLocalizations.of(context)!.manualPath,
                       style: theme.textTheme.labelMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 8),
@@ -293,6 +322,12 @@ class _WorkspacePickerSheetState extends State<_WorkspacePickerSheet> {
                         ),
                       ),
                       const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: _browseFolders,
+                        icon: const Icon(Icons.folder_open),
+                        tooltip: AppLocalizations.of(context)!.browseFolders,
+                      ),
+                      const SizedBox(width: 4),
                       IconButton.filled(
                         onPressed: _submitManualPath,
                         icon: const Icon(Icons.arrow_forward),
