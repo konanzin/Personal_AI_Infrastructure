@@ -989,13 +989,18 @@ class OpenCodeClient {
   ///
   /// Uses the correct endpoint: POST /session/{sessionID}/message
   /// Body: { "parts": [{"type": "text", "text": "..."}] }
+  ///
+  /// [agent] selects the server-side agent profile for this message only
+  /// (e.g. `build-mobile` for the lean PAI delivery profile). The session
+  /// keeps its default when null, so desktop↔mobile handoff is unaffected.
   Future<void> sendMessage(String sessionId, String text,
-      {String? directory}) async {
+      {String? directory, String? agent}) async {
     await _request(
       'POST',
       '/session/$sessionId/message',
       queryParameters: directory != null ? {'directory': directory} : null,
       body: {
+        if (agent != null) 'agent': agent,
         'parts': [
           {'type': 'text', 'text': text}
         ]
@@ -1003,6 +1008,20 @@ class OpenCodeClient {
       expectedStatuses: const {200, 204},
       context: 'send message',
     );
+  }
+
+  /// List the agent names available on this server (GET /agent).
+  Future<Set<String>> listAgentNames() async {
+    final response = await _request(
+      'GET',
+      '/agent',
+      context: 'list agents',
+    );
+    return _decodeListOrItems(response, 'list agents')
+        .whereType<Map>()
+        .map((item) => item['name'])
+        .whereType<String>()
+        .toSet();
   }
 
   Future<List<OpenCodeSession>> listSessionRecords({String? directory}) async {

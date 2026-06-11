@@ -61,14 +61,22 @@ class _FakeOpenCodeClient extends OpenCodeClient {
 
   Object? sendMessageError;
   int sendMessageCallCount = 0;
+  String? lastSentAgent;
   @override
   Future<void> sendMessage(String sessionId, String text,
-      {String? directory}) async {
+      {String? directory, String? agent}) async {
     sendMessageCallCount++;
+    lastSentAgent = agent;
     if (sendMessageError != null) {
       throw sendMessageError!;
     }
   }
+
+  /// Agents the fake server reports; empty by default so existing tests
+  /// exercise the no-agent path.
+  Set<String> availableAgents = {};
+  @override
+  Future<Set<String>> listAgentNames() async => availableAgents;
 
   @override
   Future<http.Response> post(String path,
@@ -172,6 +180,29 @@ void main() {
 
       expect(fakeClient.sendMessageCallCount, 1);
       expect(provider.lastError, contains('send message timed out'));
+    });
+
+    test('sends build-mobile agent when the server defines it', () async {
+      fakeClient.availableAgents = {'build', 'build-mobile'};
+
+      final subscription = provider.sendMessageStream('hello').listen((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await subscription.cancel();
+
+      expect(fakeClient.sendMessageCallCount, 1);
+      expect(fakeClient.lastSentAgent, 'build-mobile');
+    });
+
+    test('sends without agent when the server does not define build-mobile',
+        () async {
+      fakeClient.availableAgents = {'build'};
+
+      final subscription = provider.sendMessageStream('hello').listen((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await subscription.cancel();
+
+      expect(fakeClient.sendMessageCallCount, 1);
+      expect(fakeClient.lastSentAgent, isNull);
     });
   });
 

@@ -171,10 +171,35 @@ class OpenCodeProvider with ChangeNotifier {
       _client?.close();
       _currentSessionId = null;
       _directory = null;
+      _mobileAgentAvailable = null;
       _clearBuffers();
     }
     _client = newClient;
     notifyListeners();
+  }
+
+  /// PAI lean-profile agent for mobile clients. Sent per message so the same
+  /// session can be continued from desktop (which sends its own agent) without
+  /// being locked to the mobile profile.
+  static const String _kMobileAgent = 'build-mobile';
+
+  /// null = not checked yet for the current client/server.
+  bool? _mobileAgentAvailable;
+
+  /// Resolves which agent to attach to outgoing messages. Returns
+  /// [_kMobileAgent] when the server defines it, null otherwise (plain
+  /// OpenCode servers without the PAI config keep working untouched).
+  Future<String?> _resolveOutgoingAgent(OpenCodeClient client) async {
+    if (_mobileAgentAvailable == null) {
+      try {
+        final names = await client.listAgentNames();
+        _mobileAgentAvailable = names.contains(_kMobileAgent);
+      } catch (e) {
+        debugPrint('[PAI_AGENT] Agent discovery failed, sending without agent: $e');
+        _mobileAgentAvailable = false;
+      }
+    }
+    return _mobileAgentAvailable == true ? _kMobileAgent : null;
   }
 
   /// Switches to a different session, reloading history.
@@ -992,6 +1017,9 @@ class OpenCodeProvider with ChangeNotifier {
     final sessionId = _currentSessionId;
     if (sessionId == null) return;
 
+    final agent = await _resolveOutgoingAgent(client);
+    if (epoch != _scopeEpoch) return; // scope changed during agent discovery
+
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       final userMessageIdBeforeSend = _lastUserMessageId;
       try {
@@ -1000,11 +1028,13 @@ class OpenCodeProvider with ChangeNotifier {
             sessionId,
             parts: parts,
             model: model,
+            agent: agent,
             directory: _directory,
           );
         } else {
           final textPart = parts.first['text'] as String;
-          await client.sendMessage(sessionId, textPart, directory: _directory);
+          await client.sendMessage(sessionId, textPart,
+              directory: _directory, agent: agent);
         }
         return;
       } catch (e) {
