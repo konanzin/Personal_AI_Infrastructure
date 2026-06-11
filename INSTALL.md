@@ -65,7 +65,7 @@ Expected successful state:
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The validator currently checks 80 structural points and then runs the behavioral suite (63 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (10 scenarios). Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.
+The validator currently checks 80 structural points and then runs the behavioral suite (67 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (11 scenarios). Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.
 
 ## Path Migration
 

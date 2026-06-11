@@ -88,6 +88,9 @@ section "6. Permission/Security Path"
 run_scenario "rm -rf blocked" "06-security-path.js"
 run_scenario "curl | bash blocked" "06-security-path.js" --curl
 
+section "7. Notifications Stream Path"
+run_scenario "ISA phase edit emits phase_transition notification" "07-notifications.js"
+
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "  Results: ${PASSED}/${TOTAL} passed"

@@ -74,7 +74,7 @@ Initial parity with upstream was a deliberate goal to prove the port. Going forw
 - We add native features that upstream does not have.
 - Parity is measured by validator coverage and real usage, not line-by-line equivalence — and it is measured **against the chosen scope below**, not against everything upstream ships.
 
-Current state: **153/153 checks passing** (80 structural + 63 behavioral + 10 E2E runtime) over the core scope: Algorithm, skills, agents, ISA/work-state sync, security guards, classifier, and observability streams.
+Current state: **158/158 checks passing** (80 structural + 67 behavioral + 11 E2E runtime) over the core scope: Algorithm, skills, agents, ISA/work-state sync, security guards, classifier, and observability streams.
 
 ## Out of Scope by Design
 

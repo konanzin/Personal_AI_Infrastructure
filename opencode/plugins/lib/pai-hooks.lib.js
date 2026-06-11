@@ -162,6 +162,71 @@ export function logSecurityEvent(event) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// NOTIFICATIONS STREAM (contract v1)
+// ═══════════════════════════════════════════════════════════════
+// Producer side of the Pulse-mobile plan (PULSE_MOBILE_PLAN.md).
+// Append-only and template-deterministic: `speak` is always built from
+// event fields, never an LLM. No rate limiting or deduplication here —
+// routing and coalescing belong to the broker/renderers, the producer
+// stays dumb. Schema is documented in opencode/docs/NOTIFICATIONS_STREAM.md.
+
+export const NOTIFICATIONS_PATH = join(OBSERVABILITY_DIR, 'notifications.jsonl');
+
+const NOTIFICATION_LEVELS = {
+  session_started: 'milestone',
+  phase_transition: 'milestone',
+  agent_completed: 'milestone',
+  guard_denied: 'attention',
+  security_blocked: 'attention',
+  tool_failing: 'attention',
+  permission_needed: 'attention',
+  session_completed: 'digest',
+};
+
+const SPEAK_BUILDERS = {
+  session_started: (d) => `Resuming work on ${d.title || d.slug || 'a tracked session'}`,
+  phase_transition: (d) => `${d.title || d.slug || 'Current work'} entered the ${d.phase || 'next'} phase`,
+  agent_completed: (d) => d.completed_line || 'An agent finished its task',
+  guard_denied: (d) => `Blocked a ${d.guard || 'guarded'} call${d.target ? ` to ${d.target}` : ''}: ${d.reason || 'guard rule'}`,
+  security_blocked: (d) => `Security blocked ${d.tool || 'an action'}: ${d.reason || 'dangerous pattern'}`,
+  tool_failing: (d) => `The ${d.tool || 'current'} tool failed ${d.count || 'several'} times in a row`,
+  permission_needed: (d) => `Waiting for your permission${d.tool ? ` to run ${d.tool}` : ''}`,
+  session_completed: (d) => {
+    const what = d.title || d.slug || 'The session';
+    const dur = d.duration_human ? ` after ${d.duration_human}` : '';
+    return `${what} completed${dur}`;
+  },
+};
+
+export function buildSpeak(event, data = {}) {
+  const builder = SPEAK_BUILDERS[event];
+  const phrase = builder ? builder(data) : `PAI event: ${event}`;
+  // Keep it speakable: single line, bounded length
+  return truncate(String(phrase).replace(/\s+/g, ' ').trim(), 160);
+}
+
+export function emitNotification({ event, sessionId, slug = null, title = null, data = {}, speak = null, level = null }) {
+  try {
+    const entry = {
+      v: 1,
+      timestamp: getISOTimestamp(),
+      level: level || NOTIFICATION_LEVELS[event] || 'milestone',
+      event,
+      session_id: sessionId || 'unknown',
+      slug,
+      title: title || data.title || slug || null,
+      speak: speak ? truncate(String(speak).replace(/\s+/g, ' ').trim(), 160) : buildSpeak(event, { ...data, slug, title }),
+      data,
+    };
+    appendJsonL(NOTIFICATIONS_PATH, entry);
+    return entry;
+  } catch {
+    // Notification emission must never break the main flow
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PATTERN INSPECTOR (SecurityPipeline component)
 // ═══════════════════════════════════════════════════════════════
 
@@ -1119,6 +1184,7 @@ export function syncISAToWorkRegistry(filePath, sessionId = null) {
     }
 
     const session = registry.sessions[targetSlug];
+    const previousPhase = session.phase;
 
     // Apply ISA state fields (source of truth)
     if (isaState.phase !== undefined) session.phase = isaState.phase;
@@ -1133,6 +1199,22 @@ export function syncISAToWorkRegistry(filePath, sessionId = null) {
     session.updatedAt = getISOTimestamp();
 
     writeWorkRegistry(registry);
+
+    // Notify on real phase transitions (ISA frontmatter is the single
+    // source of truth for phase, so this is THE phase-change signal)
+    if (isaState.phase !== undefined && isaState.phase !== previousPhase) {
+      emitNotification({
+        event: 'phase_transition',
+        sessionId: sessionId || session.sessionUUID || null,
+        slug: targetSlug,
+        title: session.task || null,
+        data: {
+          phase: isaState.phase,
+          previous_phase: previousPhase ?? null,
+          progress: isaState.progress ?? null,
+        },
+      });
+    }
 
     // Also sync to current-work-<sessionId>.json when available
     if (sessionId) {

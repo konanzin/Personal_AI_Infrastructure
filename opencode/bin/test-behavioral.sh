@@ -44,8 +44,8 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.10.0" \
-    "grep -q \"PLUGIN_VERSION = '2.10.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.11.0" \
+    "grep -q \"PLUGIN_VERSION = '2.11.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
@@ -430,6 +430,41 @@ if [ "$HASH_RESULT" = "PASS" ]; then
     PASSED=$((PASSED + 1))
 else
     fail "hashString functional test"
+fi
+TOTAL=$((TOTAL + 1))
+
+# ─── NOTIFICATIONS STREAM (contract v1) ───────────────────
+echo ""
+echo "${BLUE}Notifications Stream${RESET}"
+
+run_test "emitNotification exported by lib" \
+    "grep -q 'export function emitNotification' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
+run_test "Plugin wires notification emit points" \
+    "[ \$(grep -c 'emitNotification(' ${PLUGINS_DIR}/pai-hooks.js) -ge 6 ]"
+
+run_test "ISA sync emits phase_transition" \
+    "grep -q \"event: 'phase_transition'\" ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
+# Functional: emit into an isolated PAI_DIR and verify the contract envelope
+NOTIF_TEST=$(cat <<EOF
+import { mkdtempSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+process.env.PAI_DIR = mkdtempSync(join(tmpdir(), 'pai-behav-notif-'));
+const lib = await import('${PLUGINS_DIR}/lib/pai-hooks.lib.js');
+lib.emitNotification({ event: 'tool_failing', sessionId: 's1', data: { tool: 'bash', count: 3 } });
+const e = JSON.parse(readFileSync(lib.NOTIFICATIONS_PATH, 'utf-8').trim());
+console.log(e.v === 1 && e.level === 'attention' && e.speak.includes('bash') ? 'PASS' : 'FAIL');
+EOF
+)
+
+NOTIF_RESULT=$(echo "$NOTIF_TEST" | bun run - 2>/dev/null || echo "FAIL")
+if [ "$NOTIF_RESULT" = "PASS" ]; then
+    pass "emitNotification functional test (envelope v1, level, speak)"
+    PASSED=$((PASSED + 1))
+else
+    fail "emitNotification functional test"
 fi
 TOTAL=$((TOTAL + 1))
 
