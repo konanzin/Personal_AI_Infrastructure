@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:pai_mobile_flutter/models/chat_event.dart';
+import 'package:pai_mobile_flutter/models/chat_message.dart';
 import 'package:pai_mobile_flutter/providers/opencode_provider.dart';
 import 'package:pai_mobile_flutter/services/connectivity_service.dart';
 import 'package:pai_mobile_flutter/services/api_errors.dart';
@@ -21,9 +22,16 @@ class _FakeOpenCodeClient extends OpenCodeClient {
   Object? getSessionMessagesError;
   List<dynamic> getSessionMessagesResult = [];
   int getSessionMessagesCallCount = 0;
+
+  /// When set, [getSessionMessages] suspends until the gate completes so
+  /// tests can interleave a session switch with an in-flight fetch.
+  Completer<void>? getSessionMessagesGate;
+
   @override
   Future<List<dynamic>> getSessionMessages(String sessionId) async {
     getSessionMessagesCallCount++;
+    final gate = getSessionMessagesGate;
+    if (gate != null) await gate.future;
     if (getSessionMessagesError != null) {
       throw getSessionMessagesError!;
     }
@@ -41,11 +49,15 @@ class _FakeOpenCodeClient extends OpenCodeClient {
       {'id': 'sess-1'};
 
   @override
-  void unsubscribe() {}
+  Future<void> unsubscribe() => Future.value();
+
+  /// When set, [subscribeToEvents] returns this controller's stream so tests
+  /// can push live SSE events.
+  StreamController<ChatEvent>? eventController;
 
   @override
   Stream<ChatEvent> subscribeToEvents({String? directory}) =>
-      const Stream.empty();
+      eventController?.stream ?? const Stream.empty();
 
   Object? sendMessageError;
   int sendMessageCallCount = 0;
@@ -263,6 +275,110 @@ void main() {
       expect(answered.length, 1);
       expect(answered.first.request.questions.first.question, 'What?');
       expect(answered.first.answers.first.first, 'A');
+    });
+  });
+
+  group('OpenCodeProvider live tool streaming', () {
+    late OpenCodeProvider provider;
+    late _FakeOpenCodeClient fakeClient;
+
+    setUp(() {
+      fakeClient = _FakeOpenCodeClient();
+      fakeClient.eventController = StreamController<ChatEvent>.broadcast();
+      provider = OpenCodeProvider(client: fakeClient, sessionId: 'sess-1');
+    });
+
+    tearDown(() async {
+      await fakeClient.eventController?.close();
+      provider.dispose();
+    });
+
+    test('tool calls attach to the streaming message before end of turn',
+        () async {
+      // Listen so the SSE pipeline starts (generateStream is lazy).
+      final sub = provider.sendMessageStream('go').listen((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // A tool starts mid-stream — historically this stayed orphaned and only
+      // surfaced after the end-of-turn loadHistory rebuild.
+      fakeClient.eventController!.add(const ToolCallInputStartedEvent(
+        callId: 'call-x',
+        toolName: 'bash',
+        sessionId: 'sess-1',
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // The streaming assistant message now carries the tool, live.
+      final mid = provider.getMessageIdAt(provider.history.length - 1);
+      expect(mid, isNotNull);
+      final tools = provider.getToolCallsForMessage(mid!);
+      expect(tools.map((t) => t.name), contains('bash'),
+          reason: 'tool should render during streaming, not only at the end');
+
+      // Don't await: cancelling the mapped async* stream can stay pending
+      // until the underlying SSE controller closes (handled in tearDown).
+      unawaited(sub.cancel());
+    });
+  });
+
+  group('OpenCodeProvider scope guard', () {
+    late OpenCodeProvider provider;
+    late _FakeOpenCodeClient fakeClient;
+
+    setUp(() {
+      fakeClient = _FakeOpenCodeClient();
+      provider = OpenCodeProvider(client: fakeClient, sessionId: 'sess-1');
+    });
+
+    tearDown(() {
+      provider.dispose();
+    });
+
+    test('in-flight loadHistory does not clobber a newly selected session',
+        () async {
+      final gate = Completer<void>();
+      fakeClient.getSessionMessagesGate = gate;
+      fakeClient.getSessionMessagesResult = [
+        {
+          'info': {'id': 'msg-old', 'role': 'user'},
+          'parts': [
+            {'type': 'text', 'text': 'old session message'},
+          ],
+        },
+      ];
+
+      // Fetch for sess-1 suspends on the gate...
+      final inFlight = provider.loadHistory();
+
+      // ...and the user switches to sess-2 meanwhile.
+      provider.setSession('sess-2', history: [
+        ChatMessage.user('new session message', const []),
+      ]);
+
+      // The old fetch completes late: it must be discarded.
+      fakeClient.getSessionMessagesGate = null;
+      gate.complete();
+      await inFlight;
+
+      expect(provider.currentSessionId, 'sess-2');
+      expect(provider.history.length, 1);
+      expect(provider.history.first.text, 'new session message');
+    });
+
+    test('loadHistory without interleaving still applies normally', () async {
+      fakeClient.getSessionMessagesResult = [
+        {
+          'info': {'id': 'msg-1', 'role': 'user'},
+          'parts': [
+            {'type': 'text', 'text': 'hello'},
+          ],
+        },
+      ];
+
+      await provider.loadHistory();
+
+      expect(provider.history.length, 1);
+      expect(provider.history.first.text, 'hello');
     });
   });
 }

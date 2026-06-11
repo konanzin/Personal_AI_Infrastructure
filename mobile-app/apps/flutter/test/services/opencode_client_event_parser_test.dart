@@ -8,6 +8,28 @@ import 'package:pai_mobile_flutter/models/chat_event.dart';
 import 'package:pai_mobile_flutter/services/api_errors.dart';
 import 'package:pai_mobile_flutter/services/opencode_client.dart';
 
+class _OrderedFakeClient extends http.BaseClient {
+  _OrderedFakeClient(this.name, this.log);
+
+  final String name;
+  final List<String> log;
+  StreamController<List<int>>? controller;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    log.add('$name.send');
+    controller = StreamController<List<int>>();
+    return http.StreamedResponse(controller!.stream, 200);
+  }
+
+  @override
+  void close() {
+    log.add('$name.close');
+    unawaited(controller?.close());
+    super.close();
+  }
+}
+
 class _FakeStreamClient extends http.BaseClient {
   bool closed = false;
   int sendCount = 0;
@@ -341,6 +363,99 @@ void main() {
 
       expect(streamClient.sendCount, 1);
       expect(streamClient.closed, isTrue);
+    });
+
+    test('listFiles parses FileNode entries and scopes by directory',
+        () async {
+      late http.Request capturedRequest;
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+        ),
+        httpClient: MockClient((request) async {
+          capturedRequest = request;
+          return http.Response(
+            jsonEncode([
+              {
+                'name': 'src',
+                'path': 'src',
+                'absolute': '/home/user/proj/src',
+                'type': 'directory',
+                'ignored': false,
+              },
+              {
+                'name': 'readme.md',
+                'path': 'readme.md',
+                'absolute': '/home/user/proj/readme.md',
+                'type': 'file',
+                'ignored': false,
+              },
+              {
+                'name': '.git',
+                'path': '.git',
+                'absolute': '/home/user/proj/.git',
+                'type': 'directory',
+                'ignored': true,
+              },
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final nodes = await client.listFiles(directory: '/home/user/proj');
+
+      expect(capturedRequest.url.path, '/file');
+      expect(capturedRequest.url.queryParameters['path'], '.');
+      expect(capturedRequest.url.queryParameters['directory'],
+          '/home/user/proj');
+      expect(nodes.length, 3);
+      expect(nodes[0].isDirectory, isTrue);
+      expect(nodes[0].absolute, '/home/user/proj/src');
+      expect(nodes[1].isDirectory, isFalse);
+      expect(nodes[2].ignored, isTrue);
+    });
+
+    test('resubscribe tears down previous stream before connecting', () async {
+      final log = <String>[];
+      var n = 0;
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+        ),
+        streamClientFactory: () => _OrderedFakeClient('c${++n}', log),
+      );
+
+      final sub1 = client.subscribeToEvents().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+      final sub2 = client.subscribeToEvents().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      expect(log, containsAllInOrder(['c1.send', 'c1.close', 'c2.send']));
+      await sub1.cancel();
+      await sub2.cancel();
+    });
+
+    test('unsubscribe future completes with stream client closed', () async {
+      final log = <String>[];
+      final client = OpenCodeClient(
+        ClientConfig(
+          baseUrl: 'http://localhost:4096',
+          username: 'user',
+          password: 'pass',
+        ),
+        streamClientFactory: () => _OrderedFakeClient('c1', log),
+      );
+
+      client.subscribeToEvents().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+      await client.unsubscribe();
+
+      expect(log, contains('c1.close'));
     });
   });
 }

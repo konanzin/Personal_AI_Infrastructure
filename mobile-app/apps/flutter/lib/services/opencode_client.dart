@@ -156,6 +156,33 @@ class OpenCodeFileMatch {
   const OpenCodeFileMatch(this.path);
 }
 
+/// One entry of a directory listing (`GET /file` → FileNode).
+class OpenCodeFileNode {
+  final String name;
+  final String path;
+  final String absolute;
+  final bool isDirectory;
+  final bool ignored;
+
+  const OpenCodeFileNode({
+    required this.name,
+    required this.path,
+    required this.absolute,
+    required this.isDirectory,
+    required this.ignored,
+  });
+
+  factory OpenCodeFileNode.fromJson(Map<String, dynamic> json) {
+    return OpenCodeFileNode(
+      name: json['name'] as String? ?? '',
+      path: json['path'] as String? ?? '',
+      absolute: json['absolute'] as String? ?? '',
+      isDirectory: json['type'] == 'directory',
+      ignored: json['ignored'] as bool? ?? false,
+    );
+  }
+}
+
 class OpenCodeProviderRegistry {
   final Map<String, dynamic> raw;
 
@@ -176,6 +203,10 @@ class OpenCodeClient {
   final bool _ownsRestClient;
   http.Client? _sseClient;
   StreamSubscription? _sseSubscription;
+
+  /// Close handle of the active SSE generation, so [unsubscribe] can run the
+  /// full teardown (controller close included) and callers can await it.
+  Future<void> Function()? _activeSseClose;
 
   OpenCodeClient(
     this.config, {
@@ -201,10 +232,14 @@ class OpenCodeClient {
     return 'Basic $credentials';
   }
 
-  Map<String, String> _headers({bool jsonBody = false}) {
+  Map<String, String> _headers({
+    bool jsonBody = false,
+    Map<String, String>? extra,
+  }) {
     return {
       'Authorization': _encodeBasicAuth(),
       if (jsonBody) 'Content-Type': 'application/json',
+      ...?extra,
     };
   }
 
@@ -224,6 +259,7 @@ class OpenCodeClient {
     Object? body,
     String? rawBody,
     Map<String, String>? queryParameters,
+    Map<String, String>? extraHeaders,
     Duration? timeout,
     Set<int> expectedStatuses = const {200},
     required String context,
@@ -233,18 +269,27 @@ class OpenCodeClient {
 
     try {
       final future = switch (method) {
-        'GET' => _restClient.get(url, headers: _headers()),
+        'GET' => _restClient.get(url, headers: _headers(extra: extraHeaders)),
         'POST' => _restClient.post(
             url,
-            headers: _headers(jsonBody: encodedBody != null),
+            headers: _headers(
+                jsonBody: encodedBody != null, extra: extraHeaders),
+            body: encodedBody,
+          ),
+        'PUT' => _restClient.put(
+            url,
+            headers: _headers(
+                jsonBody: encodedBody != null, extra: extraHeaders),
             body: encodedBody,
           ),
         'PATCH' => _restClient.patch(
             url,
-            headers: _headers(jsonBody: encodedBody != null),
+            headers: _headers(
+                jsonBody: encodedBody != null, extra: extraHeaders),
             body: encodedBody,
           ),
-        'DELETE' => _restClient.delete(url, headers: _headers()),
+        'DELETE' =>
+          _restClient.delete(url, headers: _headers(extra: extraHeaders)),
         _ => throw ArgumentError.value(
             method, 'method', 'Unsupported HTTP method'),
       };
@@ -345,7 +390,9 @@ class OpenCodeClient {
   ///
   /// Call [unsubscribe] to close the stream.
   Stream<ChatEvent> subscribeToEvents({String? directory}) {
-    unsubscribe();
+    // Serialize generations: the previous stream finishes tearing down before
+    // the new connection is attempted, so two SSE connections never overlap.
+    final previousTeardown = unsubscribe().catchError((_) {});
 
     final url = _uri(
       '/event',
@@ -353,7 +400,8 @@ class OpenCodeClient {
     );
 
     // Use a persistent client for the SSE connection
-    _sseClient = _streamClientFactory();
+    final sseClient = _streamClientFactory();
+    _sseClient = sseClient;
 
     final request = http.Request('GET', url);
     request.headers['Accept'] = 'text/event-stream';
@@ -361,10 +409,12 @@ class OpenCodeClient {
     request.headers['Cache-Control'] = 'no-cache';
 
     // Send the request and get the streamed response
-    final responseFuture = _sseClient!.send(request);
+    final responseFuture =
+        previousTeardown.then((_) => sseClient.send(request));
 
     late final StreamController<ChatEvent> controller;
 
+    StreamSubscription<String>? subscription;
     Timer? heartbeatTimer;
     var closed = false;
 
@@ -373,10 +423,16 @@ class OpenCodeClient {
       closed = true;
       heartbeatTimer?.cancel();
       heartbeatTimer = null;
-      await _sseSubscription?.cancel();
-      _sseSubscription = null;
-      _sseClient?.close();
-      _sseClient = null;
+      // Tear down only THIS call's resources. A newer subscribeToEvents call
+      // may already have replaced the instance fields; touching them blindly
+      // here would kill the new stream (the await below yields, so this
+      // continuation can run after a resubscribe).
+      final sub = subscription;
+      subscription = null;
+      if (identical(_sseSubscription, sub)) _sseSubscription = null;
+      if (identical(_sseClient, sseClient)) _sseClient = null;
+      await sub?.cancel();
+      sseClient.close();
     }
 
     Future<void> closeStream({bool disconnected = false}) async {
@@ -385,13 +441,17 @@ class OpenCodeClient {
       }
       await cleanup();
       if (!controller.isClosed) {
-        await controller.close();
+        // Don't await: close()'s future only completes once a listener
+        // consumes the done event, and a never-listened stream would block
+        // the awaited teardown (and with it the next subscribe) forever.
+        unawaited(controller.close());
       }
     }
 
     controller = StreamController<ChatEvent>(
       onCancel: cleanup,
     );
+    _activeSseClose = closeStream;
 
     void resetHeartbeat() {
       heartbeatTimer?.cancel();
@@ -422,7 +482,7 @@ class OpenCodeClient {
       final utf8Decoder = utf8.decoder;
       const lineSplitter = LineSplitter();
 
-      _sseSubscription =
+      subscription =
           response.stream.transform(utf8Decoder).transform(lineSplitter).listen(
         (line) {
           if (closed || controller.isClosed) return;
@@ -464,6 +524,7 @@ class OpenCodeClient {
           unawaited(closeStream(disconnected: true));
         },
       );
+      _sseSubscription = subscription;
     }).catchError((error) {
       if (!closed && !controller.isClosed) {
         controller.add(ErrorEvent(
@@ -477,16 +538,22 @@ class OpenCodeClient {
     return controller.stream;
   }
 
-  /// Close the SSE connection.
-  void unsubscribe() {
+  /// Close the SSE connection. The returned future completes when the
+  /// previous stream (subscription, HTTP client and controller) is fully
+  /// torn down; awaiting it before resubscribing prevents overlap.
+  Future<void> unsubscribe() {
+    final close = _activeSseClose;
+    _activeSseClose = null;
+    if (close != null) return close();
     _sseSubscription?.cancel();
     _sseSubscription = null;
     _sseClient?.close();
     _sseClient = null;
+    return Future.value();
   }
 
   void close() {
-    unsubscribe();
+    unawaited(unsubscribe().catchError((_) {}));
     if (_ownsRestClient) {
       _restClient.close();
     }
@@ -1042,6 +1109,107 @@ class OpenCodeClient {
     return _decodeMap(response, 'get session');
   }
 
+  // ── PTY (Termius-style terminal over the OpenCode runtime plane) ───────
+
+  Map<String, String>? _ptyQuery(String? directory) =>
+      directory != null && directory.isNotEmpty ? {'directory': directory} : null;
+
+  /// List PTY sessions, optionally scoped to a directory.
+  Future<List<dynamic>> listPtys({String? directory}) async {
+    final response = await _request(
+      'GET',
+      '/pty',
+      queryParameters: _ptyQuery(directory),
+      context: 'list ptys',
+    );
+    return _decodeListOrItems(response, 'list ptys');
+  }
+
+  /// Create a PTY running the user's shell in [directory].
+  Future<Map<String, dynamic>> createPty({
+    String? directory,
+    String? command,
+    String? title,
+  }) async {
+    final response = await _request(
+      'POST',
+      '/pty',
+      queryParameters: _ptyQuery(directory),
+      body: {
+        if (command != null) 'command': command,
+        if (title != null) 'title': title,
+      },
+      context: 'create pty',
+    );
+    return _decodeMap(response, 'create pty');
+  }
+
+  /// Terminate a PTY session.
+  Future<void> deletePty(String ptyId, {String? directory}) async {
+    await _request(
+      'DELETE',
+      '/pty/$ptyId',
+      queryParameters: _ptyQuery(directory),
+      context: 'delete pty',
+    );
+  }
+
+  /// Resize a PTY to match the client terminal dimensions.
+  Future<void> resizePty(
+    String ptyId, {
+    required int rows,
+    required int cols,
+    String? directory,
+  }) async {
+    await _request(
+      'PUT',
+      '/pty/$ptyId',
+      queryParameters: _ptyQuery(directory),
+      body: {
+        'size': {'rows': rows, 'cols': cols},
+      },
+      context: 'resize pty',
+    );
+  }
+
+  /// Issue a short-lived WebSocket connect ticket for a PTY.
+  /// The server requires the `x-opencode-ticket: 1` marker header.
+  Future<String> getPtyConnectTicket(String ptyId, {String? directory}) async {
+    final response = await _request(
+      'POST',
+      '/pty/$ptyId/connect-token',
+      queryParameters: _ptyQuery(directory),
+      extraHeaders: const {'x-opencode-ticket': '1'},
+      context: 'pty connect token',
+    );
+    final ticket = _decodeMap(response, 'pty connect token')['ticket'];
+    if (ticket is! String || ticket.isEmpty) {
+      throw ApiError(
+        statusCode: response.statusCode,
+        message: 'pty connect token missing ticket',
+        body: response.body,
+      );
+    }
+    return ticket;
+  }
+
+  /// WebSocket URI for a PTY connection. The [ticket] authenticates the
+  /// socket (Basic Auth headers are not used on this endpoint); [cursor]
+  /// resumes output from a previous connection.
+  Uri ptyConnectUri(
+    String ptyId, {
+    required String ticket,
+    int? cursor,
+    String? directory,
+  }) {
+    final base = _uri('/pty/$ptyId/connect', queryParameters: {
+      'ticket': ticket,
+      if (cursor != null) 'cursor': '$cursor',
+      ...?_ptyQuery(directory),
+    });
+    return base.replace(scheme: base.scheme == 'https' ? 'wss' : 'ws');
+  }
+
   Future<OpenCodeProviderRegistry> getProviderRegistry() async {
     return OpenCodeProviderRegistry(await getProviders());
   }
@@ -1200,6 +1368,29 @@ class OpenCodeClient {
   }) async {
     return (await findFiles(query, limit: limit, directory: directory))
         .map(OpenCodeFileMatch.new)
+        .toList();
+  }
+
+  /// List the entries of a directory (`GET /file`).
+  ///
+  /// [path] is resolved by the server relative to [directory] (the scope
+  /// root); pass `.` with `directory` set to an absolute path to list that
+  /// path. Returns files and directories.
+  Future<List<OpenCodeFileNode>> listFiles({
+    String path = '.',
+    String? directory,
+  }) async {
+    final params = <String, String>{'path': path};
+    if (directory != null) params['directory'] = directory;
+    final response = await _request(
+      'GET',
+      '/file',
+      queryParameters: params,
+      context: 'list files',
+    );
+    return _decodeListOrItems(response, 'list files')
+        .whereType<Map>()
+        .map((item) => OpenCodeFileNode.fromJson(Map<String, dynamic>.from(item)))
         .toList();
   }
 

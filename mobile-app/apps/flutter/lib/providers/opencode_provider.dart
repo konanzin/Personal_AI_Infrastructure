@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
 
 import '../models/chat_event.dart';
+import '../models/chat_message.dart';
 import '../models/file_change.dart';
 import '../models/message_part.dart';
 
@@ -14,6 +14,7 @@ import '../services/notification_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/opencode_client.dart';
 import '../services/secure_storage.dart';
+import '../services/sse_payload_parsing.dart';
 
 /// Dados de uma pergunta já respondida pelo usuário.
 class AnsweredQuestionData {
@@ -30,11 +31,9 @@ class AnsweredQuestionData {
   });
 }
 
-/// Provider que integra o OpenCode Server com o Flutter AI Toolkit.
-/// 
-/// Implementa a interface LlmProvider, convertendo entre:
-/// - ChatMessage (AI Toolkit) ↔ OpenCode API/SSE
-/// 
+/// Provider que integra o OpenCode Server com a UI de chat, convertendo entre
+/// ChatMessage e a OpenCode API/SSE.
+///
 /// Suporta:
 /// - Streaming de respostas via SSE
 /// - Histórico de mensagens
@@ -48,7 +47,7 @@ class _LifecycleObserver with WidgetsBindingObserver {
   }
 }
 
-class OpenCodeProvider extends LlmProvider with ChangeNotifier {
+class OpenCodeProvider with ChangeNotifier {
   OpenCodeClient? _client;
   OpenCodeClient? get clientOrNull => _client;
   OpenCodeClient get client => _client!;
@@ -142,7 +141,14 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   
   /// Serviço de conectividade
   final ConnectivityService _connectivity = ConnectivityService();
-  
+
+  /// Incremented whenever the session scope changes (session switch/clear,
+  /// client swap). Async flows capture it before awaiting and abandon their
+  /// continuation when it moved: a late completion from the previous scope
+  /// must not mutate the current one.
+  int _scopeEpoch = 0;
+
+
   OpenCodeProvider({
     OpenCodeClient? client,
     String? sessionId,
@@ -159,6 +165,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
   /// Updates the HTTP client (called when credentials/timeout change).
   void updateClient(OpenCodeClient newClient) {
+    _scopeEpoch++;
     _sseSubscription?.cancel();
     if (_client != newClient) {
       _client?.close();
@@ -173,6 +180,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Switches to a different session, reloading history.
   Future<void> switchSession(String? sessionId) async {
     if (sessionId == _currentSessionId) return;
+    _scopeEpoch++;
     _sseSubscription?.cancel();
     _client?.unsubscribe();
     _currentSessionId = sessionId;
@@ -351,8 +359,11 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Load session details (model, cost, tokens).
   Future<void> loadSessionInfo() async {
     if (_currentSessionId == null) return;
+    final epoch = _scopeEpoch;
     try {
-      _sessionInfo = await client.getSession(_currentSessionId!);
+      final info = await client.getSession(_currentSessionId!);
+      if (epoch != _scopeEpoch) return; // scope changed while fetching
+      _sessionInfo = info;
       if (_sessionInfo?['directory'] is String) {
         _directory = _sessionInfo!['directory'] as String;
       }
@@ -365,8 +376,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Load todos for the current session.
   Future<void> loadTodos() async {
     if (_currentSessionId == null) return;
+    final epoch = _scopeEpoch;
     try {
       final raw = await client.getSessionTodos(_currentSessionId!);
+      if (epoch != _scopeEpoch) return; // scope changed while fetching
       _todos = raw.whereType<Map<String, dynamic>>().toList();
       notifyListeners();
     } catch (e) {
@@ -537,10 +550,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   /// Carrega o histórico de mensagens de uma sessão existente
   Future<void> loadHistory() async {
     if (_currentSessionId == null) return;
-    
+    final epoch = _scopeEpoch;
+
     try {
       final messages = await client.getSessionMessages(_currentSessionId!);
-      
+      if (epoch != _scopeEpoch) return; // scope changed while fetching
+
       _history.clear();
       _reasoningBuffers.clear();
       _messageTimestamps.clear();
@@ -567,7 +582,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
         
         if (role == null || parts == null) continue;
         
-        final timestamp = _parseTimestamp(info?['time'] ?? info?['created']);
+        final timestamp = parseEventTimestamp(info?['time'] ?? info?['created']);
         
         final textBuffer = StringBuffer();
         final reasoningBuffer = StringBuffer();
@@ -593,11 +608,13 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
             final callId = part['callID'] as String? ?? partId ?? '';
             final stateMap = part['state'] as Map?;
             final status = stateMap?['status'] as String?;
+            // This is loaded history, not a live stream — nothing is executing
+            // now. A tool still "running"/"pending" was interrupted when the
+            // session ended, so mark it terminal instead of spinning forever.
             final toolState = switch (status) {
               'completed' => ToolCallState.completed,
-              'running' => ToolCallState.running,
               'error' || 'failed' => ToolCallState.error,
-              _ => ToolCallState.pending,
+              _ => ToolCallState.interrupted,
             };
             final input = stateMap?['input'] is Map
                 ? Map<String, dynamic>.from(stateMap!['input'] as Map)
@@ -771,6 +788,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       }
 
       await _loadPersistedAnsweredQuestions();
+      if (epoch != _scopeEpoch) return;
       notifyListeners();
 
       // Load session metadata and todos in background
@@ -809,6 +827,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   
   /// Cria uma nova sessão no OpenCode, usando _directory corrente.
   Future<void> createSession({String? title}) async {
+    final epoch = _scopeEpoch;
     final Map<String, dynamic> session;
     try {
       session = await client.createSession(
@@ -822,6 +841,8 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       );
       rethrow;
     }
+    if (epoch != _scopeEpoch) return; // scope changed while creating
+    _scopeEpoch++;
     _currentSessionId = session['id'] as String?;
     if (session['directory'] is String) {
       _directory = session['directory'] as String;
@@ -837,6 +858,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   
   /// Seleciona uma sessão existente
   void setSession(String sessionId, {Iterable<ChatMessage>? history}) {
+    _scopeEpoch++;
     _currentSessionId = sessionId;
     _history.clear();
     _historyMessageIds.clear();
@@ -853,6 +875,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
   /// Clears all session state without creating a new one (lazy creation).
   void clearSession() {
+    _scopeEpoch++;
     _currentSessionId = null;
     _clearBuffers();
     notifyListeners();
@@ -869,7 +892,6 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     await _rehydrateCurrentSession();
   }
 
-  @override
   Stream<String> generateStream(
     String prompt, {
     Iterable<Attachment> attachments = const [],
@@ -912,7 +934,6 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     }
   }
 
-  @override
   Stream<String> sendMessageStream(
     String prompt, {
     Iterable<Attachment> attachments = const [],
@@ -925,14 +946,24 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     _history.addAll([userMessage, llmMessage]);
     _historyMessageIds.addAll([null, null]);
     notifyListeners();
-    
+
     // Gera resposta e mapeia para atualizar histórico
     final response = generateStream(prompt, attachments: attachments);
-    
+
     return response.map((chunk) {
       llmMessage.append(chunk);
       _throttledNotify();
       return chunk;
+    }).handleError((Object error) {
+      // A geração falhou antes de qualquer chunk: remove o balão vazio do
+      // assistente para não deixar uma mensagem órfã no histórico.
+      final index = _history.lastIndexOf(llmMessage);
+      if (index != -1 && (llmMessage.text == null || llmMessage.text!.isEmpty)) {
+        _history.removeAt(index);
+        _historyMessageIds.removeAt(index);
+        notifyListeners();
+      }
+      throw error; // repropaga para o chamador tratar
     });
   }
   
@@ -954,23 +985,31 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     Map<String, String>? model, {
     int maxRetries = 0,
   }) async {
+    // Capture the scope at send time: if the user switches session/machine
+    // while this POST is in flight, the late completion (or its retries)
+    // must not touch the new scope's state.
+    final epoch = _scopeEpoch;
+    final sessionId = _currentSessionId;
+    if (sessionId == null) return;
+
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       final userMessageIdBeforeSend = _lastUserMessageId;
       try {
         if (model != null || parts.length > 1) {
           await client.sendMessageAdvanced(
-            _currentSessionId!,
+            sessionId,
             parts: parts,
             model: model,
             directory: _directory,
           );
         } else {
           final textPart = parts.first['text'] as String;
-          await client.sendMessage(_currentSessionId!, textPart, directory: _directory);
+          await client.sendMessage(sessionId, textPart, directory: _directory);
         }
         return;
       } catch (e) {
         debugPrint('[PAI_SSE] Send attempt ${attempt + 1} failed: $e');
+        if (epoch != _scopeEpoch) return; // scope changed; stale send
 
         final serverAcceptedMessage = _lastUserMessageId != null &&
             _lastUserMessageId != userMessageIdBeforeSend;
@@ -1013,6 +1052,8 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
 
   /// Escuta eventos SSE e extrai texto da resposta
   Stream<String> _listenForResponse() {
+    // Eventos desta geração só valem enquanto o escopo não mudar.
+    final epoch = _scopeEpoch;
     // Fecha qualquer conexão SSE anterior
     _sseSubscription?.cancel();
     _sseSubscription = null;
@@ -1051,10 +1092,11 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     void closeResponse() {
       if (responseEnded) return;
       responseEnded = true;
+      if (!controller.isClosed) controller.close();
+      if (epoch != _scopeEpoch) return; // stale generation: don't touch state
       _isStreaming = false;
       _sseSubscription?.cancel();
       _sseSubscription = null;
-      if (!controller.isClosed) controller.close();
       loadSessionInfo();
       // Reload history to get accurate tool states from server
       unawaited(loadHistory().catchError((e) {
@@ -1078,6 +1120,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     final stream = client.subscribeToEvents(directory: _directory);
     _sseSubscription = stream.listen(
       (event) {
+        // Geração antiga: um evento já enfileirado pode chegar depois de uma
+        // troca de sessão/máquina; nunca deve tocar o estado do escopo novo.
+        if (epoch != _scopeEpoch) return;
+
         // Heartbeat - qualquer evento indica conexão ativa
         _connectivity.heartbeat();
 
@@ -1091,12 +1137,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
         switch (event) {
           // Message metadata updates
           case MessageEvent e:
-            final info = _extractMessageUpdateInfo(e.payload);
+            final info = extractMessageUpdateInfo(e.payload);
             final rawId = info?['id'];
             final messageId = rawId is String ? rawId : null;
             final rawRole = info?['role'];
             final role = rawRole is String ? rawRole : null;
-            final timestamp = _parseTimestamp(info?['time'] ?? info?['created']);
+            final timestamp = parseEventTimestamp(info?['time'] ?? info?['created']);
 
             if (messageId != null && role != null) {
               if (role == 'assistant') {
@@ -1110,7 +1156,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
             }
 
             // Handle message.part.updated inside payload
-            final partInfo = _extractPartInfo(e.payload);
+            final partInfo = extractPartInfo(e.payload);
             if (partInfo != null) {
               final rawPartId = partInfo['id'];
               final partId = rawPartId is String ? rawPartId : null;
@@ -1158,13 +1204,21 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
                       textInsertOffset: _streamedTextLength,
                     );
                   }
+                  // Associate the tool with its owning message NOW so it renders
+                  // live, in order, as it executes — instead of only appearing
+                  // after the final loadHistory rebuild at end of turn.
+                  final ownerId = partMessageId ?? activeAssistantMessageId;
+                  if (ownerId != null) {
+                    _callMessageIds[callId] = ownerId;
+                    _bindMessageId(ownerId, MessageOrigin.llm);
+                  }
                   _throttledNotify();
                 }
               }
             }
 
             // Handle message.part.delta inside payload
-            final text = _extractMessagePartDelta(e.payload, textPartIds, reasoningPartIds);
+            final text = extractMessagePartDelta(e.payload, textPartIds: textPartIds, reasoningPartIds: reasoningPartIds, lastUserMessageId: _lastUserMessageId);
             if (text != null && text.isNotEmpty) {
               if (_awaitingContinuation) activeTextPath = null;
               activeTextPath ??= false;
@@ -1175,9 +1229,9 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
               }
             }
             
-            final reasoning = _extractReasoningDelta(e.payload, reasoningPartIds);
+            final reasoning = extractReasoningDelta(e.payload, reasoningPartIds);
             if (reasoning != null && reasoning.isNotEmpty) {
-              final msgId = _extractMessageIdFromDelta(e.payload) ??
+              final msgId = extractMessageIdFromDelta(e.payload) ??
                   _extractMessageIdFromPartDelta(e.payload);
               debugPrint('[PAI_SSE] Reasoning delta: ${reasoning.substring(0, reasoning.length > 50 ? 50 : reasoning.length)}...');
               appendReasoning(reasoning, messageId: msgId);
@@ -1226,9 +1280,13 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
               state: ToolCallState.pending,
               textInsertOffset: _streamedTextLength,
             );
-            if (activeAssistantMessageId != null) {
-              _callMessageIds[e.callId] = activeAssistantMessageId!;
-            }
+            // Always associate, even if the assistant message.updated event
+            // hasn't arrived yet — otherwise an early tool call stays orphaned
+            // and only surfaces after the end-of-turn loadHistory rebuild.
+            final toolOwnerId =
+                activeAssistantMessageId ?? _ensureAssistantMessageId();
+            activeAssistantMessageId = toolOwnerId;
+            _callMessageIds[e.callId] = toolOwnerId;
             _throttledNotify();
             break;
 
@@ -1321,9 +1379,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
               output: '',
               textInsertOffset: _streamedTextLength,
             );
-            if (activeAssistantMessageId != null) {
-              _callMessageIds[e.callId] = activeAssistantMessageId!;
-            }
+            final shellOwnerId =
+                activeAssistantMessageId ?? _ensureAssistantMessageId();
+            activeAssistantMessageId = shellOwnerId;
+            _callMessageIds[e.callId] = shellOwnerId;
             _throttledNotify();
             break;
 
@@ -1461,6 +1520,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
           controller.addError(error);
           controller.close();
         }
+        // A resposta não vai mais chegar por este stream; sem isto o spinner
+        // de streaming fica preso até o usuário enviar outra mensagem.
+        if (_isStreaming) {
+          _isStreaming = false;
+          notifyListeners();
+        }
         // Tenta reconectar automaticamente
         _connectivity.startReconnect(() {
           _rehydrateCurrentSession();
@@ -1469,6 +1534,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
       onDone: () {
         if (!responseEnded) {
           _connectivity.markOffline();
+          if (_isStreaming) {
+            _isStreaming = false;
+            notifyListeners();
+          }
           _connectivity.startReconnect(() {
             _rehydrateCurrentSession();
           });
@@ -1493,7 +1562,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     }
     // For MessageEvent and StatusEvent, try extracting from payload
     if (event is MessageEvent) {
-      final sessionId = _extractSessionId(event.payload);
+      final sessionId = extractSessionId(event.payload);
       if (sessionId != null) {
         final belongs = sessionId == _currentSessionId;
         if (!belongs) {
@@ -1502,7 +1571,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
         return belongs;
       }
     } else if (event is StatusEvent) {
-      final sessionId = _extractSessionId(event.payload);
+      final sessionId = extractSessionId(event.payload);
       if (sessionId != null) {
         final belongs = sessionId == _currentSessionId;
         if (!belongs) {
@@ -1514,71 +1583,7 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     return true;
   }
 
-  String? _extractSessionId(dynamic data) {
-    final map = _asMap(data);
-    if (map == null) return null;
-    final props = map['properties'];
-    if (props is Map) {
-      final direct = props['sessionID'];
-      if (direct is String) return direct;
-      final info = props['info'];
-      if (info is Map && info['sessionID'] is String) return info['sessionID'] as String;
-      final part = props['part'];
-      if (part is Map && part['sessionID'] is String) return part['sessionID'] as String;
-      final message = props['message'];
-      if (message is Map && message['sessionID'] is String) return message['sessionID'] as String;
-      final session = props['session'];
-      if (session is Map && session['id'] is String) return session['id'] as String;
-    }
-    if (map['sessionID'] is String) return map['sessionID'] as String;
-    if (map['sessionId'] is String) return map['sessionId'] as String;
-    return null;
-  }
-
-  Map<String, dynamic>? _asMap(dynamic data) {
-    if (data is String) {
-      try {
-        data = jsonDecode(data);
-      } catch (_) {
-        return null;
-      }
-    }
-    if (data is Map<String, dynamic>) return data;
-    if (data is Map) return Map<String, dynamic>.from(data);
-    return null;
-  }
-
-  DateTime? _parseTimestamp(dynamic value) {
-    if (value == null) return null;
-    if (value is Map) {
-      return _parseTimestamp(value['created'] ?? value['updated']);
-    }
-    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
-    if (value is double) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
-    if (value is String) {
-      final asInt = int.tryParse(value);
-      if (asInt != null) return DateTime.fromMillisecondsSinceEpoch(asInt);
-      return DateTime.tryParse(value);
-    }
-    return null;
-  }
-
-  Map<String, dynamic>? _extractMessageUpdateInfo(dynamic data) {
-    final map = _asMap(data);
-    if (map == null) return null;
-    final props = map['properties'];
-    if (props is Map) {
-      final info = props['info'];
-      if (info is Map) return Map<String, dynamic>.from(info);
-      final message = props['message'];
-      if (message is Map) return Map<String, dynamic>.from(message);
-    }
-    final info = map['info'];
-    if (info is Map) return Map<String, dynamic>.from(info);
-    return null;
-  }
-
-  void _bindMessageId(
+          void _bindMessageId(
     String messageId,
     MessageOrigin origin, {
     DateTime? timestamp,
@@ -1600,6 +1605,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
         if (oldReasoning != null && oldReasoning.isNotEmpty) {
           _reasoningBuffers.putIfAbsent(messageId, () => StringBuffer());
           _reasoningBuffers[messageId]!.write(oldReasoning.toString());
+        }
+        // Tools/shell were associated with the temporary (local) id while the
+        // assistant message.updated event was still in flight — repoint them
+        // to the real id so they stay visible after the bind.
+        for (final k in _callMessageIds.keys.toList()) {
+          if (_callMessageIds[k] == existingId) _callMessageIds[k] = messageId;
         }
       }
       if (timestamp != null) _messageTimestamps[messageId] = timestamp;
@@ -1636,58 +1647,10 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   }
   
   /// Extrai reasoning de eventos message.part.delta
-  String? _extractReasoningDelta(dynamic data, Set<String> reasoningPartIds) {
-    if (data is String) {
-      try {
-        data = jsonDecode(data);
-      } catch (_) {
-        return null;
-      }
-    }
-    if (data is! Map) return null;
     
-    final props = data['properties'] as Map?;
-    if (props != null) {
-      final partId = props['partID'] as String?;
-      final field = props['field'] as String?;
-      final delta = props['delta'];
-      
-      // Só extrai se for um part de reasoning conhecido e field for "text"
-      if (partId != null && reasoningPartIds.contains(partId) && field == 'text') {
-        if (delta is String) {
-          return delta;
-        } else if (delta is Map) {
-          final textDelta = delta['text'] as String?;
-          if (textDelta != null && textDelta.isNotEmpty) {
-            return textDelta;
-          }
-        }
-      }
-    }
-    
-    return null;
-  }
-  
   /// Extrai messageID do evento message.part.delta
-  String? _extractMessageIdFromDelta(dynamic data) {
-    if (data is String) {
-      try {
-        data = jsonDecode(data);
-      } catch (_) {
-        return null;
-      }
-    }
-    if (data is! Map) return null;
-    
-    final props = data['properties'] as Map?;
-    if (props != null) {
-      return props['messageID'] as String?;
-    }
-    return null;
-  }
-
-  String? _extractMessageIdFromPartDelta(dynamic data) {
-    final map = _asMap(data);
+    String? _extractMessageIdFromPartDelta(dynamic data) {
+    final map = asPayloadMap(data);
     if (map == null) return null;
     final props = map['properties'];
     if (props is Map) {
@@ -1698,91 +1661,12 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
   }
   
   /// Extrai informações da part de eventos message.part.updated
-  Map<String, dynamic>? _extractPartInfo(dynamic data) {
-    if (data is String) {
-      try {
-        data = jsonDecode(data);
-      } catch (_) {
-        return null;
-      }
-    }
-    if (data is! Map) return null;
     
-    final props = data['properties'] as Map?;
-    if (props != null) {
-      final part = props['part'] as Map?;
-      if (part != null) {
-        final result = <String, dynamic>{
-          'id': part['id'],
-          'type': part['type'],
-          'text': part['text'],
-          'messageID': part['messageID'] ?? part['messageId'],
-        };
-        if (part['tool'] != null) result['tool'] = part['tool'];
-        if (part['callID'] != null) result['callID'] = part['callID'];
-        if (part['state'] is Map) {
-          result['state'] = Map<String, dynamic>.from(part['state'] as Map);
-        }
-        return result;
-      }
-    }
-    
-    return null;
-  }
-  
   /// Extrai texto de eventos message.part.delta
   /// Formato: { properties: { partID: "...", field: "text", delta: "texto" } }
   /// Processa qualquer delta com field="text" como texto visível,
   /// ignorando deltas da mensagem do usuário (eco) e de reasoning.
-  String? _extractMessagePartDelta(dynamic data, Set<String> textPartIds, Set<String> reasoningPartIds) {
-    if (data is String) {
-      try {
-        data = jsonDecode(data);
-      } catch (_) {
-        return null;
-      }
-    }
-    if (data is! Map) return null;
     
-    final props = data['properties'] as Map?;
-    if (props != null) {
-      final partId = props['partID'] as String?;
-      final field = props['field'] as String?;
-      final delta = props['delta'];
-      final msgId = props['messageID'] as String?;
-      
-      // Ignora eco da mensagem do usuário
-      if (msgId != null && msgId == _lastUserMessageId) {
-        debugPrint('[PAI_SSE] Ignoring user message echo delta for msgId: $msgId');
-        return null;
-      }
-      
-      // Ignora reasoning parts (vão pelo caminho separado)
-      if (partId != null && reasoningPartIds.contains(partId)) {
-        return null;
-      }
-      
-      // Qualquer campo field="text" é tratado como texto visível da resposta
-      if (field == 'text') {
-        String? textDelta;
-        if (delta is String) {
-          textDelta = delta;
-        } else if (delta is Map) {
-          textDelta = delta['text'] as String?;
-        }
-        if (textDelta != null && textDelta.isNotEmpty) {
-          if (partId != null && !textPartIds.contains(partId)) {
-            textPartIds.add(partId);
-            debugPrint('[PAI_SSE] Auto-registered text partId: $partId');
-          }
-          return textDelta;
-        }
-      }
-    }
-    
-    return null;
-  }
-  
   /// Verifica se status indica fim da resposta
   bool _isIdleStatus(dynamic data) {
     if (data is String) {
@@ -1808,10 +1692,8 @@ class OpenCodeProvider extends LlmProvider with ChangeNotifier {
     return false;
   }
 
-  @override
   Iterable<ChatMessage> get history => _history;
 
-  @override
   set history(Iterable<ChatMessage> history) {
     _history.clear();
     _history.addAll(history);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/machine.dart';
+import '../services/network_policy.dart';
 import '../services/opencode_client.dart';
 
 /// App-scoped provider that manages a single [OpenCodeClient] instance.
@@ -50,6 +51,10 @@ class ClientProvider extends ChangeNotifier {
         _requestTimeoutSeconds == machine.requestTimeoutSeconds) {
       return;
     }
+    if (_activeMachineId != machine.id) {
+      // Cached providers belong to the previous machine.
+      invalidateProviderCache();
+    }
     _activeMachineId = machine.id;
     _baseUrl = machine.serverUrl;
     _username = machine.username;
@@ -66,10 +71,21 @@ class ClientProvider extends ChangeNotifier {
   }
 
   void _rebuildClient() {
+    // Tear down the old client before the swap so no consumer can grab a
+    // stale instance between the new assignment and the old close.
     final previousClient = _client;
+    _client = null;
+    previousClient?.close();
+
     if (_baseUrl == null || _username == null || _password == null) {
-      _client = null;
-      previousClient?.close();
+      notifyListeners();
+      return;
+    }
+
+    final violation =
+        cleartextViolation(ClientConfig.normalizeBaseUrl(_baseUrl!));
+    if (violation != null) {
+      debugPrint('[PAI_CLIENT] Refusing to build client: $violation');
       notifyListeners();
       return;
     }
@@ -82,9 +98,6 @@ class ClientProvider extends ChangeNotifier {
         requestTimeoutSeconds: _requestTimeoutSeconds,
       ),
     );
-    if (previousClient != _client) {
-      previousClient?.close();
-    }
     notifyListeners();
   }
 

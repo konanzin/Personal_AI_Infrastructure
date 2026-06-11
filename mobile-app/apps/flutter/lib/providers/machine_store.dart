@@ -30,8 +30,16 @@ class MachineStore extends ChangeNotifier {
 
   Future<void> initialize() async {
     final migrated = await SecureStorageService.read(_migratedKey);
-    if (migrated == 'true') {
+    // An existing machine list always wins: if the migrated flag was lost but
+    // machines_json survived, running the legacy migration here would
+    // overwrite the whole list with an empty one.
+    final hasStoredMachines =
+        await SecureStorageService.read(_storageKey) != null;
+    if (migrated == 'true' || hasStoredMachines) {
       await _loadFromSecureStorage();
+      if (migrated != 'true') {
+        await SecureStorageService.write(_migratedKey, 'true');
+      }
     } else {
       await _migrateFromLegacy();
     }
@@ -70,6 +78,18 @@ class MachineStore extends ChangeNotifier {
     if (_activeMachineId == id) {
       _activeMachineId = _machines.isNotEmpty ? _machines.first.id : null;
     }
+    await _saveToSecureStorage();
+    notifyListeners();
+  }
+
+  /// Removes only the SSH config from a machine, keeping the machine and its
+  /// runtime (OpenCode) credentials. Used by the SSH gate's 3-strike wipe:
+  /// chat keeps working, but SSH must be re-provisioned via bootstrap.
+  Future<void> clearSshConfig(String id) async {
+    final idx = _machines.indexWhere((m) => m.id == id);
+    if (idx < 0) return;
+    if (_machines[idx].ssh == null) return;
+    _machines[idx] = _machines[idx].copyWith(ssh: null);
     await _saveToSecureStorage();
     notifyListeners();
   }
