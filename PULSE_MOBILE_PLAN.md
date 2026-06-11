@@ -1,5 +1,7 @@
 # Pulse-Mobile Plan — Notifications, Background Delivery, Broker & Voice
 
+> **Status (2026-06-11):** Phase A SHIPPED (plugin v2.11.0, contract in `opencode/docs/NOTIFICATIONS_STREAM.md`). Phase C1 (broker) and C2 (desktop renderer) SHIPPED (`opencode/broker/`). Remaining: Phase B (background spike — needs the S24) and C3 (app integration, depends on B).
+
 This is the implementation plan for rebuilding PAI's presence layer (originally: Pulse daemon + ElevenLabs voice on the desktop) as a multi-renderer system where the phone is the primary renderer. It covers the three phases agreed after the port-coherence pass.
 
 Guiding theses (decided, not open):

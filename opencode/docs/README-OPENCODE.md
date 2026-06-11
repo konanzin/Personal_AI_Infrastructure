@@ -183,4 +183,4 @@ bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 bash ~/.config/opencode/PAI/bin/test-e2e-runtime.sh
 ```
 
-Current score: **158/158 passing** (80 structural + 67 behavioral + 11 E2E). Parity estimate: **~90-95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded.
+Current score: **162/162 passing** (81 structural + 70 behavioral + 11 E2E). Parity estimate: **~90-95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded.

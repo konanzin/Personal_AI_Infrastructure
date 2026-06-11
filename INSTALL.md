@@ -65,7 +65,23 @@ Expected successful state:
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The validator currently checks 80 structural points and then runs the behavioral suite (67 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (11 scenarios). Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.
+The validator currently checks 81 structural points and then runs the behavioral suite (70 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (11 scenarios). Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.
+
+## Pulse Broker (optional runtime)
+
+The installer ships the **Pulse Broker** to `~/.config/opencode/PAI/broker/` — a small Bun daemon that tails `MEMORY/OBSERVABILITY/notifications.jsonl` (see `opencode/docs/NOTIFICATIONS_STREAM.md`) and fans events out to identified renderers over SSE on port 31337, with `/health` and an upstream-compatible `/notify`. It is **optional**: a missing/stopped broker is not an install failure; agents' health-gated voice curls simply stay silent.
+
+```bash
+# Run ad hoc
+bun ~/.config/opencode/PAI/broker/pulse-broker.ts
+
+# Or as a user service
+cp ~/.config/opencode/PAI/broker/pulse-broker.service.template ~/.config/systemd/user/pulse-broker.service
+systemctl --user daemon-reload && systemctl --user enable --now pulse-broker
+
+# Watch/listen from any terminal
+bun ~/.config/opencode/PAI/broker/renderer-desktop.ts --tts
+```
 
 ## Path Migration
 

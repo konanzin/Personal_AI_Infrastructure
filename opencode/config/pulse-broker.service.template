@@ -1,0 +1,18 @@
+# Pulse Broker — user systemd unit (optional)
+# Install: cp this file to ~/.config/systemd/user/pulse-broker.service
+#          systemctl --user daemon-reload && systemctl --user enable --now pulse-broker
+# The broker is OPTIONAL scaffolding: a missing/stopped broker is not an
+# install failure (agents' voice gates simply stay silent).
+
+[Unit]
+Description=PAI Pulse Broker (notifications fan-out, port 31337)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.bun/bin/bun %h/.config/opencode/PAI/broker/pulse-broker.ts
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

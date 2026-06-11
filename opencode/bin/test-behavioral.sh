@@ -468,6 +468,38 @@ else
 fi
 TOTAL=$((TOTAL + 1))
 
+# ─── PULSE BROKER (optional runtime) ──────────────────────
+echo ""
+echo "${BLUE}Pulse Broker${RESET}"
+
+run_test "Broker daemon and lib installed" \
+    "[ -f ${PAI_DIR}/broker/pulse-broker.ts ] && [ -f ${PAI_DIR}/broker/broker-lib.ts ]"
+
+run_test "Broker serves /health and legacy /api/pulse/health" \
+    "grep -q \"'/health'\" ${PAI_DIR}/broker/pulse-broker.ts && grep -q '/api/pulse/health' ${PAI_DIR}/broker/pulse-broker.ts"
+
+# Functional: routing policy v1 (attention always; focused suppresses)
+BROKER_TEST=$(cat <<EOF
+import { decideRender } from '${PAI_DIR}/broker/broker-lib.ts';
+const ev = (level) => ({ v:1, timestamp:'t', level, event:'x', session_id:'s1', slug:null, title:null, speak:'s', data:{} });
+const sub = (over) => ({ id:'a', device:'phone', name:'p', focusedSession:null, listening:true, ...over });
+const watcher = sub({ id:'w', focusedSession:'s1' });
+const phone = sub({});
+const r1 = decideRender(ev('milestone'), [watcher, phone], phone);
+const r2 = decideRender(ev('attention'), [watcher, phone], phone);
+console.log(!r1.speak && r1.reason === 'session-on-screen' && r2.speak ? 'PASS' : 'FAIL');
+EOF
+)
+
+BROKER_RESULT=$(echo "$BROKER_TEST" | bun run - 2>/dev/null || echo "FAIL")
+if [ "$BROKER_RESULT" = "PASS" ]; then
+    pass "Routing policy functional test (attention-always, session-on-screen)"
+    PASSED=$((PASSED + 1))
+else
+    fail "Routing policy functional test"
+fi
+TOTAL=$((TOTAL + 1))
+
 # ─── PROMISE INTEGRITY ────────────────────────────────────
 # Agents and instructions must not promise surfaces the install does not
 # provide: legacy paths, unregistered commands, missing context files.

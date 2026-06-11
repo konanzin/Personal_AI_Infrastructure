@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Pulse Broker (Phase C1/C2)** — `opencode/broker/`, installed to `PAI/broker/`, optional runtime on port 31337. Tails `notifications.jsonl` (fs.watch + offset, 1s safety interval, truncation-aware) and fans events out over SSE to identified subscribers (`GET /subscribe?device=&name=&focus=`), each delivery carrying a per-subscriber render decision and a `dedupe_key`. Routing policy v1 in pure `broker-lib.ts`: `attention` always speaks; a subscriber displaying the event's session suppresses voice for everyone (badge-only); mute via `POST /presence`. `POST /notify` accepts the upstream Pulse payload and appends it to the same stream (inherited agent curls work; their health gates now pass against `/health` and `/api/pulse/health`). `renderer-desktop.ts` is the reference consumer (notify-send + system TTS). User systemd unit template shipped. 15 tests (routing matrix + real-SSE integration with a spawned broker).
 - **Notifications stream — contract v1** (plugin v2.11.0, `MEMORY/OBSERVABILITY/notifications.jsonl`): the producer side of the Pulse-mobile plan. The plugin emits human-relevant events with a deterministic, speakable `speak` field (template-built, never LLM): `session_started` and `phase_transition` (milestones, the latter detected inside `syncISAToWorkRegistry` where the previous phase is known), `agent_completed` (the `🎯 COMPLETED:` line captured from assistant messages with per-message dedupe), `guard_denied`/`security_blocked`/`tool_failing` (attention — guards, security pipeline, ≥3 consecutive failures of the same tool), and `session_completed` (digest with duration). Plain native sessions start and end silently — only ISA-tracked work notifies. No rate limiting or routing at the producer; that belongs to broker/renderers. Schema documented as a stable contract in `opencode/docs/NOTIFICATIONS_STREAM.md`. Covered by 8 unit tests, 4 behavioral checks and a new E2E scenario (ISA phase edit → contract-v1 event).
 
 - **`build-mobile` lean-profile agent** (plugin v2.10.0): second primary agent in `opencode.jsonc.template` for mobile clients. Sent **per message** (`POST /session/{id}/message` accepts `agent`), so the same session hands off between desktop (full profile) and mobile (lean profile) without being locked to either. The plugin's system transform reads the client agent (from the transform payload or the latest `chat.message`, persisted as `client_agent` in `current-work-<session>.json`) and injects a lean context for agents in `LEAN_AGENTS` (env-overridable via `PAI_LEAN_AGENTS`): identity + classification + mode rules + active work + terse delivery instructions, skipping the full CLAUDE.md operational doc. Output ceremony is suppressed on mobile; the `🎯 COMPLETED:` voice line is mandatory in both profiles.
@@ -32,7 +33,7 @@
 - 43 duplicated `~/.config/opencode/PAI/PAI/...` paths in `PAI/CLAUDE.md` context routing tables.
 - 2 legacy `~/.claude/` paths in `Arthur.md`.
 
-**Validation: 158/158 checks passing** (80 structural + 67 behavioral + 11 E2E runtime).
+**Validation: 162/162 checks passing** (81 structural + 70 behavioral + 11 E2E runtime).
 
 ## [2.9.1] — Observability Parity (Headless / Non-Visual)
 
@@ -302,7 +303,7 @@ This repository ports PAI from Claude Code to OpenCode-native configuration and 
 
 **Parity estimate: ~90-95% over the core scope** (Algorithm, skills, agents, ISA sync, guards, observability). Subsystems excluded by design (Pulse runtime, voice rendering, Arbol, Feed/Fabric, TOOLS helpers) are listed in `REPO_MODEL.md` → "Out of Scope by Design".
 
-**Validation: 158/158 checks passing** (80 structural + 67 behavioral + 11 E2E runtime).
+**Validation: 162/162 checks passing** (81 structural + 70 behavioral + 11 E2E runtime).
 
 ### Behavioral Validation Matrix
 

@@ -280,8 +280,19 @@ install_pai_core() {
     # Copy scripts (repo canonical versions take precedence)
     cp -f "${REPO_DIR}/opencode/bin/"*.sh "$PAI_DIR/bin/" 2>/dev/null || true
     chmod +x "$PAI_DIR/bin/"*.sh 2>/dev/null || true
-    
+
     success "PAI core installed"
+}
+
+# ─── Install Pulse Broker (optional runtime) ──────────────
+install_broker() {
+    log "Installing Pulse Broker..."
+
+    mkdir -p "$PAI_DIR/broker"
+    cp -f "${REPO_DIR}/opencode/broker/"*.ts "$PAI_DIR/broker/" 2>/dev/null || true
+    cp -f "${REPO_DIR}/opencode/config/pulse-broker.service.template" "$PAI_DIR/broker/" 2>/dev/null || true
+
+    success "Pulse Broker installed (optional — see PAI/broker/pulse-broker.service.template)"
 }
 
 # ─── Patch legacy upstream paths ──────────────────────────
@@ -417,6 +428,7 @@ main() {
     install_commands
     install_skills
     install_pai_core
+    install_broker
     patch_installed_paths
     generate_config
     validate

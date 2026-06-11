@@ -594,6 +594,14 @@ check_pulse() {
         fail "PULSE.toml missing"
     fi
     checks=$((checks + 1))
+
+    if [ -f "$PAI_DIR/broker/pulse-broker.ts" ] && [ -f "$PAI_DIR/broker/broker-lib.ts" ]; then
+        pass "Pulse Broker installed (optional runtime, PAI/broker/)"
+        passed=$((passed + 1))
+    else
+        fail "Pulse Broker files missing from PAI/broker/"
+    fi
+    checks=$((checks + 1))
     
     # Installed content must have no legacy Claude Code paths anywhere —
     # PAI core, skills, agents, and commands (install.sh patch_installed_paths
