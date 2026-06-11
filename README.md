@@ -32,6 +32,7 @@ The installer is idempotent. It preserves installed `USER` and `MEMORY` data, up
 - PAI core directories for Algorithm, Memory, optional Pulse scaffolding, Tools, Templates, and User context
 - Default PAI runtime injection on normal prompts (model decides mode)
 - OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse` (diagnostic scaffold only), `/context`, `/context-search` (alias `/cs`), `/pu`, and `/e1` through `/e5`
+- **Notifications stream + Pulse Broker** (optional runtime): the plugin emits human-relevant events to `MEMORY/OBSERVABILITY/notifications.jsonl` (stable contract, `opencode/docs/NOTIFICATIONS_STREAM.md`); the broker on port 31337 fans them out to identified renderers — desktop (Kokoro TTS) and the mobile app (background voice). Roadmap and design: `PULSE_MOBILE_PLAN.md`, `mobile-app/docs/ADR-001-BACKGROUND-DELIVERY.md`
 
 ## Current Scope Boundary
 

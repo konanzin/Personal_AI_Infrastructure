@@ -51,9 +51,13 @@ Original to this repo. No upstream equivalent. These are the value-adds and oper
 - AgentGuard / SkillGuard — Pre-execution guard rails for agent/skill invocations
 - Explicit Mode/Tier Classifier — Deterministic + optional LLM classification
 - ISA ↔ Work-State Sync — Backend-only ISA frontmatter to work.json propagation
-- Observability Streams — Six JSONL telemetry streams (classifier, guards, sessions, failures, traces)
+- Observability Streams — JSONL telemetry streams (classifier, guards, sessions, failures, traces)
+- Notifications contract v1 (`notifications.jsonl`) — speakable, template-deterministic events; the producer side of the presence layer (`opencode/docs/NOTIFICATIONS_STREAM.md`)
+- Pulse Broker (`opencode/broker/`) — optional SSE fan-out daemon on port 31337 with identified subscriptions, presence-based routing, upstream-compatible `/notify`, and a desktop renderer with Kokoro TTS
+- `build-mobile` lean profile — per-message client agent with calibrated system injection for mobile clients
+- Runtime event bridge — adapter mapping OpenCode ≥1.16 bus events to the plugin's named handlers
 - `opencode/bin/deploy-plugin.sh` — Hot-deploy plugin without full reinstall
-- `opencode/tests/` — Unit and integration test suite (107 tests)
+- `opencode/tests/` — Unit and integration test suite (137 tests)
 - `setup-github.sh`, `PUSH-GITHUB.sh` — Repo automation helpers
 
 ## Upstream Sync Policy
