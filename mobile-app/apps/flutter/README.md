@@ -25,9 +25,15 @@ Known remaining gaps:
 ```bash
 cd mobile-app/apps/flutter
 flutter pub get
-flutter analyze
-flutter test
+scripts/check.sh   # flutter analyze + flutter test
 flutter run
+```
+
+Checks are local by design (no GitHub CI). To run them automatically before
+every push that touches the app, install the optional git hook once:
+
+```bash
+scripts/install-hooks.sh
 ```
 
 For private network use, run OpenCode on the Linux host:

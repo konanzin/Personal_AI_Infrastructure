@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Cleartext stays enabled at the platform level because Android's
+         network_security_config cannot whitelist IP ranges and the app's
+         normal transport is http://<tailnet-ip> over an encrypted overlay
+         network. The actual boundary is enforced in Dart: see
+         lib/services/network_policy.dart (plain HTTP only to private hosts). -->
     <application
         android:label="pai_mobile_flutter"
         android:name="${applicationName}"
