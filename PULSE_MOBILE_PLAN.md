@@ -115,7 +115,11 @@ Battery impact over a workday; delivery reliability under Doze (test: phone idle
 ### C3. App integration (depends on Phase B decision)
 
 - Subscribe via the Phase B mechanism; identify as `device: phone`, report foreground/background and the session being viewed.
-- **Voice:** `flutter_tts` (PT/EN already localized in the app); speak `event.speak` verbatim.
+- **Voice — `SpeechEngine` abstraction** (`speak(text, {voice})`), engine is a renderer detail, swappable in settings:
+  - **Default: Android platform TTS** via `flutter_tts` (wrapper over `android.speech.tts.TextToSpeech`): free, offline, near-zero latency, background-safe, pt-BR voices.
+  - **Optional: Gemini TTS** (cloud, Gemini 2.5 TTS family): premium quality, style control, multi-voice — enables per-agent voice mapping (parity with upstream's ElevenLabs voice_ids). Costs: API key, network, ~1-2s latency (fine for notifications), paid per use.
+  - Not used: Gemini for *generating* speech text — `speak` stays template-deterministic at the producer (digest summaries are the only candidate for LLM-generated phrasing, ever).
+- Speak `event.speak` verbatim.
 - **Coalescing (renderer-side):** 10s window per session — multiple milestones collapse to the latest ("avançou de PLAN para VERIFY"); `attention` bypasses the window; digests only when backgrounded or on demand.
 - **Settings:** mute toggle, per-level toggles (milestone/attention/digest), quiet hours.
 
@@ -130,7 +134,11 @@ Battery impact over a workday; delivery reliability under Doze (test: phone idle
 
 ---
 
-## Phase V0 — Foreground voice (optional early win, no new infra)
+## Phase V0 — Foreground voice (DECLINED)
+
+> **Decision (2026-06-11):** skipped by choice — voice ships only when the ecosystem is complete (contract → broker → background delivery), no stopgap adaptations. Section kept for the record.
+
+## ~~Phase V0 — Foreground voice (optional early win, no new infra)~~
 
 The app already holds an SSE connection to the OpenCode server and processes the message stream (that is how chat works). That makes a degraded-but-real voice experience possible **before** Phases B and C:
 
