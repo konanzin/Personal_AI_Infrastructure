@@ -150,6 +150,7 @@
   "authCancelledOrFailed": "A autenticação foi cancelada ou falhou.",
   "setupScreenLock": "Configure um bloqueio de tela nas configurações do Android para usar o bloqueio do app.",
   "workspace": "Workspace",
+  "chooseWorkspace": "Escolher workspace",
   "favorites": "Favoritos",
   "recent": "Recentes",
   "manualPath": "Caminho manual",

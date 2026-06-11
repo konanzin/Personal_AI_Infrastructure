@@ -80,6 +80,7 @@
   "authCancelledOrFailed": "Authentication was cancelled or failed.",
   "setupScreenLock": "Set up a screen lock in Android settings to use app lock.",
   "workspace": "Workspace",
+  "chooseWorkspace": "Choose workspace",
   "favorites": "Favorites",
   "recent": "Recent",
   "manualPath": "Manual path",

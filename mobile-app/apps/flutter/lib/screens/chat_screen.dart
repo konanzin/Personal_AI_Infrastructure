@@ -984,42 +984,48 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          _getModelDisplayName(),
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w500),
+                        Flexible(
+                          child: Text(
+                            _getModelDisplayName(),
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         const Icon(Icons.expand_more, size: 20),
                       ],
                     ),
                   ),
-                  if (_provider?.directory != null)
-                    GestureDetector(
-                      onTap: () => _showWorkspacePicker(),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              _shortenPath(_provider!.directory!),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                  GestureDetector(
+                    onTap: () => _showWorkspacePicker(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _provider?.directory != null
+                                ? _shortenPath(_provider!.directory!)
+                                : AppLocalizations.of(context)!
+                                    .chooseWorkspace,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          if (_gitStatus?.branch != null) ...[
-                            const SizedBox(width: 6),
-                            GitStatusInline(status: _gitStatus!),
-                          ],
+                        ),
+                        if (_gitStatus?.branch != null) ...[
+                          const SizedBox(width: 6),
+                          GitStatusInline(status: _gitStatus!),
                         ],
-                      ),
+                      ],
                     ),
+                  ),
                 ],
               ),
         centerTitle: false,

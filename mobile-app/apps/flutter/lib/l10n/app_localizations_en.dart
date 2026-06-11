@@ -272,6 +272,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspace => 'Workspace';
 
   @override
+  String get chooseWorkspace => 'Choose workspace';
+
+  @override
   String get favorites => 'Favorites';
 
   @override

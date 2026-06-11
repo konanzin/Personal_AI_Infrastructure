@@ -578,6 +578,12 @@ abstract class AppLocalizations {
   /// **'Workspace'**
   String get workspace;
 
+  /// No description provided for @chooseWorkspace.
+  ///
+  /// In pt, this message translates to:
+  /// **'Escolher workspace'**
+  String get chooseWorkspace;
+
   /// No description provided for @favorites.
   ///
   /// In pt, this message translates to:
