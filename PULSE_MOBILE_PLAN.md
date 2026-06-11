@@ -130,11 +130,23 @@ Battery impact over a workday; delivery reliability under Doze (test: phone idle
 
 ---
 
+## Phase V0 — Foreground voice (optional early win, no new infra)
+
+The app already holds an SSE connection to the OpenCode server and processes the message stream (that is how chat works). That makes a degraded-but-real voice experience possible **before** Phases B and C:
+
+- On end-of-turn for the viewed session, extract the `🎯 COMPLETED:` line from the response text (the contract preserved exactly for this) and speak it via `flutter_tts`.
+- Foreground-only, viewed-session-only, no routing — explicitly a stopgap, not the architecture.
+
+**Why bother:** it validates the riskiest UX unknowns of voice (PT TTS quality, cadence, when speaking helps vs. irritates, phrase shape) for almost no cost, and everything learned feeds C3. The extraction logic and TTS/settings plumbing (mute toggle, language) carry over unchanged.
+
+**Work items:** `🎯 COMPLETED:` parser on the existing stream handler; `flutter_tts` integration + speak-on-completion; a settings switch (off by default until tuned). Discard nothing later — C3 replaces only the event *source* (broker subscription instead of chat stream).
+
 ## Sequence & dependencies
 
 ```
+Phase V0 (foreground voice) ── optional, anytime ──────────────────────────────► feeds C3 UX
 Phase A (plugin contract)  ──────────► Phase C1/C2 (broker + desktop renderer) ──► C3 (app)
 Phase B (background spike) ── parallel ────────────────────────────────────────► C3
 ```
 
-Recommended start: Phase A — self-contained, all in already-mapped plugin territory, and every later phase consumes its output.
+Recommended start: Phase A — self-contained, all in already-mapped plugin territory, and every later phase consumes its output. Phase V0 can slot in whenever a quick morale/UX win is wanted.
