@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/chat_message.dart';
@@ -16,21 +15,69 @@ import '../providers/opencode_provider.dart';
 import '../theme.dart';
 import '../l10n/app_localizations.dart';
 
-class _CodeBlockBuilder extends MarkdownElementBuilder {
-  @override
-  Widget visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    String language = '';
-    for (final child in element.children ?? []) {
-      if (child is md.Element && child.tag == 'code') {
-        final classAttr = child.attributes['class'] ?? '';
-        if (classAttr.startsWith('language-')) {
-          language = classAttr.substring(9);
-        }
-        break;
-      }
-    }
-    return CodeBlockWidget(code: element.textContent, language: language);
+/// One renderable slice of an agent message: either markdown prose or the
+/// body of a fenced code block.
+@visibleForTesting
+class MarkdownSegment {
+  final String text;
+  final bool isCode;
+  final String language;
+
+  const MarkdownSegment.text(this.text)
+      : isCode = false,
+        language = '';
+  const MarkdownSegment.code(this.text, this.language) : isCode = true;
+}
+
+/// Splits message text into prose and fenced-code segments so code blocks
+/// can be rendered by [CodeBlockWidget] directly. flutter_markdown's custom
+/// 'pre' builders leave a dangling inline element behind (its `visitText`
+/// returns null), tripping the `_inlines.isEmpty` assert on every fenced
+/// block — bypassing it for fences avoids that entirely.
+/// An unclosed trailing fence (mid-stream) becomes a code segment.
+@visibleForTesting
+List<MarkdownSegment> splitFencedCodeBlocks(String text) {
+  final segments = <MarkdownSegment>[];
+  final prose = StringBuffer();
+  final code = StringBuffer();
+  String language = '';
+  var inFence = false;
+
+  void flushProse() {
+    final t = prose.toString();
+    if (t.trim().isNotEmpty) segments.add(MarkdownSegment.text(t));
+    prose.clear();
   }
+
+  void flushCode() {
+    segments.add(MarkdownSegment.code(code.toString(), language));
+    code.clear();
+    language = '';
+  }
+
+  final lines = text.split('\n');
+  for (final line in lines) {
+    final fenceMatch = RegExp(r'^ {0,3}```\s*([^\s`]*)\s*$').firstMatch(line);
+    if (fenceMatch != null) {
+      if (inFence) {
+        flushCode();
+      } else {
+        flushProse();
+        language = fenceMatch.group(1) ?? '';
+      }
+      inFence = !inFence;
+      continue;
+    }
+    final target = inFence ? code : prose;
+    if (target.isNotEmpty) target.write('\n');
+    target.write(line);
+  }
+  if (inFence) {
+    flushCode();
+  } else {
+    flushProse();
+  }
+  return segments;
 }
 
 /// Trims incomplete markdown tokens from the end of streaming text so that
@@ -228,18 +275,32 @@ class ChatMessageTile extends StatelessWidget {
               if (reasoning != null && reasoning!.isNotEmpty)
                 ReasoningMessageBubble(reasoning: reasoning!),
               if (displayText.isNotEmpty)
-                MarkdownBody(
+                Column(
                   key: ValueKey('md-$historyIndex-${isStreaming ? displayText.length : 0}'),
-                  data: isStreaming ? _sanitizeStreamingMarkdown(displayText) : displayText,
-                  selectable: !isStreaming,
-                  builders: {'pre': _CodeBlockBuilder()},
-                  onTapLink: (text, href, title) {
-                    if (href != null) {
-                      launchUrl(Uri.parse(href),
-                          mode: LaunchMode.externalApplication);
-                    }
-                  },
-                  styleSheet: markdownStyleSheet,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final segment in splitFencedCodeBlocks(isStreaming
+                        ? _sanitizeStreamingMarkdown(displayText)
+                        : displayText))
+                      if (segment.isCode)
+                        CodeBlockWidget(
+                          code: segment.text,
+                          language: segment.language,
+                        )
+                      else
+                        MarkdownBody(
+                          data: segment.text,
+                          selectable: !isStreaming,
+                          onTapLink: (text, href, title) {
+                            if (href != null) {
+                              launchUrl(Uri.parse(href),
+                                  mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          styleSheet: markdownStyleSheet,
+                        ),
+                  ],
                 ),
               if (timestamp != null)
                 Padding(
