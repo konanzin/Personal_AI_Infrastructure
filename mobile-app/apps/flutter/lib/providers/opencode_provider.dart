@@ -1857,6 +1857,21 @@ class OpenCodeProvider with ChangeNotifier {
     );
   }
 
+  /// Mesmo conjunto de perguntas e respostas já registrado (sob qualquer
+  /// chave) conta como a mesma interação respondida.
+  bool _isEquivalentAnsweredQuestion(AnsweredQuestionData candidate) {
+    String signature(AnsweredQuestionData d) {
+      final qs = d.request.questions.map((q) => q.question).join(' ');
+      final ans = d.answers.map((a) => a.join('')).join(' ');
+      return '$qs\u{1}$ans';
+    }
+
+    final candidateSig = signature(candidate);
+    return _answeredQuestions.values.any((existing) =>
+        existing.associatedMessageId == candidate.associatedMessageId &&
+        signature(existing) == candidateSig);
+  }
+
   Future<void> _loadPersistedAnsweredQuestions() async {
     if (_currentSessionId == null) return;
     final raw = await SecureStorageService.read('answered_$_currentSessionId');
@@ -1888,7 +1903,7 @@ class OpenCodeProvider with ChangeNotifier {
         final answers =
             answersRaw.map((a) => (a as List<dynamic>).cast<String>()).toList();
 
-        _answeredQuestions[entry.key] = AnsweredQuestionData(
+        final candidate = AnsweredQuestionData(
           request: QuestionRequest(
             id: entry.key,
             sessionID: v['sessionID'] as String? ?? '',
@@ -1898,6 +1913,16 @@ class OpenCodeProvider with ChangeNotifier {
           associatedMessageId: v['msgId'] as String?,
           textInsertOffset: v['offset'] as int? ?? 0,
         );
+
+        // loadHistory reconstrói a mesma pergunta a partir do tool part do
+        // servidor sob outra chave (callId vs requestId); readicionar a
+        // versão persistida duplicaria o chip na timeline.
+        if (_answeredQuestions.containsKey(entry.key) ||
+            _isEquivalentAnsweredQuestion(candidate)) {
+          continue;
+        }
+
+        _answeredQuestions[entry.key] = candidate;
       }
     } catch (e) {
       debugPrint('[PAI_SSE] Failed to load persisted answered questions: $e');

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -306,6 +307,85 @@ void main() {
       expect(answered.length, 1);
       expect(answered.first.request.questions.first.question, 'What?');
       expect(answered.first.answers.first.first, 'A');
+    });
+
+    test('persisted live answer equal to history tool part does not duplicate',
+        () async {
+      // A mesma pergunta existe no histórico (chave callID) e na persistência
+      // da resposta ao vivo (chave requestId) — deve render um único chip.
+      final persisted = {
+        'qst-live-1': {
+          'answers': [
+            ['A']
+          ],
+          'msgId': 'msg-a2',
+          'offset': 0,
+          'questions': [
+            {
+              'question': 'What?',
+              'header': 'Pick',
+              'options': [
+                {'label': 'A', 'description': 'Option A'},
+              ],
+              'multiple': false,
+              'custom': false,
+            }
+          ],
+          'sessionID': 'sess-1',
+        },
+      };
+      const channel =
+          MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'read') {
+          final args = call.arguments as Map<Object?, Object?>;
+          if (args['key'] == 'answered_sess-1') {
+            return jsonEncode(persisted);
+          }
+        }
+        return null;
+      });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async => null);
+      });
+
+      fakeClient.getSessionMessagesResult = [
+        {
+          'info': {'role': 'assistant', 'id': 'msg-a2'},
+          'parts': [
+            {
+              'type': 'tool',
+              'id': 'part-q1',
+              'callID': 'call-q1',
+              'tool': 'question',
+              'state': {
+                'status': 'completed',
+                'input': {
+                  'questions': [
+                    {
+                      'question': 'What?',
+                      'header': 'Pick',
+                      'options': [
+                        {'label': 'A', 'description': 'Option A'},
+                      ],
+                      'multiple': false,
+                      'custom': false,
+                    }
+                  ]
+                },
+                'output': '"What?"="A"',
+              },
+            },
+          ],
+        },
+      ];
+
+      await provider.loadHistory();
+
+      final answered = provider.getAnsweredQuestionsForMessage('msg-a2');
+      expect(answered.length, 1);
     });
   });
 
