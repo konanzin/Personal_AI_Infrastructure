@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
+import 'package:flutter_highlight/themes/atom-one-light.dart';
 
 /// Widget that renders a fenced code block with syntax highlighting,
 /// language label, and copy-to-clipboard button.
@@ -18,27 +19,31 @@ class CodeBlockWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final highlightTheme = isDark ? atomOneDarkTheme : atomOneLightTheme;
+    // O fundo do bloco segue o fundo do tema de syntax para o código não
+    // parecer um retângulo de outra paleta dentro do card.
+    final codeBackground = highlightTheme['root']?.backgroundColor ??
+        theme.colorScheme.surfaceContainerHighest;
 
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
+        color: codeBackground,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header: language label + copy button
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-            ),
+          // Header: language label + copy button, kept as short as its
+          // content — just the chip/icon plus a little breathing room.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -47,7 +52,7 @@ class CodeBlockWidget extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
-                      vertical: 2,
+                      vertical: 1,
                     ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
@@ -68,12 +73,13 @@ class CodeBlockWidget extends StatelessWidget {
                 // Copy button
                 IconButton(
                   onPressed: () => _copyToClipboard(context),
-                  icon: const Icon(Icons.copy, size: 16),
+                  icon: const Icon(Icons.copy, size: 14),
                   color: theme.colorScheme.onSurfaceVariant,
                   padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
+                    minWidth: 24,
+                    minHeight: 24,
                   ),
                   tooltip: 'Copy',
                 ),
@@ -94,7 +100,7 @@ class CodeBlockWidget extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(12),
               ),
-              child: _buildHighlightView(),
+              child: _buildHighlightView(highlightTheme),
             ),
           ),
         ],
@@ -104,18 +110,18 @@ class CodeBlockWidget extends StatelessWidget {
 
   static const _maxHighlightLength = 5000;
 
-  Widget _buildHighlightView() {
+  Widget _buildHighlightView(Map<String, TextStyle> highlightTheme) {
     final trimmed = code.trimRight();
 
     if (trimmed.length > _maxHighlightLength) {
-      return _plainText(trimmed);
+      return _plainText(trimmed, highlightTheme);
     }
 
     try {
       final widget = HighlightView(
         trimmed,
         language: language.isNotEmpty ? language : 'plaintext',
-        theme: atomOneDarkTheme,
+        theme: highlightTheme,
         padding: EdgeInsets.zero,
         textStyle: const TextStyle(
           fontFamily: 'monospace',
@@ -126,18 +132,18 @@ class CodeBlockWidget extends StatelessWidget {
 
       return widget;
     } catch (_) {
-      return _plainText(trimmed);
+      return _plainText(trimmed, highlightTheme);
     }
   }
 
-  static Widget _plainText(String text) {
+  static Widget _plainText(String text, Map<String, TextStyle> highlightTheme) {
     return SelectableText(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: 'monospace',
         fontSize: 13,
         height: 1.5,
-        color: Color(0xffabb2bf),
+        color: highlightTheme['root']?.color ?? const Color(0xffabb2bf),
       ),
     );
   }
