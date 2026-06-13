@@ -292,7 +292,19 @@ install_broker() {
     cp -f "${REPO_DIR}/opencode/broker/"*.ts "${REPO_DIR}/opencode/broker/"*.py "$PAI_DIR/broker/" 2>/dev/null || true
     cp -f "${REPO_DIR}/opencode/config/pulse-broker.service.template" "$PAI_DIR/broker/" 2>/dev/null || true
 
-    success "Pulse Broker installed (optional — see PAI/broker/pulse-broker.service.template)"
+    if command -v systemctl &>/dev/null; then
+        local user_unit_dir="${HOME}/.config/systemd/user"
+        mkdir -p "$user_unit_dir"
+        cp -f "${REPO_DIR}/opencode/config/pulse-broker.service.template" \
+            "$user_unit_dir/pulse-broker.service"
+        systemctl --user daemon-reload 2>/dev/null || \
+            warn "systemctl --user daemon-reload failed; unit file was still installed"
+        success "Pulse Broker systemd user unit installed (enable with: systemctl --user enable --now pulse-broker)"
+    else
+        warn "systemctl not found; Pulse Broker service template copied only"
+    fi
+
+    success "Pulse Broker installed (optional runtime, PAI/broker/)"
 }
 
 # ─── Patch legacy upstream paths ──────────────────────────

@@ -319,8 +319,12 @@ check_plugins() {
     fi
     checks=$((checks + 1))
     
-    # Check for duplicate plugin registration
-    local plugin_refs=$(grep -o '"\.\/plugins\/pai-hooks\.js"' "${OPENCODE_DIR}/opencode.jsonc" 2>/dev/null | wc -l)
+    # Check for duplicate plugin registration. The installer renders an
+    # absolute path because OpenCode resolves relative plugin paths from the
+    # server CWD; older configs may still use ./plugins.
+    local relative_plugin_refs=$(grep -F -o '"./plugins/pai-hooks.js"' "${OPENCODE_DIR}/opencode.jsonc" 2>/dev/null | wc -l)
+    local absolute_plugin_refs=$(grep -F -o "\"${OPENCODE_DIR}/plugins/pai-hooks.js\"" "${OPENCODE_DIR}/opencode.jsonc" 2>/dev/null | wc -l)
+    local plugin_refs=$((relative_plugin_refs + absolute_plugin_refs))
     if [ "$plugin_refs" -eq 1 ]; then
         pass "Plugin registered once in config"
         passed=$((passed + 1))
