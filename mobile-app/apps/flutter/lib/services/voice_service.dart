@@ -5,8 +5,9 @@ import 'package:flutter/services.dart';
 
 /// Serviço que encapsula Speech-to-Text (STT) nativo do Android.
 ///
-/// TTS fica explicitamente fora desta etapa: o serviço só captura voz,
-/// transcreve e entrega texto para o chat enviar ao OpenCode.
+/// This service is chat input only: it captures voice, transcribes it, and
+/// returns text for the chat to send to OpenCode. Pulse notification TTS lives
+/// separately under `services/pulse/`.
 class VoiceService {
   static const MethodChannel _channel = MethodChannel(
     'dev.pai.mobile/voice',

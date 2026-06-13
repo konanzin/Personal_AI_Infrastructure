@@ -1,6 +1,6 @@
 # PAI Mobile M5 - Test Guide
 
-> Updated 2026-06-08. This guide tests the real Flutter app in `mobile-app/apps/flutter`. Core live smoke on `a51` passed via ADB reverse; remaining sections should still be run for full M5 closure.
+> Updated 2026-06-13. This guide tests the real Flutter app in `mobile-app/apps/flutter`. Core live smoke on `a51` passed via ADB reverse; remaining sections should still be run for full M5 closure.
 
 ## Automated Verification
 
@@ -8,7 +8,7 @@ Latest local state:
 
 - `flutter pub get`: passed
 - `flutter analyze`: passed with no issues
-- `flutter test`: passed with 6 tests
+- `flutter test`: passed with 154 tests
 
 Latest live state:
 
@@ -146,7 +146,7 @@ Verify:
 
 - Microphone button enters listening state.
 - Final transcript is sent as a chat message.
-- No TTS playback occurs.
+- Chat input does not read the assistant response aloud; TTS belongs to the separate Pulse notification path.
 
 ### 8. Rehydration
 
@@ -163,3 +163,13 @@ Verify:
 - App shows offline/error state.
 - Restart the server.
 - App reconnects and can continue the active session.
+
+### 10. Pulse Background/TTS
+
+Verify:
+
+- Pulse Broker is running on the host.
+- Pulse is enabled in Settings.
+- A broker notification or ISA phase transition reaches the phone while the app is backgrounded.
+- The foreground service updates the notification and speaks `event.speak` through Android TTS.
+- Returning to the focused session suppresses speech for that session.

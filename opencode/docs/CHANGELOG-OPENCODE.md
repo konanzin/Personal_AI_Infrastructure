@@ -1,5 +1,10 @@
 # PAI OpenCode Port Changelog
 
+This file is an append-only history of notable port changes. It is not the
+source of truth for current install status, validation counts, or roadmap
+state. Use `README.md`, `REPO_MODEL.md`, `INSTALL.md`, and
+`opencode/docs/README-OPENCODE.md` for the current operational picture.
+
 ## [Unreleased] — Port Coherence Pass + Mobile Lean Profile
 
 ### Added
@@ -35,7 +40,7 @@
 - 43 duplicated `~/.config/opencode/PAI/PAI/...` paths in `PAI/CLAUDE.md` context routing tables.
 - 2 legacy `~/.claude/` paths in `Arthur.md`.
 
-**Validation: 162/162 checks passing** (81 structural + 70 behavioral + 11 E2E runtime).
+**Validation snapshot:** 162/162 checks passing (81 structural + 70 behavioral + 11 E2E runtime).
 
 ## [2.9.1] — Observability Parity (Headless / Non-Visual)
 
@@ -263,119 +268,6 @@
 
 - Behavioral tests expanded to cover classifier (see test-behavioral.sh)
 - Integration tests added for classification normalization and fail-safe
-
----
-
-## Current Port State
-
-This repository ports PAI from Claude Code to OpenCode-native configuration and plugin surfaces.
-
-### Verified Architecture
-
-| Area | Current State |
-|------|---------------|
-| Config | `~/.config/opencode/opencode.jsonc` generated from `opencode/config/opencode.jsonc.template` |
-| Plugin | `pai-hooks.js` loaded explicitly through OpenCode `plugin` config |
-| Plugin lib | `plugins/lib/pai-hooks.lib.js`, not root auto-loaded |
-| Agents | 15 `.md` files installed under `~/.config/opencode/agents/` |
-| Commands | `/pai`, `/status`, `/interview`, `/pulse`, `/context`, `/context-search`, `/cs`, `/pu`, `/e1`-`/e5` |
-| Memory | `~/.config/opencode/PAI/MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH}` |
-| Observability | 6 JSONL streams under `MEMORY/OBSERVABILITY/` |
-| Validation | 78 checks in `validate-pai-installation.sh` |
-
-### Parity Notes
-
-| Claude Code Feature | OpenCode Port Status |
-|---------------------|----------------------|
-| SecurityPipeline | Native `tool.execute.before` implementation |
-| PermissionGuard | Native `permission.asked` implementation |
-| ToolActivityTracker | Native `tool.execute.after` logging |
-| ContentScanner | Native `tool.execute.after` scanning |
-| Session cleanup | Adapted to OpenCode session lifecycle |
-| Satisfaction capture | Captured passively from user messages (explicit ratings and praise fast-path); no dedicated `/rate` command |
-| Work learning | Captured during session deletion where metadata exists |
-| ISA sync | **Backend-only state sync** — ISA frontmatter is source of truth for `work.json` phase/progress |
-| LoadContext | **1:1 via `experimental.chat.system.transform`** — full TELOS context injected into system prompt |
-| Compaction context | **1:1 via `experimental.session.compacting`** — PAI rules preserved across context resets |
-| PrePromptGuard | **1:1 via `chat.message`** — blocks dangerous prompts *before* model processing |
-| Default PAI behavior | OpenCode default build agent plus system transform with model-native mode classification; `/pai` not required |
-| PromptGuard | Adapted: `chat.message` pre-sanitizes denied prompts before model context; `message.updated` still logs post-event findings |
-| Voice | External Pulse notification only; no OpenCode-native voice |
-| Statusline | Slash-command/status output instead of Claude Code sidebar |
-
-**Parity estimate: ~90-95% over the core scope** (Algorithm, skills, agents, ISA sync, guards, observability). Subsystems excluded by design (Pulse runtime, voice rendering, Arbol, Feed/Fabric, TOOLS helpers) are listed in `REPO_MODEL.md` → "Out of Scope by Design".
-
-**Validation: 162/162 checks passing** (81 structural + 70 behavioral + 11 E2E runtime).
-
-### Behavioral Validation Matrix
-
-Latest run: `bash opencode/bin/test-behavioral.sh`
-
-| Category | Tests | Result |
-|----------|-------|--------|
-| Structural (version, handlers, paths) | 6/6 | ✅ PASS |
-| Side-effects (files, JSON validity) | 4/4 | ✅ PASS |
-| PermissionGuard (`permission.asked`) | 1/1 | ✅ PASS |
-| Rating parser (explicit message ratings) | 1/1 | ✅ PASS |
-| System context injection | 3/3 | ✅ PASS |
-| Mode/Tier Classifier | 8/8 | ✅ PASS |
-| Compaction context preservation | 2/2 | ✅ PASS |
-| Session lifecycle (idle/deleted) | 3/3 | ✅ PASS |
-| ISA ↔ Work-State Sync | 5/5 | ✅ PASS |
-| Security pipeline (bash/write/presanitize) | 3/3 | ✅ PASS |
-| AgentGuard / SkillGuard | 7/7 | ✅ PASS |
-| Observability Streams | 13/13 | ✅ PASS |
-| **Total Behavioral** | **57/57** | **✅ ALL PASS** |
-
-### Runtime E2E Validation Matrix
-
-Latest run: `bash opencode/bin/test-e2e-runtime.sh`
-
-| Scenario | Checks | Result |
-|----------|--------|--------|
-| Prompt Security Path | 2/2 | ✅ PASS |
-| Mode Selection Path | 2/2 | ✅ PASS |
-| Session Lifecycle Path | 1/1 | ✅ PASS |
-| ISA/State Sync Path | 1/1 | ✅ PASS |
-| Passive Satisfaction Path | 2/2 | ✅ PASS |
-| Permission/Security Path | 2/2 | ✅ PASS |
-| **Total E2E** | **10/10** | **✅ ALL PASS** |
-
-### Unit Tests
-
-Latest run: `bun test` in `opencode/tests/`
-
-| File | Tests | Result |
-|------|-------|--------|
-| `security-pipeline.test.ts` | 38/38 | ✅ PASS |
-| `plugin-integration.test.ts` | 14/14 | ✅ PASS |
-| `isa-work-sync.test.ts` | 16/16 | ✅ PASS |
-| `mode-classifier.test.ts` | 39/39 | ✅ PASS |
-| **Total Unit Tests** | **107/107** | **✅ ALL PASS** |
-
-### Important: Repo vs Runtime Sync
-
-The repository and installed runtime can get out of sync. After pulling updates:
-
-```bash
-# Deploy latest plugin to active OpenCode installation
-bash opencode/bin/deploy-plugin.sh
-
-# Or with restart
-bash opencode/bin/deploy-plugin.sh --restart
-```
-
-### Removed Historical Noise
-
-- Deleted the old bugfix review document because it described a point-in-time audit, not source of truth.
-- Deleted the old incident report from the repo because active safety is now represented by installer behavior, validator checks, and plugin placement.
-- Removed accidentally generated literal `${HOME}` test artifacts from the repository tree.
-
-### Behavioral Validation Matrix
-
-Latest run: `bash opencode/bin/test-behavioral.sh`
-
-
 
 ## Compatibility Principle
 

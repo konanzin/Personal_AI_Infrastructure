@@ -1,6 +1,6 @@
 # PAI Mobile Flutter - Checklist
 
-> Atualizado em 2026-06-08. Este checklist descreve o app Flutter atual. `flutter analyze` e `flutter test` passam; o smoke core live no `a51` passou via ADB reverse.
+> Atualizado em 2026-06-13. Este checklist descreve o app Flutter atual. `flutter analyze` passa e `flutter test` passa com 154 testes; o smoke core live no `a51` passou via ADB reverse.
 
 ## Implementation Caveats
 
@@ -93,11 +93,22 @@
 - [x] FileAttachment converted to FilePartInput format
 - [ ] Primary attachment picker/send UI validated in the chat screen
 
-### Voice
+### Chat Voice
 
 - [x] Android STT via `SpeechRecognizer`
 - [x] Final transcript sent to chat
-- [ ] TTS intentionally out of scope
+- [x] Chat voice input remains STT-only
+
+### Pulse Notifications
+
+- [x] Foreground service via `flutter_foreground_task`
+- [x] Broker SSE subscription to `/subscribe?device=phone&name=pai-mobile`
+- [x] Catch-up via `/recent` with dedupe
+- [x] Presence updates for focused session / foreground state
+- [x] Per-session milestone coalescing; attention bypasses coalescing
+- [x] Android platform TTS via `NativeTtsEngine`
+- [x] Settings toggles for Pulse and per-level speaking
+- [ ] Live background delivery/TTS validation on the target phone
 
 ## Local Verification
 
@@ -112,7 +123,7 @@ Latest local result:
 
 - `flutter pub get`: passed
 - `flutter analyze`: passed with no issues
-- `flutter test`: passed with 6 tests
+- `flutter test`: passed with 154 tests
 
 ## Live Verification
 
@@ -132,4 +143,5 @@ Still needed:
 - [ ] Validate permission/question continuation
 - [ ] Validate native rich shell rendering from `session.next.shell.*`, if emitted by the current server
 - [ ] Validate reconnect/background behavior
+- [ ] Validate Pulse background delivery/TTS with a running broker
 - [ ] Validate or remove the primary attachment picker/send UI

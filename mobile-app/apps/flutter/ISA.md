@@ -3,8 +3,8 @@ task: "PAI Mobile Flutter current implementation state"
 slug: "pai-mobile-flutter-current"
 effort: "E3"
 phase: "verify"
-progress: "17/22"
-updated: "2026-06-08T02:30:00Z"
+progress: "18/24"
+updated: "2026-06-13T16:48:43Z"
 mode: "ALGORITHM"
 ---
 
@@ -28,6 +28,8 @@ The Flutter app now has the M5 surfaces wired in code. Local analyzer/test healt
 - Local assistant message IDs are migrated when server IDs arrive.
 - History loading populates tool/shell buffers and message-level associations when parts are present.
 - `flutter_markdown_plus` is the direct Markdown widget dependency.
+- Pulse notification delivery is implemented in `lib/services/pulse/`: foreground service, broker SSE subscription, `/recent` catch-up, dedupe, coalescing, presence, and Android TTS.
+- Settings expose the Pulse enable toggle and per-level notification voice toggles.
 
 ## Criteria
 
@@ -53,13 +55,16 @@ The Flutter app now has the M5 surfaces wired in code. Local analyzer/test healt
 - [ ] ISC-20: Live Android smoke test verifies STT.
 - [ ] ISC-21: Live Android smoke test verifies reconnect/background behavior.
 - [ ] ISC-22: Attachment picker/send UI is either validated or removed from active scope.
+- [x] ISC-23: Pulse notification listener and TTS rendering path have local test coverage.
+- [ ] ISC-24: Live Android smoke test verifies Pulse background delivery/TTS on the target phone.
 
 ## Verification
 
 - `flutter pub get`: passed.
 - `flutter analyze`: passed with no issues.
-- `flutter test`: passed with 6 tests.
+- `flutter test`: passed with 154 tests.
 - Added tests cover SSE event parsing and provider tool/shell message association.
+- Pulse tests cover event parsing, dedupe/catch-up reconciliation, and per-session coalescing.
 - Live `a51` smoke through `adb reverse tcp:4096 tcp:4096` passed for session loading, text streaming, Kimi `k2p6`, rich `bash` tool rendering, and history rehydration.
 - The current OpenCode server emitted the `bash` execution as `message.part.updated` tool parts; no live `session.next.shell.*` event was observed in this smoke.
 
@@ -69,4 +74,5 @@ The Flutter app now has the M5 surfaces wired in code. Local analyzer/test healt
 2. Validate permission/question continuation on `a51`.
 3. Validate reconnect/background behavior on `a51`.
 4. Validate native shell-event rendering if the current OpenCode server emits `session.next.shell.*`.
-5. Validate attachment UI or remove it from active scope.
+5. Validate Pulse background delivery/TTS on the target phone with a running broker.
+6. Validate attachment UI or remove it from active scope.

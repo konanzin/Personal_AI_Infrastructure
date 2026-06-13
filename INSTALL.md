@@ -44,12 +44,13 @@ Strict mode (do not auto-install dependencies):
 
 ## Pulse Scope
 
-This installer ships the **Pulse scaffold** only:
+This installer ships both the **Pulse scaffold** and the lean optional **Pulse Broker**:
 
 - `~/.config/opencode/PAI/PULSE/PULSE.toml`
 - related docs and directory structure
+- `~/.config/opencode/PAI/broker/` with the Bun broker, desktop renderer, Kokoro speaker, and systemd user service template
 
-It does **not** currently provision or start a supported Pulse daemon/runtime. A missing `localhost:31337` service is therefore **not** treated as an installation failure for this branch.
+It does **not** provision or require the upstream desktop Pulse daemon. A missing or stopped broker on `localhost:31337` is therefore **not** treated as an installation failure for this branch.
 
 It also removes the obsolete `~/.config/opencode/plugins/pai-hooks.lib.js` root copy because OpenCode auto-discovers root plugin files.
 
@@ -65,7 +66,7 @@ Expected successful state:
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The validator currently checks 81 structural points and then runs the behavioral suite (70 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (11 scenarios). Its Pulse checks validate **Pulse scaffolding presence**, not a live daemon.
+The validator currently checks 81 structural points and then runs the behavioral suite (70 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (11 scenarios). Its Pulse checks validate installed scaffold/broker assets, not a live daemon.
 
 ## Pulse Broker (optional runtime)
 

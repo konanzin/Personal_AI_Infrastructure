@@ -1,6 +1,6 @@
 # Guia de Testes - PAI Mobile Client
 
-> Atualizado em 2026-06-08. `flutter analyze` e `flutter test` passam localmente. O smoke core no Android `a51` passou via ADB reverse; este guia cobre repetição e os fluxos live restantes.
+> Atualizado em 2026-06-13. `flutter analyze` passa e `flutter test` passa com 154 testes. O smoke core no Android `a51` passou via ADB reverse; este guia cobre repetição e os fluxos live restantes.
 
 ## Pré-requisitos
 
@@ -106,6 +106,16 @@ Teste cada opção:
 - Verificar: ícone no AppBar muda para offline.
 - Reinicie o servidor.
 - Verificar: reconecta automaticamente.
+
+## 14. Pulse Background/TTS
+
+- Inicie o Pulse Broker no host (`bun ~/.config/opencode/PAI/broker/pulse-broker.ts`) ou pelo serviço systemd de usuário.
+- No app, ative Pulse em Settings.
+- Gere uma notificação via `POST /notify` no broker ou por uma transição de fase ISA.
+- Coloque o app em background.
+- Verificar: o foreground service continua ativo, a notificação local atualiza e o texto `event.speak` é falado por TTS.
+- Volte ao app e abra a sessão correspondente.
+- Verificar: presença/foco suprime fala para a sessão em tela.
 
 ## Comandos Locais
 

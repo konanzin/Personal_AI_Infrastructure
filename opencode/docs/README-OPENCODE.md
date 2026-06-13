@@ -167,23 +167,23 @@ PAI_AGENTGUARD_DENY_CONFIDENCE=true      # Enable deny on high-confidence agent 
 - ~~Claude Code's Sonnet-based `UserPromptSubmit` classifier is not yet ported~~ — **RESTORED in v2.6.0** via explicit heuristic classifier with provider-agnostic interface. LLM-backed classification is a future enhancement.
 - Claude Code's persistent statusline/sidebar is represented as commands and logs.
 - Voice remains external-only via Pulse notifications.
-- **Pulse runtime remains out of scope for this branch.** The repo ships Pulse configuration scaffolding (`PULSE.toml`, docs, directory layout), but a supported always-on daemon serving `localhost:31337` is not part of current install success criteria.
+- The upstream desktop Pulse daemon remains out of scope. This branch ships a lean optional Pulse Broker on port 31337 (`PAI/broker/`) for notifications and renderer fan-out, but a running broker is not part of install success criteria.
 
 ## Validation
 
 Three-tier validation:
 
-**Structural** (75 checks) — file existence, config validity, agent/skill/plugin presence:
+**Structural** (81 checks) — file existence, config validity, agent/skill/plugin presence:
 ```bash
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-**Behavioral** (57 checks) — grep-based + lightweight functional probes:
+**Behavioral** (70 checks) — grep-based + lightweight functional probes:
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```
 
-**Runtime E2E** (10 scenarios) — real runtime flows beyond structural/grep:
+**Runtime E2E** (11 scenarios) — real runtime flows beyond structural/grep:
 ```bash
 bash ~/.config/opencode/PAI/bin/test-e2e-runtime.sh
 ```

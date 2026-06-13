@@ -36,7 +36,7 @@ The installer is idempotent. It preserves installed `USER` and `MEMORY` data, up
 
 ## Current Scope Boundary
 
-The current product includes **Pulse configuration scaffolding** (`PULSE.toml`, docs, and directory structure), but **does not ship a supported always-on Pulse daemon runtime**. Health endpoints like `localhost:31337` are therefore **not part of the install success criteria** for this branch right now.
+The upstream desktop-heavy Pulse daemon remains out of scope. This branch now ships a lean **optional Pulse Broker** on port 31337 (`opencode/broker/`) that tails `notifications.jsonl`, exposes `/health` and `/notify`, and fans events out to desktop/mobile renderers. It is installed by `opencode/install.sh`, but a running broker is still **not** part of install success criteria.
 
 ## Useful Docs
 
@@ -44,7 +44,7 @@ The current product includes **Pulse configuration scaffolding** (`PULSE.toml`, 
 - `SYNC.md` — selective upstream sync workflow
 - `INSTALL.md` — install/update details
 - `opencode/docs/README-OPENCODE.md` — architecture notes
-- `opencode/docs/CHANGELOG-OPENCODE.md` — current parity notes
+- `opencode/docs/CHANGELOG-OPENCODE.md` — historical port changes
 - `opencode/docs/TROUBLESHOOTING.md` — operational troubleshooting
 
 ## Design Rule

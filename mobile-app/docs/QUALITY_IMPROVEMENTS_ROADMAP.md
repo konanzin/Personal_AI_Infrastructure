@@ -1,11 +1,11 @@
 # Mobile App: Quality Improvements Roadmap
 
-Updated: 2026-06-10
+Updated: 2026-06-13
 
-## Status (2026-06-10)
+## Status (2026-06-13)
 
-Phases 1–4 executed. `flutter analyze` clean; 116 tests passing
-(was 57 pre-roadmap). Honest deltas from the original plan:
+Phases 1–4 executed. `flutter analyze` clean; 154 tests passing
+(was 57 pre-roadmap, 116 after the first roadmap pass). Honest deltas from the original plan:
 
 - **Phase 2 manual pass** (switch machine mid-stream / kill mid-question on
   the device) still pending — needs the physical device.
@@ -41,11 +41,12 @@ tests, Android config).
    Store blockers (`applicationId`, release signing) are parked in the
    backlog, not scheduled.
 2. **i18n is wanted** (PT-BR + EN via `flutter_localizations` + ARB).
-3. **`flutter_ai_toolkit` will be removed.** The app uses only 4 of its types
-   (`ChatMessage`, `MessageOrigin`, `Attachment`, `FileAttachment`) and the
-   vestigial `LlmProvider` interface (nothing consumes it — there is no
-   `LlmChatView`). The dependency drags in discontinued packages
-   (`firebase_vertexai`, `js`) and an unused Firebase tree.
+3. **`flutter_ai_toolkit` has been removed.** The app now owns the former
+   interface types (`ChatMessage`, `MessageOrigin`, `Attachment`,
+   `FileAttachment`) in `lib/models/chat_message.dart`; `LlmProvider` and the
+   unused Firebase tree are gone. `js` 0.6.7 still appears as a transitive dep
+   of `flutter_secure_storage` 9.x and goes away with the 9→10 upgrade already
+   in the backlog.
 4. **Material 3 alignment is a goal.** The foundation is already M3
    (`useMaterial3: true`, tonal surface-container roles, 180 `colorScheme.*`
    usages, `FilledButton`, seeded light theme). The work is alignment, not

@@ -2,7 +2,7 @@
 
 Canonical Flutter Android client for PAI/OpenCode.
 
-This app connects to an OpenCode Server, lists sessions, opens a chat timeline, streams SSE responses, supports STT voice input, and renders reasoning, permissions, questions, tool calls, and shell commands.
+This app connects to an OpenCode Server, lists sessions, opens a chat timeline, streams SSE responses, supports STT voice input, renders reasoning, permissions, questions, tool calls, and shell commands, and can subscribe to Pulse notifications in the background.
 
 ## Current Status
 
@@ -10,15 +10,15 @@ The app is functional pre-alpha. Local static and unit/widget gates are clean. A
 
 - `flutter pub get`: passes
 - `flutter analyze`: passes with no issues
-- `flutter test`: passes with 6 tests
+- `flutter test`: passes with 154 tests
 - Live `a51` smoke via ADB reverse: connection/session list/text streaming/rich `bash` tool/history rehydration passed
 
 Known remaining gaps:
 
 - Attachment send path exists, but the primary attachment picker/send UI still needs live validation.
 - Settings has Tailscale guidance text, but no dedicated Tailscale URL helper button.
-- Voice is STT-only; no TTS exists in this stage.
-- Live STT, permission/question continuation, native shell-event rendering, and reconnect/background behavior still need validation.
+- Chat voice input is STT-only; Pulse notification voice is implemented separately through Android platform TTS.
+- Live STT, permission/question continuation, native shell-event rendering, chat reconnect/background behavior, Pulse background delivery on the target phone, and attachment picker/send still need validation.
 
 ## Run
 
@@ -73,6 +73,7 @@ lib/
     secure_storage.dart             # credential storage
     connectivity_service.dart       # heartbeat/reconnect status
     voice_service.dart              # Android STT MethodChannel
+    pulse/                          # Pulse foreground service + event/TTS pipeline
     permission_service.dart         # device permissions helper
   widgets/
     code_block_widget.dart
@@ -103,7 +104,7 @@ Latest command results:
 
 - `flutter pub get`: passed
 - `flutter analyze`: passed with no issues
-- `flutter test`: passed with 6 tests
+- `flutter test`: passed with 154 tests
 
 Latest live result:
 
@@ -113,4 +114,4 @@ Latest live result:
 - Prompt `Run pwd using shell and reply DONE2` streamed `DONE2`, rendered a rich `bash` tool block, and rehydrated correctly after reopening the session.
 - Logcat had no `TimeoutException` or send-message error after the message timeout fix.
 
-The next engineering gate is the remaining live smoke coverage: STT, permission/question continuation, reconnect/background behavior, native shell events if emitted by the current server, and attachment picker/send validation.
+The next engineering gate is the remaining live smoke coverage: STT, permission/question continuation, chat reconnect/background behavior, Pulse background delivery/TTS on the target phone, native shell events if emitted by the current server, and attachment picker/send validation.

@@ -1,6 +1,6 @@
 # PAI Mobile Flutter - Implementation Status
 
-> Status: functional pre-alpha. Local gates are clean; core live Android smoke passed via ADB reverse. Full alpha still depends on the remaining live flows.
+> Status: functional pre-alpha. Local gates are clean (`flutter analyze`, 154 Flutter tests); core live Android smoke passed via ADB reverse. Full alpha still depends on the remaining live flows.
 
 ## Scope
 
@@ -28,7 +28,7 @@ The active implementation lives in `mobile-app/apps/flutter`. The target platfor
 
 ### Chat, SSE, And Reasoning
 
-- [x] History through `flutter_ai_toolkit`.
+- [x] History through `OpenCodeClient` and app-native message/part models.
 - [x] Assistant messages render in normal flow without a full assistant bubble.
 - [x] User messages render as bubbles.
 - [x] Markdown rendering through `flutter_markdown_plus`.
@@ -69,9 +69,19 @@ The active implementation lives in `mobile-app/apps/flutter`. The target platfor
 - [x] Native Android bridge with `SpeechRecognizer`.
 - [x] Voice button states: idle/listening/processing/error.
 - [x] Final transcript sent to chat as a normal message.
-- [x] TTS is out of scope.
+- [x] Chat voice input remains STT-only.
 - [ ] Optional transcript review before send.
 - [ ] Real microphone smoke test on `a51`.
+
+### Pulse Notifications
+
+- [x] Foreground service via `flutter_foreground_task`.
+- [x] Broker SSE subscription with identified `device=phone` client.
+- [x] Catch-up via `/recent`, dedupe, and per-session coalescing.
+- [x] Presence updates for focused session / foreground state.
+- [x] Android platform TTS through `NativeTtsEngine`.
+- [x] Settings toggles for Pulse and per-level speaking.
+- [ ] Live background delivery/TTS validation on the target phone.
 
 ### Resilience
 
@@ -97,6 +107,7 @@ apps/flutter/lib/
     secure_storage.dart
     connectivity_service.dart
     voice_service.dart
+    pulse/
   providers/
     settings_provider.dart
     session_provider.dart
@@ -157,15 +168,15 @@ flutter run
 - [x] Messages stream over SSE.
 - [x] Reasoning can be viewed per message.
 - [x] STT sends transcript to chat.
-- [x] TTS is not initialized or called.
+- [x] Pulse notification TTS is implemented separately from chat input.
 - [x] Permission/question cards work in provider/UI.
 - [x] Tool/shell render as rich timeline blocks.
 - [x] Tool/shell are associated by message ID.
 - [x] `flutter analyze` passes.
-- [x] `flutter test` passes.
+- [x] `flutter test` passes with 154 tests.
 - [x] Core `a51` smoke via ADB reverse validates connection, text streaming, Kimi `k2p6`, rich `bash` tool rendering, and history rehydration.
 - [ ] Survives real network/background interruptions.
-- [ ] Remaining live smoke on `a51`: STT, permission/question continuation, native shell event if emitted, reconnect/background, and attachment picker/send.
+- [ ] Remaining live smoke on `a51`: STT, permission/question continuation, native shell event if emitted, chat reconnect/background, Pulse background/TTS, and attachment picker/send.
 
 ## Next Steps
 
@@ -173,7 +184,8 @@ flutter run
 2. Validate permission/question continuation on `a51`.
 3. Test network drop/reconnect and background/foreground behavior.
 4. Validate native shell-event rendering if the current OpenCode server emits `session.next.shell.*`.
-5. Validate or remove the primary attachment picker/send UI.
+5. Validate Pulse background delivery/TTS on the target phone with a running broker.
+6. Validate or remove the primary attachment picker/send UI.
 
 ## History
 
@@ -182,3 +194,4 @@ flutter run
 - 2026-06-07: Documentation cleanup removed obsolete mobile paths.
 - 2026-06-08: Local gates are clean; rich tool/shell timeline and message-level association are implemented.
 - 2026-06-08: Core `a51` smoke via ADB reverse passed for connection, text streaming, Kimi `k2p6`, rich `bash` tool rendering, and history rehydration.
+- 2026-06-13: Local verification is `flutter analyze` clean and `flutter test` passing with 154 tests; Pulse foreground listener/TTS path is present in code.

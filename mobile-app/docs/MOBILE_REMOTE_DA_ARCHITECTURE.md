@@ -1,6 +1,6 @@
 # Mobile Remote DA Architecture
 
-Updated: 2026-06-10
+Updated: 2026-06-13
 
 ## Executive Decision
 
@@ -199,7 +199,7 @@ transport.
 Rejected: adds a third-party trust point and weakens the privacy story while
 the overlay network already solves reachability.
 
-## Current Implementation Status (2026-06-10)
+## Current Implementation Status (2026-06-13)
 
 - [x] Bootstrap installs systemd user unit; private bind resolution; random
       per-machine password (`ssh_service.dart`, `machines_screen.dart`).
@@ -210,8 +210,13 @@ the overlay network already solves reachability.
 - [x] OpenCode PTY WebSocket terminal with resume; SSH demoted to labeled
       recovery mode (`terminal_screen.dart`, `opencode_client.dart`).
 - [x] PaiAgentClient stub and dead capability service removed.
+- [x] Pulse listener service implemented in the app: foreground service,
+      identified broker SSE subscription, `/recent` catch-up, presence,
+      coalescing, and Android platform TTS (`lib/services/pulse/`).
 - [ ] Idle timeout / local unlock specifically for the terminal screen.
 - [ ] Documented Tailscale ACL / WireGuard peer policy examples.
+- [ ] Long-running battery/overnight validation for Pulse background delivery
+      on the target phone.
 
 ## References
 

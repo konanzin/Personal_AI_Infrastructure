@@ -6,7 +6,7 @@
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The current validator checks 66 installation and parity-critical structure points.
+The current validator checks 81 installation and parity-critical structure points, then runs the behavioral and E2E suites when they are installed.
 
 ## PAI Only Works With /pai
 

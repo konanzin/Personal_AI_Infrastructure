@@ -14,7 +14,7 @@ mobile-app/
 
 ## Current Status
 
-The Flutter app is the active mobile product. It is a functional pre-alpha client. Local static and test gates pass. A core live smoke on Android `a51` passed through ADB reverse; full alpha still depends on the remaining live mobile flows listed below.
+The Flutter app is the active mobile product. It is a functional pre-alpha client. Local static and test gates pass (`flutter analyze`, 154 Flutter tests). A core live smoke on Android `a51` passed through ADB reverse; full alpha still depends on the remaining live mobile flows listed below.
 
 - Flutter app exists at `apps/flutter`.
 - Settings store credentials with `flutter_secure_storage`.
@@ -23,14 +23,15 @@ The Flutter app is the active mobile product. It is a functional pre-alpha clien
 - Chat streams OpenCode SSE with Dart native HTTP streaming.
 - Active session persists locally with `shared_preferences`.
 - Voice input is STT-only and sends the final transcript to chat.
+- Pulse notification voice is implemented separately through a foreground service, broker SSE subscription, catch-up via `/recent`, and Android platform TTS.
 - Reasoning is associated by message ID/history index and rendered inline.
 - Permission and question cards are parsed from SSE and can reply to the server.
 - Tool calls and shell commands are associated by assistant message ID and rendered as rich timeline blocks.
 - Settings has Tailscale guidance text; it does not currently include a dedicated Tailscale URL helper button.
 - `flutter analyze` passes with no issues.
-- `flutter test` passes with 6 tests.
+- `flutter test` passes with 154 tests.
 - Live `a51` smoke over ADB reverse validated session loading, text streaming, Kimi `k2p6`, rich `bash` tool rendering, and history rehydration.
-- Live STT, permission/question continuation, reconnect/background behavior, and the primary attachment UI still need validation.
+- Live STT, permission/question continuation, native shell-event rendering, chat reconnect/background behavior, Pulse background delivery on the target phone, and the primary attachment UI still need validation.
 
 ## Requirements
 
@@ -67,13 +68,13 @@ Important: `a51` is the Android client in the tailnet. It is not the OpenCode se
 
 ## Voice Scope
 
-Voice in this stage means:
+Chat voice input means:
 
 1. Tap microphone.
 2. Android SpeechRecognizer captures speech.
 3. The final transcript is sent as a normal chat message.
 
-No TTS playback is implemented in this stage.
+Pulse voice notification output is a separate path: when Pulse is enabled, the app starts a foreground service that subscribes to the Pulse Broker on port 31337 and speaks notification `event.speak` text through Android TTS. It does not generate chat audio or read assistant messages aloud.
 
 ## Verification
 
@@ -81,7 +82,7 @@ Latest local verification:
 
 - `flutter pub get`: passed
 - `flutter analyze`: passed with no issues
-- `flutter test`: passed with 6 tests
+- `flutter test`: passed with 154 tests
 
 Latest live verification:
 
@@ -101,7 +102,8 @@ Remaining live smoke on `a51`:
 6. Trigger permission and question events and confirm the stream continues after replies.
 7. Trigger native shell events if the current OpenCode server emits `session.next.shell.*`.
 8. Test network drop/reconnect and background/foreground behavior.
-9. Validate the primary attachment picker/send UI or remove it from active scope.
+9. If Pulse is enabled, run the broker and validate background delivery/TTS on the target phone.
+10. Validate the primary attachment picker/send UI or remove it from active scope.
 
 ## Related Files
 
@@ -111,5 +113,7 @@ Remaining live smoke on `a51`:
 - `apps/flutter/lib/screens/settings_screen.dart` - settings, auth validation, Tailscale guidance text.
 - `apps/flutter/lib/screens/chat_screen.dart` - chat timeline, Markdown/code blocks, inline reasoning, permission/question cards, rich tool/shell blocks, voice input.
 - `apps/flutter/lib/widgets/voice_fab.dart` - STT-only voice button.
+- `apps/flutter/lib/services/pulse/pulse_listener_service.dart` - Pulse foreground service, broker SSE subscription, presence, catch-up, and TTS rendering.
+- `apps/flutter/lib/services/pulse/speech_engine.dart` - Android platform TTS abstraction for Pulse notifications.
 - `apps/flutter/lib/widgets/tool_call_bubble.dart` - rich tool-call block.
 - `apps/flutter/lib/widgets/shell_command_bubble.dart` - rich shell-command block.

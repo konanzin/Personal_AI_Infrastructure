@@ -23,7 +23,7 @@ The installer will auto-bootstrap `opencode` and `bun` if they are missing from 
 - structural validator passes
 - behavioral suite passes
 - E2E suite passes
-- Pulse daemon health is **not required**; only Pulse scaffolding presence is validated
+- Pulse daemon/broker health is **not required**; installed scaffold and broker assets are validated, not a live service
 
 This is the cheapest reproducibility test and should be the normal gate for installer work.
 

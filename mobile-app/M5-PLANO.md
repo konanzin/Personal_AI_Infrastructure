@@ -1,12 +1,12 @@
 # PAI Mobile - M5 Status
 
-> Estado atualizado em 2026-06-08 contra o código Flutter em `mobile-app/apps/flutter`.
+> Estado atualizado em 2026-06-13 contra o código Flutter em `mobile-app/apps/flutter`.
 
 ## Resultado
 
-M5 deixou de ser um plano de implementação e agora é uma milestone quase fechada em código. O app Flutter implementa streaming SSE, timeline de chat, reasoning inline, code blocks, permission/question cards, tool calls, shell commands, stop/abort, model picker, session info, todos, slash commands, revert, fork, share e STT.
+M5 deixou de ser um plano de implementação e agora é uma milestone quase fechada em código. O app Flutter implementa streaming SSE, timeline de chat, reasoning inline, code blocks, permission/question cards, tool calls, shell commands, stop/abort, model picker, session info, todos, slash commands, revert, fork, share e STT. A trilha Pulse de notificações em background/TTS já existe em código, mas é tratada como validação separada do fechamento M5.
 
-O smoke core real no Android `a51` passou via ADB reverse contra OpenCode. O fechamento rigoroso de M5 ainda depende dos fluxos live restantes: STT, permission/question continuando stream, reconexão/background e attachments.
+O smoke core real no Android `a51` passou via ADB reverse contra OpenCode. O fechamento rigoroso de M5 ainda depende dos fluxos live restantes: STT, permission/question continuando stream, reconexão/background de chat e attachments.
 
 ## Entregue
 
@@ -23,7 +23,7 @@ O smoke core real no Android `a51` passou via ADB reverse contra OpenCode. O fec
 - Reidratação de tool/shell a partir do histórico quando o servidor fornece as parts.
 - Smoke core no `a51`: conexão, lista de sessões, text streaming, Kimi `k2p6`, rich `bash` tool block e reidratação de histórico.
 - `flutter analyze` limpo.
-- `flutter test` passando com 6 testes.
+- `flutter test` passando com 154 testes.
 
 ## Ainda Pendente
 
@@ -32,6 +32,7 @@ O smoke core real no Android `a51` passou via ADB reverse contra OpenCode. O fec
 - Validação live de reconexão/background/foreground.
 - Validação live de `session.next.shell.*` se o servidor atual emitir esse tipo de evento.
 - Validação ou remoção da UI principal de attachments.
+- Validação live separada de Pulse background/TTS no target phone com broker ativo.
 - Helper dedicado para URL Tailscale, se necessário.
 
 ## Critérios de Fechamento M5
@@ -55,8 +56,8 @@ O smoke core real no Android `a51` passou via ADB reverse contra OpenCode. O fec
 
 - `flutter pub get`: passou.
 - `flutter analyze`: passou, sem issues.
-- `flutter test`: passou, 6 testes.
+- `flutter test`: passou, 154 testes.
 
 ## Próximo Passo
 
-Rodar os fluxos restantes de `apps/flutter/TEST_GUIDE.md` no Android `a51`: STT, permission/question, reconexão/background, shell nativo se emitido pelo servidor e attachment picker/send.
+Rodar os fluxos restantes de `apps/flutter/TEST_GUIDE.md` no Android `a51`: STT, permission/question, reconexão/background de chat, shell nativo se emitido pelo servidor, Pulse background/TTS com broker ativo e attachment picker/send.

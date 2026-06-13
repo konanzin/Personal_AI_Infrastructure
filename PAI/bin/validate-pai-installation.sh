@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════
 #  PAI Installation Validator
-#  75 checkpoints across 12 categories
+#  81 checkpoints across 12 categories
 # ═══════════════════════════════════════════════════════════
 
 set -uo pipefail
