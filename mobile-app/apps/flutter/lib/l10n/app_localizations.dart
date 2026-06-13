@@ -638,6 +638,342 @@ abstract class AppLocalizations {
   /// **'Configure SSH, faça o bootstrap do OpenCode ou use um servidor direto'**
   String get machinesSubtitle;
 
+  /// No description provided for @noMachinesConfigured.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nenhuma máquina configurada'**
+  String get noMachinesConfigured;
+
+  /// No description provided for @addMachine.
+  ///
+  /// In pt, this message translates to:
+  /// **'Adicionar máquina'**
+  String get addMachine;
+
+  /// No description provided for @editMachine.
+  ///
+  /// In pt, this message translates to:
+  /// **'Editar máquina'**
+  String get editMachine;
+
+  /// No description provided for @saveAndStart.
+  ///
+  /// In pt, this message translates to:
+  /// **'Salvar e iniciar'**
+  String get saveAndStart;
+
+  /// No description provided for @starting.
+  ///
+  /// In pt, this message translates to:
+  /// **'Iniciando...'**
+  String get starting;
+
+  /// No description provided for @deleteMachineTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Excluir máquina?'**
+  String get deleteMachineTitle;
+
+  /// No description provided for @deleteMachineBody.
+  ///
+  /// In pt, this message translates to:
+  /// **'\"{name}\" e suas configurações serão removidas.'**
+  String deleteMachineBody(String name);
+
+  /// No description provided for @validationRequired.
+  ///
+  /// In pt, this message translates to:
+  /// **'Obrigatório'**
+  String get validationRequired;
+
+  /// No description provided for @defaultDirectory.
+  ///
+  /// In pt, this message translates to:
+  /// **'Diretório padrão'**
+  String get defaultDirectory;
+
+  /// No description provided for @homeDirectoryOnServer.
+  ///
+  /// In pt, this message translates to:
+  /// **'Diretório inicial no servidor'**
+  String get homeDirectoryOnServer;
+
+  /// No description provided for @sshSetup.
+  ///
+  /// In pt, this message translates to:
+  /// **'Configuração SSH'**
+  String get sshSetup;
+
+  /// No description provided for @sshSetupSubtitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Caminho principal: conectar, iniciar o OpenCode e conversar'**
+  String get sshSetupSubtitle;
+
+  /// No description provided for @sshHost.
+  ///
+  /// In pt, this message translates to:
+  /// **'Host SSH'**
+  String get sshHost;
+
+  /// No description provided for @sshPort.
+  ///
+  /// In pt, this message translates to:
+  /// **'Porta SSH'**
+  String get sshPort;
+
+  /// No description provided for @sshUsername.
+  ///
+  /// In pt, this message translates to:
+  /// **'Usuário SSH'**
+  String get sshUsername;
+
+  /// No description provided for @privateKeyPem.
+  ///
+  /// In pt, this message translates to:
+  /// **'Chave privada (PEM)'**
+  String get privateKeyPem;
+
+  /// No description provided for @privateKeyPemHelper.
+  ///
+  /// In pt, this message translates to:
+  /// **'Cole o conteúdo PEM completo ou use a senha abaixo'**
+  String get privateKeyPemHelper;
+
+  /// No description provided for @sshPassword.
+  ///
+  /// In pt, this message translates to:
+  /// **'Senha SSH'**
+  String get sshPassword;
+
+  /// No description provided for @sshPasswordHelper.
+  ///
+  /// In pt, this message translates to:
+  /// **'Fallback opcional para autenticação SSH por senha'**
+  String get sshPasswordHelper;
+
+  /// No description provided for @testSsh.
+  ///
+  /// In pt, this message translates to:
+  /// **'Testar SSH'**
+  String get testSsh;
+
+  /// No description provided for @setupOpenCodeViaSsh.
+  ///
+  /// In pt, this message translates to:
+  /// **'Configurar OpenCode via SSH'**
+  String get setupOpenCodeViaSsh;
+
+  /// No description provided for @directOpenCodeServer.
+  ///
+  /// In pt, this message translates to:
+  /// **'Servidor OpenCode direto (opcional)'**
+  String get directOpenCodeServer;
+
+  /// No description provided for @directOpenCodeServerSubtitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Use apenas se o OpenCode já estiver rodando'**
+  String get directOpenCodeServerSubtitle;
+
+  /// No description provided for @openCodeServerUrl.
+  ///
+  /// In pt, this message translates to:
+  /// **'URL do servidor OpenCode'**
+  String get openCodeServerUrl;
+
+  /// No description provided for @openCodeServerUrlHint.
+  ///
+  /// In pt, this message translates to:
+  /// **'Derivada automaticamente do host SSH se ficar vazia'**
+  String get openCodeServerUrlHint;
+
+  /// No description provided for @openCodeUsername.
+  ///
+  /// In pt, this message translates to:
+  /// **'Usuário OpenCode'**
+  String get openCodeUsername;
+
+  /// No description provided for @openCodeUsernameHelper.
+  ///
+  /// In pt, this message translates to:
+  /// **'Padrão: opencode'**
+  String get openCodeUsernameHelper;
+
+  /// No description provided for @openCodeServerPassword.
+  ///
+  /// In pt, this message translates to:
+  /// **'Senha do servidor OpenCode'**
+  String get openCodeServerPassword;
+
+  /// No description provided for @openCodeServerPasswordHelper.
+  ///
+  /// In pt, this message translates to:
+  /// **'Deixe vazia para gerar uma senha aleatória na configuração'**
+  String get openCodeServerPasswordHelper;
+
+  /// No description provided for @timeoutSeconds.
+  ///
+  /// In pt, this message translates to:
+  /// **'Timeout (segundos)'**
+  String get timeoutSeconds;
+
+  /// No description provided for @testDirectServer.
+  ///
+  /// In pt, this message translates to:
+  /// **'Testar servidor direto'**
+  String get testDirectServer;
+
+  /// No description provided for @connected.
+  ///
+  /// In pt, this message translates to:
+  /// **'Conectado!'**
+  String get connected;
+
+  /// No description provided for @fillSshCredentials.
+  ///
+  /// In pt, this message translates to:
+  /// **'Preencha host SSH, usuário e senha ou chave privada'**
+  String get fillSshCredentials;
+
+  /// No description provided for @sshConnectedAs.
+  ///
+  /// In pt, this message translates to:
+  /// **'SSH conectado como {user}'**
+  String sshConnectedAs(String user);
+
+  /// No description provided for @sshConnectionFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'Conexão SSH falhou'**
+  String get sshConnectionFailed;
+
+  /// No description provided for @settingUpOpenCode.
+  ///
+  /// In pt, this message translates to:
+  /// **'Configurando OpenCode'**
+  String get settingUpOpenCode;
+
+  /// No description provided for @connectingOverSsh.
+  ///
+  /// In pt, this message translates to:
+  /// **'Conectando via SSH...'**
+  String get connectingOverSsh;
+
+  /// No description provided for @provisioningDedicatedSshKey.
+  ///
+  /// In pt, this message translates to:
+  /// **'Gerando e instalando uma chave SSH dedicada...'**
+  String get provisioningDedicatedSshKey;
+
+  /// No description provided for @locatingOpenCode.
+  ///
+  /// In pt, this message translates to:
+  /// **'Localizando opencode na máquina remota...'**
+  String get locatingOpenCode;
+
+  /// No description provided for @installingPaiController.
+  ///
+  /// In pt, this message translates to:
+  /// **'Instalando o controlador pai-opencode...'**
+  String get installingPaiController;
+
+  /// No description provided for @startingOpenCodeService.
+  ///
+  /// In pt, this message translates to:
+  /// **'Iniciando o serviço OpenCode...'**
+  String get startingOpenCodeService;
+
+  /// No description provided for @waitingForHttpAttempt.
+  ///
+  /// In pt, this message translates to:
+  /// **'Aguardando HTTP, tentativa {attempt}/{maxAttempts}...'**
+  String waitingForHttpAttempt(int attempt, int maxAttempts);
+
+  /// No description provided for @openCodeRunningReachable.
+  ///
+  /// In pt, this message translates to:
+  /// **'OpenCode está rodando e acessível'**
+  String get openCodeRunningReachable;
+
+  /// No description provided for @openCodeStartedHttpFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'OpenCode iniciou, mas a checagem HTTP falhou: {message}'**
+  String openCodeStartedHttpFailed(String message);
+
+  /// No description provided for @openCodeMissingRemote.
+  ///
+  /// In pt, this message translates to:
+  /// **'opencode não está instalado na máquina remota'**
+  String get openCodeMissingRemote;
+
+  /// No description provided for @remoteSetupFailedExit.
+  ///
+  /// In pt, this message translates to:
+  /// **'Configuração remota falhou (saída {exitCode})'**
+  String remoteSetupFailedExit(int exitCode);
+
+  /// No description provided for @remoteSetupFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'Configuração remota falhou'**
+  String get remoteSetupFailed;
+
+  /// No description provided for @sshBootstrapFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'Bootstrap SSH falhou'**
+  String get sshBootstrapFailed;
+
+  /// No description provided for @serverUrlRequiredUnlessSsh.
+  ///
+  /// In pt, this message translates to:
+  /// **'Obrigatório, exceto se o host SSH estiver definido'**
+  String get serverUrlRequiredUnlessSsh;
+
+  /// No description provided for @serverUrlMustStartHttp.
+  ///
+  /// In pt, this message translates to:
+  /// **'Deve começar com http:// ou https://'**
+  String get serverUrlMustStartHttp;
+
+  /// No description provided for @timeoutRange.
+  ///
+  /// In pt, this message translates to:
+  /// **'5-300'**
+  String get timeoutRange;
+
+  /// No description provided for @discardMachineChangesTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Descartar alterações?'**
+  String get discardMachineChangesTitle;
+
+  /// No description provided for @discardMachineChangesBody.
+  ///
+  /// In pt, this message translates to:
+  /// **'Esta máquina tem alterações não salvas.'**
+  String get discardMachineChangesBody;
+
+  /// No description provided for @discardProviderChangesBody.
+  ///
+  /// In pt, this message translates to:
+  /// **'Este provedor tem alterações não salvas.'**
+  String get discardProviderChangesBody;
+
+  /// No description provided for @continueEditing.
+  ///
+  /// In pt, this message translates to:
+  /// **'Continuar editando'**
+  String get continueEditing;
+
+  /// No description provided for @discard.
+  ///
+  /// In pt, this message translates to:
+  /// **'Descartar'**
+  String get discard;
+
   /// No description provided for @aiProvidersSubtitle.
   ///
   /// In pt, this message translates to:
@@ -709,6 +1045,24 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Exibe as etapas de raciocínio do agente'**
   String get showThinkingSubtitle;
+
+  /// No description provided for @voiceSectionTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Entrada por voz'**
+  String get voiceSectionTitle;
+
+  /// No description provided for @voiceConfirmBeforeSendTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Confirmar antes de enviar'**
+  String get voiceConfirmBeforeSendTitle;
+
+  /// No description provided for @voiceConfirmBeforeSendSubtitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Coloca transcrições de fala no campo de texto para você editar antes'**
+  String get voiceConfirmBeforeSendSubtitle;
 
   /// No description provided for @security.
   ///

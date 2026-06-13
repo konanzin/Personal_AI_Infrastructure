@@ -1,4 +1,4 @@
-package com.example.pai_mobile_flutter
+package dev.pai.mobile
 
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -12,7 +12,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
-    private val CHANNEL = "com.example.pai_mobile_flutter/voice"
+    private val CHANNEL = "dev.pai.mobile/voice"
     private var speechRecognizer: SpeechRecognizer? = null
     private var methodChannel: MethodChannel? = null
     private var isListening = false

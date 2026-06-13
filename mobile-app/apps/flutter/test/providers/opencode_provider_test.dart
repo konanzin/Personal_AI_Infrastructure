@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:pai_mobile_flutter/models/chat_event.dart';
 import 'package:pai_mobile_flutter/models/chat_message.dart';
+import 'package:pai_mobile_flutter/models/message_part.dart';
 import 'package:pai_mobile_flutter/providers/opencode_provider.dart';
 import 'package:pai_mobile_flutter/services/connectivity_service.dart';
 import 'package:pai_mobile_flutter/services/api_errors.dart';
@@ -46,7 +47,8 @@ class _FakeOpenCodeClient extends OpenCodeClient {
   Future<List<dynamic>> getSessionTodos(String sessionId) async => [];
 
   @override
-  Future<Map<String, dynamic>> createSession({String? title, String? directory}) async =>
+  Future<Map<String, dynamic>> createSession(
+          {String? title, String? directory}) async =>
       {'id': 'sess-1'};
 
   @override
@@ -235,6 +237,7 @@ void main() {
               'state': {
                 'status': 'completed',
                 'input': {'foo': 'bar'},
+                'output': 'tool output',
               },
             },
             {
@@ -261,6 +264,9 @@ void main() {
       expect(toolCalls.length, 1);
       expect(toolCalls.first.name, 'myTool');
       expect(toolCalls.first.id, 'call-1');
+      expect(toolCalls.first.content, hasLength(1));
+      expect((toolCalls.first.content.first as ToolTextContent).text,
+          'tool output');
 
       // Text present in history
       final history = provider.history.toList();

@@ -177,6 +177,115 @@ void main() {
     ]);
   });
 
+  test('wraps unknown JSON events as status events', () {
+    final event = parse('ignored.header', {
+      'type': 'opencode.future.event',
+      'properties': {'sessionID': 'sess-1', 'newShape': true},
+    });
+
+    expect(event, isA<StatusEvent>());
+    final status = event as StatusEvent;
+    expect(status.originalEvent, 'opencode.future.event');
+    expect(status.sessionId, 'sess-1');
+    expect(status.payload['properties'], isA<Map<String, dynamic>>());
+  });
+
+  test('does not throw on non-map or malformed JSON payloads', () {
+    expect(
+      () => client.buildTypedEventForTest('session.status', '[]'),
+      returnsNormally,
+    );
+    expect(
+      () => client.buildTypedEventForTest('session.status', '"hello"'),
+      returnsNormally,
+    );
+    expect(
+      () => client.buildTypedEventForTest('session.status', 'not-json'),
+      returnsNormally,
+    );
+  });
+
+  test('parses malformed permission payload defensively', () {
+    final event = parse('permission.asked', {
+      'properties': {
+        'id': 123,
+        'sessionID': 'sess-1',
+        'permission': null,
+        'patterns': ['*.dart', 42],
+        'metadata': 'unexpected',
+        'always': [true],
+        'tool': {'messageID': 99, 'callID': 2},
+      },
+    });
+
+    expect(event, isA<PermissionAskedEvent>());
+    final permission = event as PermissionAskedEvent;
+    expect(permission.request.id, '123');
+    expect(permission.request.permission, '');
+    expect(permission.request.patterns, ['*.dart', '42']);
+    expect(permission.request.metadata, isEmpty);
+    expect(permission.request.always, ['true']);
+    expect(permission.request.tool?.messageID, '99');
+    expect(permission.request.tool?.callID, '2');
+  });
+
+  test('parses malformed question payload defensively', () {
+    final event = parse('question.asked', {
+      'properties': {
+        'id': 'q-1',
+        'sessionID': 'sess-1',
+        'questions': [
+          'bad-row',
+          {
+            'question': 42,
+            'header': null,
+            'options': [
+              'bad-option',
+              {'label': 1, 'description': false},
+            ],
+            'multiple': 'yes',
+            'custom': 1,
+          },
+        ],
+        'tool': {'messageID': 'msg-1', 'callID': 7},
+      },
+    });
+
+    expect(event, isA<QuestionAskedEvent>());
+    final asked = event as QuestionAskedEvent;
+    expect(asked.request.questions.length, 1);
+    expect(asked.request.questions.single.question, '42');
+    expect(asked.request.questions.single.header, '');
+    expect(asked.request.questions.single.multiple, isFalse);
+    expect(asked.request.questions.single.custom, isFalse);
+    expect(asked.request.questions.single.options.single.label, '1');
+    expect(asked.request.questions.single.options.single.description, 'false');
+    expect(asked.request.tool?.callID, '7');
+  });
+
+  test('parses malformed tool payloads defensively', () {
+    final event = parse('session.next.tool.success', {
+      'properties': {
+        'callID': 42,
+        'structured': 'not-a-map',
+        'content': [
+          'bad-content',
+          {'type': 'text', 'text': 'ok'},
+        ],
+        'provider': ['bad'],
+      },
+    });
+
+    expect(event, isA<ToolCallSuccessEvent>());
+    final success = event as ToolCallSuccessEvent;
+    expect(success.callId, '42');
+    expect(success.structured, isEmpty);
+    expect(success.content, [
+      {'type': 'text', 'text': 'ok'}
+    ]);
+    expect(success.provider, isEmpty);
+  });
+
   group('OpenCodeClient transport', () {
     test('normalizes server URLs before requests', () {
       final config = ClientConfig(
@@ -365,8 +474,7 @@ void main() {
       expect(streamClient.closed, isTrue);
     });
 
-    test('listFiles parses FileNode entries and scopes by directory',
-        () async {
+    test('listFiles parses FileNode entries and scopes by directory', () async {
       late http.Request capturedRequest;
       final client = OpenCodeClient(
         ClientConfig(
@@ -409,8 +517,8 @@ void main() {
 
       expect(capturedRequest.url.path, '/file');
       expect(capturedRequest.url.queryParameters['path'], '.');
-      expect(capturedRequest.url.queryParameters['directory'],
-          '/home/user/proj');
+      expect(
+          capturedRequest.url.queryParameters['directory'], '/home/user/proj');
       expect(nodes.length, 3);
       expect(nodes[0].isDirectory, isTrue);
       expect(nodes[0].absolute, '/home/user/proj/src');

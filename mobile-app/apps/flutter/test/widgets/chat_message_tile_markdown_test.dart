@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pai_mobile_flutter/models/chat_message.dart';
@@ -51,6 +53,33 @@ void main() {
     await pumpTile(tester, '```dart\nvoid main() {}\n```', isStreaming: true);
     expect(tester.takeException(), isNull);
     expect(find.byType(ErrorWidget), findsNothing);
+  });
+
+  testWidgets('renders user attachments as chips', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: ChatMessageTile(
+            message: ChatMessage.user('see this', [
+              FileAttachment(
+                name: 'notes.txt',
+                mimeType: 'text/plain',
+                bytes: Uint8List.fromList([1, 2, 3]),
+              ),
+            ]),
+            historyIndex: 0,
+            displayText: 'see this',
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('see this'), findsOneWidget);
+    expect(find.text('notes.txt'), findsOneWidget);
+    expect(find.byIcon(Icons.insert_drive_file_outlined), findsOneWidget);
   });
 
   group('splitFencedCodeBlocks', () {

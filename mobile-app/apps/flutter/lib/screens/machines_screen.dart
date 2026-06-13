@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/machine.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/machine_store.dart';
 import '../theme.dart';
 import '../services/machine_bootstrap_service.dart';
@@ -19,8 +20,9 @@ class MachinesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Machines')),
+      appBar: AppBar(title: Text(l10n.machines)),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openEditor(context, null),
         child: const Icon(Icons.add),
@@ -39,7 +41,7 @@ class MachinesScreen extends StatelessWidget {
                           .onSurfaceVariant
                           .withAlpha(128)),
                   const SizedBox(height: 16),
-                  Text('No machines configured',
+                  Text(l10n.noMachinesConfigured,
                       style: Theme.of(context).textTheme.titleMedium),
                 ],
               ),
@@ -77,21 +79,22 @@ class MachinesScreen extends StatelessWidget {
 
   Future<void> _confirmDelete(
       BuildContext context, MachineStore store, Machine machine) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.delete_outline),
-        title: const Text('Delete machine?'),
-        content: Text('"${machine.name}" and its settings will be removed.'),
+        title: Text(l10n.deleteMachineTitle),
+        content: Text(l10n.deleteMachineBody(machine.name)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.cancel)),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
                 backgroundColor: Theme.of(ctx).colorScheme.error),
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -120,6 +123,7 @@ class _MachineTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: isActive
@@ -148,8 +152,8 @@ class _MachineTile extends StatelessWidget {
               if (v == 'delete') onDelete();
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'edit', child: Text('Edit')),
-              const PopupMenuItem(value: 'delete', child: Text('Delete')),
+              PopupMenuItem(value: 'edit', child: Text(l10n.editMachine)),
+              PopupMenuItem(value: 'delete', child: Text(l10n.delete)),
             ],
           ),
         ],
@@ -196,10 +200,25 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   bool _testing = false;
   bool _testingSsh = false;
   bool _saving = false;
+  bool _allowPop = false;
   bool _sshExpanded = false;
 
   bool get _isEditing => widget.machine != null;
   bool get _busy => _testing || _testingSsh || _saving;
+
+  List<TextEditingController> get _controllers => [
+        _nameCtrl,
+        _urlCtrl,
+        _userCtrl,
+        _passCtrl,
+        _timeoutCtrl,
+        _defaultDirCtrl,
+        _sshHostCtrl,
+        _sshPortCtrl,
+        _sshUserCtrl,
+        _sshKeyCtrl,
+        _sshPasswordCtrl,
+      ];
 
   @override
   void initState() {
@@ -218,10 +237,16 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     _sshKeyCtrl = TextEditingController(text: m?.ssh?.privateKey ?? '');
     _sshPasswordCtrl = TextEditingController(text: m?.ssh?.password ?? '');
     _sshExpanded = m == null || m.ssh != null;
+    for (final controller in _controllers) {
+      controller.addListener(_onEditorChanged);
+    }
   }
 
   @override
   void dispose() {
+    for (final controller in _controllers) {
+      controller.removeListener(_onEditorChanged);
+    }
     _nameCtrl.dispose();
     _urlCtrl.dispose();
     _userCtrl.dispose();
@@ -234,6 +259,82 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     _sshKeyCtrl.dispose();
     _sshPasswordCtrl.dispose();
     super.dispose();
+  }
+
+  void _onEditorChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _hasUnsavedChanges {
+    if (_allowPop) return false;
+    final machine = widget.machine;
+    if (machine == null) {
+      return _nameCtrl.text.trim().isNotEmpty ||
+          _urlCtrl.text.trim().isNotEmpty ||
+          _passCtrl.text.isNotEmpty ||
+          _defaultDirCtrl.text.trim().isNotEmpty ||
+          _sshHostCtrl.text.trim().isNotEmpty ||
+          _sshUserCtrl.text.trim().isNotEmpty ||
+          _sshKeyCtrl.text.trim().isNotEmpty ||
+          _sshPasswordCtrl.text.isNotEmpty ||
+          _userCtrl.text.trim() != 'opencode' ||
+          _timeoutCtrl.text.trim() != '30' ||
+          _sshPortCtrl.text.trim() != '22';
+    }
+
+    return _nameCtrl.text.trim() != machine.name ||
+        _effectiveServerUrl() !=
+            ClientConfig.normalizeBaseUrl(machine.serverUrl) ||
+        _effectiveOpenCodeUsername() != machine.username ||
+        _passCtrl.text != machine.password ||
+        (int.tryParse(_timeoutCtrl.text) ?? 30) !=
+            machine.requestTimeoutSeconds ||
+        _defaultDirCtrl.text.trim() != (machine.defaultDirectory ?? '') ||
+        _sshHostCtrl.text.trim() != (machine.ssh?.host ?? '') ||
+        (int.tryParse(_sshPortCtrl.text) ?? 22) != (machine.ssh?.port ?? 22) ||
+        _sshUserCtrl.text.trim() != (machine.ssh?.username ?? '') ||
+        _sshKeyCtrl.text.trim() != (machine.ssh?.privateKey ?? '') ||
+        _sshPasswordCtrl.text != (machine.ssh?.password ?? '');
+  }
+
+  Future<bool> _confirmDiscardChanges() async {
+    if (!_hasUnsavedChanges) return true;
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_outlined),
+        title: Text(l10n.discardMachineChangesTitle),
+        content: Text(l10n.discardMachineChangesBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.continueEditing),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: Text(l10n.discard),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _popEditor() async {
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    await Future<void>.delayed(Duration.zero);
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _handleBack() async {
+    if (_busy) return;
+    if (await _confirmDiscardChanges()) {
+      await _popEditor();
+    }
   }
 
   /// Blocks plain HTTP to non-private hosts. Returns true when allowed.
@@ -249,6 +350,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   }
 
   Future<void> _testConnection() async {
+    final l10n = AppLocalizations.of(context)!;
     _applyDerivedServerUrlIfNeeded();
     if (!_cleartextGuard()) return;
     setState(() => _testing = true);
@@ -263,7 +365,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       final result = await client.checkConnection().whenComplete(client.close);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.success ? 'Connected!' : result.message),
+        content: Text(result.success ? l10n.connected : result.message),
         backgroundColor: result.success
             ? Theme.of(context).semanticColors.success
             : Theme.of(context).colorScheme.error,
@@ -272,7 +374,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Error: $e'),
+              content: Text(l10n.errorWithDetail(e.toString())),
               backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
@@ -347,8 +449,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       username: user,
       privateKey: key != null && key.isNotEmpty ? key : null,
       password: password.isNotEmpty ? password : null,
-      hostKeyFingerprint:
-          _capturedHostKeyFingerprint ?? widget.machine?.ssh?.hostKeyFingerprint,
+      hostKeyFingerprint: _capturedHostKeyFingerprint ??
+          widget.machine?.ssh?.hostKeyFingerprint,
     );
   }
 
@@ -374,17 +476,18 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     final generated = SshKeyService().generateEd25519(
       comment: 'pai-mobile-${name.isEmpty ? 'device' : name}',
     );
-    await ssh.execute(installAuthorizedKeyCommand(generated.authorizedKeysLine));
+    await ssh
+        .execute(installAuthorizedKeyCommand(generated.authorizedKeysLine));
     _provisionedPrivateKey = generated.privateKeyPem;
   }
 
   Future<void> _testSshConnection() async {
+    final l10n = AppLocalizations.of(context)!;
     final sshConfig = _buildSshConfig();
     if (sshConfig == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-              'Fill SSH host, username, and password or private key'),
+          content: Text(l10n.fillSshCredentials),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -406,7 +509,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('SSH connected as $whoami'),
+          content: Text(l10n.sshConnectedAs(whoami)),
           backgroundColor: Theme.of(context).semanticColors.success,
         ),
       );
@@ -414,7 +517,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('SSH connection failed'),
+          content: Text(l10n.sshConnectionFailed),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -425,30 +528,31 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   }
 
   String _bootstrapStepLabel(BootstrapStepEvent event) {
+    final l10n = AppLocalizations.of(context)!;
     switch (event.step) {
       case BootstrapStep.connecting:
-        return 'Connecting over SSH...';
+        return l10n.connectingOverSsh;
       case BootstrapStep.provisioningKey:
-        return 'Generating and installing a dedicated SSH key...';
+        return l10n.provisioningDedicatedSshKey;
       case BootstrapStep.locatingOpenCode:
-        return 'Locating opencode on the remote machine...';
+        return l10n.locatingOpenCode;
       case BootstrapStep.installingController:
-        return 'Installing the pai-opencode controller...';
+        return l10n.installingPaiController;
       case BootstrapStep.startingService:
-        return 'Starting the OpenCode service...';
+        return l10n.startingOpenCodeService;
       case BootstrapStep.waitingForHttp:
-        return 'Waiting for HTTP, attempt '
-            '${event.attempt}/${event.maxAttempts}...';
+        return l10n.waitingForHttpAttempt(
+            event.attempt ?? 0, event.maxAttempts ?? 0);
     }
   }
 
   Future<bool> _bootstrapOpenCodeViaSsh({bool showSnackBar = true}) async {
+    final l10n = AppLocalizations.of(context)!;
     final sshConfig = _buildSshConfig();
     if (sshConfig == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-              'Fill SSH host, username, and password or private key'),
+          content: Text(l10n.fillSshCredentials),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -461,7 +565,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
 
     setState(() => _testingSsh = true);
 
-    final progress = ValueNotifier<String>('Connecting over SSH...');
+    final progress = ValueNotifier<String>(l10n.connectingOverSsh);
     var dialogOpen = true;
     unawaited(showDialog<void>(
       context: context,
@@ -469,7 +573,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       builder: (dialogContext) => PopScope(
         canPop: false,
         child: AlertDialog(
-          title: const Text('Setting up OpenCode'),
+          title: Text(l10n.settingUpOpenCode),
           content: Row(
             children: [
               const SizedBox(
@@ -534,21 +638,21 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     switch (result.failure) {
       case null:
         message = result.success
-            ? 'OpenCode is running and reachable'
-            : 'OpenCode started, but HTTP check failed: ${result.message}';
+            ? l10n.openCodeRunningReachable
+            : l10n.openCodeStartedHttpFailed(result.message);
         color = result.success
             ? Theme.of(context).semanticColors.success
             : Theme.of(context).semanticColors.warning;
       case BootstrapFailureKind.openCodeMissing:
-        message = 'opencode is not installed on the remote machine';
+        message = l10n.openCodeMissingRemote;
         color = Theme.of(context).colorScheme.error;
       case BootstrapFailureKind.remoteCommandFailed:
         message = result.exitCode != null
-            ? 'Remote setup failed (exit ${result.exitCode})'
-            : 'SSH bootstrap failed';
+            ? l10n.remoteSetupFailedExit(result.exitCode!)
+            : l10n.remoteSetupFailed;
         color = Theme.of(context).colorScheme.error;
       case BootstrapFailureKind.sshConnectFailed:
-        message = 'SSH bootstrap failed';
+        message = l10n.sshBootstrapFailed;
         color = Theme.of(context).colorScheme.error;
     }
     if (showSnackBar || !result.success) {
@@ -649,247 +753,254 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     } else {
       await store.addMachine(machine);
     }
-    if (mounted) Navigator.pop(context);
+    await _popEditor();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Machine' : 'Add Machine'),
-        actions: [
-          TextButton(
-            onPressed: _busy ? null : _save,
-            child: Text(_saving ? 'Starting...' : 'Save & Start'),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-            16, 16, 16, 16 + MediaQuery.of(context).viewPadding.bottom),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'My VPS',
-                  prefixIcon: Icon(Icons.label_outlined),
-                  border: OutlineInputBorder(),
+    final l10n = AppLocalizations.of(context)!;
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _handleBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: BackButton(onPressed: _busy ? null : _handleBack),
+          title: Text(_isEditing ? l10n.editMachine : l10n.addMachine),
+          actions: [
+            TextButton(
+              onPressed: _busy ? null : _save,
+              child: Text(_saving ? l10n.starting : l10n.saveAndStart),
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+              16, 16, 16, 16 + MediaQuery.of(context).viewPadding.bottom),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: l10n.name,
+                    hintText: 'My VPS',
+                    prefixIcon: const Icon(Icons.label_outlined),
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? l10n.validationRequired
+                      : null,
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _defaultDirCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Default Directory',
-                  hintText: '/home/user',
-                  helperText: 'Home directory on the server',
-                  prefixIcon: Icon(Icons.folder_outlined),
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _defaultDirCtrl,
+                  decoration: InputDecoration(
+                    labelText: l10n.defaultDirectory,
+                    hintText: '/home/user',
+                    helperText: l10n.homeDirectoryOnServer,
+                    prefixIcon: const Icon(Icons.folder_outlined),
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
 
-              // ── SSH ──
-              const SizedBox(height: 24),
-              ExpansionTile(
-                initiallyExpanded: _sshExpanded,
-                onExpansionChanged: (v) => _sshExpanded = v,
-                tilePadding: EdgeInsets.zero,
-                title: const Text('SSH Setup'),
-                subtitle: const Text(
-                    'Primary path: connect, start OpenCode, then chat'),
-                leading: const Icon(Icons.terminal),
-                children: [
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _sshHostCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'SSH Host',
-                      hintText: '100.x.x.x or hostname',
-                      prefixIcon: Icon(Icons.dns_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _sshPortCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'SSH Port',
-                      prefixIcon: Icon(Icons.numbers),
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _sshUserCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'SSH Username',
-                      prefixIcon: Icon(Icons.person_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _sshKeyCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Private Key (PEM)',
-                      helperText:
-                          'Paste the full PEM content, or use password below',
-                      prefixIcon: Icon(Icons.vpn_key_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 3,
-                    minLines: 2,
-                    style:
-                        const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _sshPasswordCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'SSH Password',
-                      helperText:
-                          'Optional fallback for normal SSH password auth',
-                      prefixIcon: const Icon(Icons.password_outlined),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscureSshPassword
-                            ? Icons.visibility_off
-                            : Icons.visibility),
-                        onPressed: () => setState(
-                            () => _obscureSshPassword = !_obscureSshPassword),
+                // ── SSH ──
+                const SizedBox(height: 24),
+                ExpansionTile(
+                  initiallyExpanded: _sshExpanded,
+                  onExpansionChanged: (v) => _sshExpanded = v,
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(l10n.sshSetup),
+                  subtitle: Text(l10n.sshSetupSubtitle),
+                  leading: const Icon(Icons.terminal),
+                  children: [
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _sshHostCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.sshHost,
+                        hintText: '100.x.x.x or hostname',
+                        prefixIcon: const Icon(Icons.dns_outlined),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
-                    obscureText: _obscureSshPassword,
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _testSshConnection,
-                    icon: _testingSsh
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.terminal),
-                    label: const Text('Test SSH'),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: _busy ? null : _bootstrapOpenCodeViaSsh,
-                    icon: _testingSsh
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.play_arrow),
-                    label: const Text('Setup/OpenCode via SSH'),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text('Direct OpenCode Server (optional)'),
-                subtitle: const Text('Use only if OpenCode is already running'),
-                leading: const Icon(Icons.link),
-                children: [
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _urlCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'OpenCode Server URL',
-                      hintText: 'Auto-derived from SSH host if blank',
-                      prefixIcon: Icon(Icons.link),
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _sshPortCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.sshPort,
+                        prefixIcon: const Icon(Icons.numbers),
+                        border: const OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
                     ),
-                    keyboardType: TextInputType.url,
-                    validator: (v) {
-                      final value = v?.trim() ?? '';
-                      if (value.isEmpty &&
-                          _sshHostCtrl.text.trim().isNotEmpty) {
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _sshUserCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.sshUsername,
+                        prefixIcon: const Icon(Icons.person_outlined),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _sshKeyCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.privateKeyPem,
+                        helperText: l10n.privateKeyPemHelper,
+                        prefixIcon: const Icon(Icons.vpn_key_outlined),
+                        border: const OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                      minLines: 2,
+                      style: const TextStyle(
+                          fontSize: 12, fontFamily: 'monospace'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _sshPasswordCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.sshPassword,
+                        helperText: l10n.sshPasswordHelper,
+                        prefixIcon: const Icon(Icons.password_outlined),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureSshPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () => setState(
+                              () => _obscureSshPassword = !_obscureSshPassword),
+                        ),
+                      ),
+                      obscureText: _obscureSshPassword,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _testSshConnection,
+                      icon: _testingSsh
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.terminal),
+                      label: Text(l10n.testSsh),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: _busy ? null : _bootstrapOpenCodeViaSsh,
+                      icon: _testingSsh
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.play_arrow),
+                      label: Text(l10n.setupOpenCodeViaSsh),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(l10n.directOpenCodeServer),
+                  subtitle: Text(l10n.directOpenCodeServerSubtitle),
+                  leading: const Icon(Icons.link),
+                  children: [
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _urlCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.openCodeServerUrl,
+                        hintText: l10n.openCodeServerUrlHint,
+                        prefixIcon: const Icon(Icons.link),
+                        border: const OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.url,
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (value.isEmpty &&
+                            _sshHostCtrl.text.trim().isNotEmpty) {
+                          return null;
+                        }
+                        if (value.isEmpty) {
+                          return l10n.serverUrlRequiredUnlessSsh;
+                        }
+                        if (!value.startsWith('http')) {
+                          return l10n.serverUrlMustStartHttp;
+                        }
                         return null;
-                      }
-                      if (value.isEmpty) {
-                        return 'Required unless SSH host is set';
-                      }
-                      if (!value.startsWith('http')) {
-                        return 'Must start with http:// or https://';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _userCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'OpenCode Username',
-                      helperText: 'Defaults to opencode',
-                      prefixIcon: Icon(Icons.person_outlined),
-                      border: OutlineInputBorder(),
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'OpenCode Server Password',
-                      helperText:
-                          'Leave empty to generate a random password on setup',
-                      prefixIcon: const Icon(Icons.lock_outlined),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility),
-                        onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _userCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.openCodeUsername,
+                        helperText: l10n.openCodeUsernameHelper,
+                        prefixIcon: const Icon(Icons.person_outlined),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
-                    obscureText: _obscurePassword,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _timeoutCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Timeout (seconds)',
-                      prefixIcon: Icon(Icons.timer_outlined),
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.openCodeServerPassword,
+                        helperText: l10n.openCodeServerPasswordHelper,
+                        prefixIcon: const Icon(Icons.lock_outlined),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      obscureText: _obscurePassword,
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (v) {
-                      final n = int.tryParse(v ?? '');
-                      if (n == null || n < 5 || n > 300) return '5-300';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _testConnection,
-                    icon: _testing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.network_check),
-                    label: const Text('Test Direct Server'),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-
-            ],
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _timeoutCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.timeoutSeconds,
+                        prefixIcon: const Icon(Icons.timer_outlined),
+                        border: const OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (v) {
+                        final n = int.tryParse(v ?? '');
+                        if (n == null || n < 5 || n > 300) {
+                          return l10n.timeoutRange;
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _testConnection,
+                      icon: _testing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.network_check),
+                      label: Text(l10n.testDirectServer),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

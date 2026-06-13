@@ -160,6 +160,100 @@
   "switchWorkspaceBody": "O contexto do chat atual será fechado.",
   "machines": "Máquinas",
   "machinesSubtitle": "Configure SSH, faça o bootstrap do OpenCode ou use um servidor direto",
+  "noMachinesConfigured": "Nenhuma máquina configurada",
+  "addMachine": "Adicionar máquina",
+  "editMachine": "Editar máquina",
+  "saveAndStart": "Salvar e iniciar",
+  "starting": "Iniciando...",
+  "deleteMachineTitle": "Excluir máquina?",
+  "deleteMachineBody": "\"{name}\" e suas configurações serão removidas.",
+  "@deleteMachineBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "validationRequired": "Obrigatório",
+  "defaultDirectory": "Diretório padrão",
+  "homeDirectoryOnServer": "Diretório inicial no servidor",
+  "sshSetup": "Configuração SSH",
+  "sshSetupSubtitle": "Caminho principal: conectar, iniciar o OpenCode e conversar",
+  "sshHost": "Host SSH",
+  "sshPort": "Porta SSH",
+  "sshUsername": "Usuário SSH",
+  "privateKeyPem": "Chave privada (PEM)",
+  "privateKeyPemHelper": "Cole o conteúdo PEM completo ou use a senha abaixo",
+  "sshPassword": "Senha SSH",
+  "sshPasswordHelper": "Fallback opcional para autenticação SSH por senha",
+  "testSsh": "Testar SSH",
+  "setupOpenCodeViaSsh": "Configurar OpenCode via SSH",
+  "directOpenCodeServer": "Servidor OpenCode direto (opcional)",
+  "directOpenCodeServerSubtitle": "Use apenas se o OpenCode já estiver rodando",
+  "openCodeServerUrl": "URL do servidor OpenCode",
+  "openCodeServerUrlHint": "Derivada automaticamente do host SSH se ficar vazia",
+  "openCodeUsername": "Usuário OpenCode",
+  "openCodeUsernameHelper": "Padrão: opencode",
+  "openCodeServerPassword": "Senha do servidor OpenCode",
+  "openCodeServerPasswordHelper": "Deixe vazia para gerar uma senha aleatória na configuração",
+  "timeoutSeconds": "Timeout (segundos)",
+  "testDirectServer": "Testar servidor direto",
+  "connected": "Conectado!",
+  "fillSshCredentials": "Preencha host SSH, usuário e senha ou chave privada",
+  "sshConnectedAs": "SSH conectado como {user}",
+  "@sshConnectedAs": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "sshConnectionFailed": "Conexão SSH falhou",
+  "settingUpOpenCode": "Configurando OpenCode",
+  "connectingOverSsh": "Conectando via SSH...",
+  "provisioningDedicatedSshKey": "Gerando e instalando uma chave SSH dedicada...",
+  "locatingOpenCode": "Localizando opencode na máquina remota...",
+  "installingPaiController": "Instalando o controlador pai-opencode...",
+  "startingOpenCodeService": "Iniciando o serviço OpenCode...",
+  "waitingForHttpAttempt": "Aguardando HTTP, tentativa {attempt}/{maxAttempts}...",
+  "@waitingForHttpAttempt": {
+    "placeholders": {
+      "attempt": {
+        "type": "int"
+      },
+      "maxAttempts": {
+        "type": "int"
+      }
+    }
+  },
+  "openCodeRunningReachable": "OpenCode está rodando e acessível",
+  "openCodeStartedHttpFailed": "OpenCode iniciou, mas a checagem HTTP falhou: {message}",
+  "@openCodeStartedHttpFailed": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "openCodeMissingRemote": "opencode não está instalado na máquina remota",
+  "remoteSetupFailedExit": "Configuração remota falhou (saída {exitCode})",
+  "@remoteSetupFailedExit": {
+    "placeholders": {
+      "exitCode": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteSetupFailed": "Configuração remota falhou",
+  "sshBootstrapFailed": "Bootstrap SSH falhou",
+  "serverUrlRequiredUnlessSsh": "Obrigatório, exceto se o host SSH estiver definido",
+  "serverUrlMustStartHttp": "Deve começar com http:// ou https://",
+  "timeoutRange": "5-300",
+  "discardMachineChangesTitle": "Descartar alterações?",
+  "discardMachineChangesBody": "Esta máquina tem alterações não salvas.",
+  "discardProviderChangesBody": "Este provedor tem alterações não salvas.",
+  "continueEditing": "Continuar editando",
+  "discard": "Descartar",
   "aiProvidersSubtitle": "Gerencie os provedores da máquina ativa",
   "appearance": "Aparência",
   "systemTheme": "Sistema",
@@ -172,6 +266,9 @@
   "pureBlackSubtitle": "Superfícies pretas no tema escuro",
   "showThinking": "Mostrar raciocínio",
   "showThinkingSubtitle": "Exibe as etapas de raciocínio do agente",
+  "voiceSectionTitle": "Entrada por voz",
+  "voiceConfirmBeforeSendTitle": "Confirmar antes de enviar",
+  "voiceConfirmBeforeSendSubtitle": "Coloca transcrições de fala no campo de texto para você editar antes",
   "security": "Segurança",
   "appLock": "Bloqueio do app",
   "appLockSubtitleAvailable": "Usa biometria, PIN, senha ou padrão do Android",

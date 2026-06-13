@@ -15,9 +15,10 @@
          network. The actual boundary is enforced in Dart: see
          lib/services/network_policy.dart (plain HTTP only to private hosts). -->
     <application
-        android:label="pai_mobile_flutter"
+        android:label="PAI Mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"

@@ -90,6 +90,100 @@
   "switchWorkspaceBody": "Current chat context will be closed.",
   "machines": "Machines",
   "machinesSubtitle": "Set up SSH, bootstrap OpenCode, or use a direct server",
+  "noMachinesConfigured": "No machines configured",
+  "addMachine": "Add Machine",
+  "editMachine": "Edit Machine",
+  "saveAndStart": "Save & Start",
+  "starting": "Starting...",
+  "deleteMachineTitle": "Delete machine?",
+  "deleteMachineBody": "\"{name}\" and its settings will be removed.",
+  "@deleteMachineBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "validationRequired": "Required",
+  "defaultDirectory": "Default Directory",
+  "homeDirectoryOnServer": "Home directory on the server",
+  "sshSetup": "SSH Setup",
+  "sshSetupSubtitle": "Primary path: connect, start OpenCode, then chat",
+  "sshHost": "SSH Host",
+  "sshPort": "SSH Port",
+  "sshUsername": "SSH Username",
+  "privateKeyPem": "Private Key (PEM)",
+  "privateKeyPemHelper": "Paste the full PEM content, or use password below",
+  "sshPassword": "SSH Password",
+  "sshPasswordHelper": "Optional fallback for normal SSH password auth",
+  "testSsh": "Test SSH",
+  "setupOpenCodeViaSsh": "Setup/OpenCode via SSH",
+  "directOpenCodeServer": "Direct OpenCode Server (optional)",
+  "directOpenCodeServerSubtitle": "Use only if OpenCode is already running",
+  "openCodeServerUrl": "OpenCode Server URL",
+  "openCodeServerUrlHint": "Auto-derived from SSH host if blank",
+  "openCodeUsername": "OpenCode Username",
+  "openCodeUsernameHelper": "Defaults to opencode",
+  "openCodeServerPassword": "OpenCode Server Password",
+  "openCodeServerPasswordHelper": "Leave empty to generate a random password on setup",
+  "timeoutSeconds": "Timeout (seconds)",
+  "testDirectServer": "Test Direct Server",
+  "connected": "Connected!",
+  "fillSshCredentials": "Fill SSH host, username, and password or private key",
+  "sshConnectedAs": "SSH connected as {user}",
+  "@sshConnectedAs": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "sshConnectionFailed": "SSH connection failed",
+  "settingUpOpenCode": "Setting up OpenCode",
+  "connectingOverSsh": "Connecting over SSH...",
+  "provisioningDedicatedSshKey": "Generating and installing a dedicated SSH key...",
+  "locatingOpenCode": "Locating opencode on the remote machine...",
+  "installingPaiController": "Installing the pai-opencode controller...",
+  "startingOpenCodeService": "Starting the OpenCode service...",
+  "waitingForHttpAttempt": "Waiting for HTTP, attempt {attempt}/{maxAttempts}...",
+  "@waitingForHttpAttempt": {
+    "placeholders": {
+      "attempt": {
+        "type": "int"
+      },
+      "maxAttempts": {
+        "type": "int"
+      }
+    }
+  },
+  "openCodeRunningReachable": "OpenCode is running and reachable",
+  "openCodeStartedHttpFailed": "OpenCode started, but HTTP check failed: {message}",
+  "@openCodeStartedHttpFailed": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "openCodeMissingRemote": "opencode is not installed on the remote machine",
+  "remoteSetupFailedExit": "Remote setup failed (exit {exitCode})",
+  "@remoteSetupFailedExit": {
+    "placeholders": {
+      "exitCode": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteSetupFailed": "Remote setup failed",
+  "sshBootstrapFailed": "SSH bootstrap failed",
+  "serverUrlRequiredUnlessSsh": "Required unless SSH host is set",
+  "serverUrlMustStartHttp": "Must start with http:// or https://",
+  "timeoutRange": "5-300",
+  "discardMachineChangesTitle": "Discard changes?",
+  "discardMachineChangesBody": "This machine has unsaved changes.",
+  "discardProviderChangesBody": "This provider has unsaved changes.",
+  "continueEditing": "Continue editing",
+  "discard": "Discard",
   "aiProvidersSubtitle": "Manage providers on the active machine",
   "appearance": "Appearance",
   "systemTheme": "System",
@@ -102,6 +196,9 @@
   "pureBlackSubtitle": "Black surfaces in the dark theme",
   "showThinking": "Show thinking",
   "showThinkingSubtitle": "Display agent reasoning steps",
+  "voiceSectionTitle": "Voice input",
+  "voiceConfirmBeforeSendTitle": "Confirm before sending",
+  "voiceConfirmBeforeSendSubtitle": "Put speech transcripts in the input box so you can edit them first",
   "security": "Security",
   "appLock": "App Lock",
   "appLockSubtitleAvailable": "Uses Android biometrics, PIN, password, or pattern",

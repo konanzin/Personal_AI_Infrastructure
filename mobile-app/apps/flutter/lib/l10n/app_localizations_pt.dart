@@ -307,6 +307,197 @@ class AppLocalizationsPt extends AppLocalizations {
       'Configure SSH, faça o bootstrap do OpenCode ou use um servidor direto';
 
   @override
+  String get noMachinesConfigured => 'Nenhuma máquina configurada';
+
+  @override
+  String get addMachine => 'Adicionar máquina';
+
+  @override
+  String get editMachine => 'Editar máquina';
+
+  @override
+  String get saveAndStart => 'Salvar e iniciar';
+
+  @override
+  String get starting => 'Iniciando...';
+
+  @override
+  String get deleteMachineTitle => 'Excluir máquina?';
+
+  @override
+  String deleteMachineBody(String name) {
+    return '\"$name\" e suas configurações serão removidas.';
+  }
+
+  @override
+  String get validationRequired => 'Obrigatório';
+
+  @override
+  String get defaultDirectory => 'Diretório padrão';
+
+  @override
+  String get homeDirectoryOnServer => 'Diretório inicial no servidor';
+
+  @override
+  String get sshSetup => 'Configuração SSH';
+
+  @override
+  String get sshSetupSubtitle =>
+      'Caminho principal: conectar, iniciar o OpenCode e conversar';
+
+  @override
+  String get sshHost => 'Host SSH';
+
+  @override
+  String get sshPort => 'Porta SSH';
+
+  @override
+  String get sshUsername => 'Usuário SSH';
+
+  @override
+  String get privateKeyPem => 'Chave privada (PEM)';
+
+  @override
+  String get privateKeyPemHelper =>
+      'Cole o conteúdo PEM completo ou use a senha abaixo';
+
+  @override
+  String get sshPassword => 'Senha SSH';
+
+  @override
+  String get sshPasswordHelper =>
+      'Fallback opcional para autenticação SSH por senha';
+
+  @override
+  String get testSsh => 'Testar SSH';
+
+  @override
+  String get setupOpenCodeViaSsh => 'Configurar OpenCode via SSH';
+
+  @override
+  String get directOpenCodeServer => 'Servidor OpenCode direto (opcional)';
+
+  @override
+  String get directOpenCodeServerSubtitle =>
+      'Use apenas se o OpenCode já estiver rodando';
+
+  @override
+  String get openCodeServerUrl => 'URL do servidor OpenCode';
+
+  @override
+  String get openCodeServerUrlHint =>
+      'Derivada automaticamente do host SSH se ficar vazia';
+
+  @override
+  String get openCodeUsername => 'Usuário OpenCode';
+
+  @override
+  String get openCodeUsernameHelper => 'Padrão: opencode';
+
+  @override
+  String get openCodeServerPassword => 'Senha do servidor OpenCode';
+
+  @override
+  String get openCodeServerPasswordHelper =>
+      'Deixe vazia para gerar uma senha aleatória na configuração';
+
+  @override
+  String get timeoutSeconds => 'Timeout (segundos)';
+
+  @override
+  String get testDirectServer => 'Testar servidor direto';
+
+  @override
+  String get connected => 'Conectado!';
+
+  @override
+  String get fillSshCredentials =>
+      'Preencha host SSH, usuário e senha ou chave privada';
+
+  @override
+  String sshConnectedAs(String user) {
+    return 'SSH conectado como $user';
+  }
+
+  @override
+  String get sshConnectionFailed => 'Conexão SSH falhou';
+
+  @override
+  String get settingUpOpenCode => 'Configurando OpenCode';
+
+  @override
+  String get connectingOverSsh => 'Conectando via SSH...';
+
+  @override
+  String get provisioningDedicatedSshKey =>
+      'Gerando e instalando uma chave SSH dedicada...';
+
+  @override
+  String get locatingOpenCode => 'Localizando opencode na máquina remota...';
+
+  @override
+  String get installingPaiController =>
+      'Instalando o controlador pai-opencode...';
+
+  @override
+  String get startingOpenCodeService => 'Iniciando o serviço OpenCode...';
+
+  @override
+  String waitingForHttpAttempt(int attempt, int maxAttempts) {
+    return 'Aguardando HTTP, tentativa $attempt/$maxAttempts...';
+  }
+
+  @override
+  String get openCodeRunningReachable => 'OpenCode está rodando e acessível';
+
+  @override
+  String openCodeStartedHttpFailed(String message) {
+    return 'OpenCode iniciou, mas a checagem HTTP falhou: $message';
+  }
+
+  @override
+  String get openCodeMissingRemote =>
+      'opencode não está instalado na máquina remota';
+
+  @override
+  String remoteSetupFailedExit(int exitCode) {
+    return 'Configuração remota falhou (saída $exitCode)';
+  }
+
+  @override
+  String get remoteSetupFailed => 'Configuração remota falhou';
+
+  @override
+  String get sshBootstrapFailed => 'Bootstrap SSH falhou';
+
+  @override
+  String get serverUrlRequiredUnlessSsh =>
+      'Obrigatório, exceto se o host SSH estiver definido';
+
+  @override
+  String get serverUrlMustStartHttp => 'Deve começar com http:// ou https://';
+
+  @override
+  String get timeoutRange => '5-300';
+
+  @override
+  String get discardMachineChangesTitle => 'Descartar alterações?';
+
+  @override
+  String get discardMachineChangesBody =>
+      'Esta máquina tem alterações não salvas.';
+
+  @override
+  String get discardProviderChangesBody =>
+      'Este provedor tem alterações não salvas.';
+
+  @override
+  String get continueEditing => 'Continuar editando';
+
+  @override
+  String get discard => 'Descartar';
+
+  @override
   String get aiProvidersSubtitle => 'Gerencie os provedores da máquina ativa';
 
   @override
@@ -342,6 +533,16 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get showThinkingSubtitle => 'Exibe as etapas de raciocínio do agente';
+
+  @override
+  String get voiceSectionTitle => 'Entrada por voz';
+
+  @override
+  String get voiceConfirmBeforeSendTitle => 'Confirmar antes de enviar';
+
+  @override
+  String get voiceConfirmBeforeSendSubtitle =>
+      'Coloca transcrições de fala no campo de texto para você editar antes';
 
   @override
   String get security => 'Segurança';

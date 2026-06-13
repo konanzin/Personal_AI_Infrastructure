@@ -304,6 +304,193 @@ class AppLocalizationsEn extends AppLocalizations {
       'Set up SSH, bootstrap OpenCode, or use a direct server';
 
   @override
+  String get noMachinesConfigured => 'No machines configured';
+
+  @override
+  String get addMachine => 'Add Machine';
+
+  @override
+  String get editMachine => 'Edit Machine';
+
+  @override
+  String get saveAndStart => 'Save & Start';
+
+  @override
+  String get starting => 'Starting...';
+
+  @override
+  String get deleteMachineTitle => 'Delete machine?';
+
+  @override
+  String deleteMachineBody(String name) {
+    return '\"$name\" and its settings will be removed.';
+  }
+
+  @override
+  String get validationRequired => 'Required';
+
+  @override
+  String get defaultDirectory => 'Default Directory';
+
+  @override
+  String get homeDirectoryOnServer => 'Home directory on the server';
+
+  @override
+  String get sshSetup => 'SSH Setup';
+
+  @override
+  String get sshSetupSubtitle =>
+      'Primary path: connect, start OpenCode, then chat';
+
+  @override
+  String get sshHost => 'SSH Host';
+
+  @override
+  String get sshPort => 'SSH Port';
+
+  @override
+  String get sshUsername => 'SSH Username';
+
+  @override
+  String get privateKeyPem => 'Private Key (PEM)';
+
+  @override
+  String get privateKeyPemHelper =>
+      'Paste the full PEM content, or use password below';
+
+  @override
+  String get sshPassword => 'SSH Password';
+
+  @override
+  String get sshPasswordHelper =>
+      'Optional fallback for normal SSH password auth';
+
+  @override
+  String get testSsh => 'Test SSH';
+
+  @override
+  String get setupOpenCodeViaSsh => 'Setup/OpenCode via SSH';
+
+  @override
+  String get directOpenCodeServer => 'Direct OpenCode Server (optional)';
+
+  @override
+  String get directOpenCodeServerSubtitle =>
+      'Use only if OpenCode is already running';
+
+  @override
+  String get openCodeServerUrl => 'OpenCode Server URL';
+
+  @override
+  String get openCodeServerUrlHint => 'Auto-derived from SSH host if blank';
+
+  @override
+  String get openCodeUsername => 'OpenCode Username';
+
+  @override
+  String get openCodeUsernameHelper => 'Defaults to opencode';
+
+  @override
+  String get openCodeServerPassword => 'OpenCode Server Password';
+
+  @override
+  String get openCodeServerPasswordHelper =>
+      'Leave empty to generate a random password on setup';
+
+  @override
+  String get timeoutSeconds => 'Timeout (seconds)';
+
+  @override
+  String get testDirectServer => 'Test Direct Server';
+
+  @override
+  String get connected => 'Connected!';
+
+  @override
+  String get fillSshCredentials =>
+      'Fill SSH host, username, and password or private key';
+
+  @override
+  String sshConnectedAs(String user) {
+    return 'SSH connected as $user';
+  }
+
+  @override
+  String get sshConnectionFailed => 'SSH connection failed';
+
+  @override
+  String get settingUpOpenCode => 'Setting up OpenCode';
+
+  @override
+  String get connectingOverSsh => 'Connecting over SSH...';
+
+  @override
+  String get provisioningDedicatedSshKey =>
+      'Generating and installing a dedicated SSH key...';
+
+  @override
+  String get locatingOpenCode => 'Locating opencode on the remote machine...';
+
+  @override
+  String get installingPaiController =>
+      'Installing the pai-opencode controller...';
+
+  @override
+  String get startingOpenCodeService => 'Starting the OpenCode service...';
+
+  @override
+  String waitingForHttpAttempt(int attempt, int maxAttempts) {
+    return 'Waiting for HTTP, attempt $attempt/$maxAttempts...';
+  }
+
+  @override
+  String get openCodeRunningReachable => 'OpenCode is running and reachable';
+
+  @override
+  String openCodeStartedHttpFailed(String message) {
+    return 'OpenCode started, but HTTP check failed: $message';
+  }
+
+  @override
+  String get openCodeMissingRemote =>
+      'opencode is not installed on the remote machine';
+
+  @override
+  String remoteSetupFailedExit(int exitCode) {
+    return 'Remote setup failed (exit $exitCode)';
+  }
+
+  @override
+  String get remoteSetupFailed => 'Remote setup failed';
+
+  @override
+  String get sshBootstrapFailed => 'SSH bootstrap failed';
+
+  @override
+  String get serverUrlRequiredUnlessSsh => 'Required unless SSH host is set';
+
+  @override
+  String get serverUrlMustStartHttp => 'Must start with http:// or https://';
+
+  @override
+  String get timeoutRange => '5-300';
+
+  @override
+  String get discardMachineChangesTitle => 'Discard changes?';
+
+  @override
+  String get discardMachineChangesBody => 'This machine has unsaved changes.';
+
+  @override
+  String get discardProviderChangesBody => 'This provider has unsaved changes.';
+
+  @override
+  String get continueEditing => 'Continue editing';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
   String get aiProvidersSubtitle => 'Manage providers on the active machine';
 
   @override
@@ -339,6 +526,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get showThinkingSubtitle => 'Display agent reasoning steps';
+
+  @override
+  String get voiceSectionTitle => 'Voice input';
+
+  @override
+  String get voiceConfirmBeforeSendTitle => 'Confirm before sending';
+
+  @override
+  String get voiceConfirmBeforeSendSubtitle =>
+      'Put speech transcripts in the input box so you can edit them first';
 
   @override
   String get security => 'Security';

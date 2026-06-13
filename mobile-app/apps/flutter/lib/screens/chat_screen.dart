@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -25,6 +25,7 @@ import '../models/chat_message.dart';
 import '../models/file_change.dart';
 import '../models/message_part.dart';
 import '../services/chat_formatting.dart';
+import '../services/connectivity_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/chat_autocomplete_controller.dart';
 import '../widgets/chat_input_bar.dart';
@@ -62,6 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _error;
   OpenCodeProvider? _provider;
   final TextEditingController _textController = TextEditingController();
+  final FocusNode _inputFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final VoiceService _voiceService = VoiceService();
   final List<File> _pendingAttachments = [];
@@ -116,6 +118,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _sendSubscription?.cancel();
     _autocomplete.dispose();
     _voiceService.dispose();
+    _inputFocusNode.dispose();
     _textController.dispose();
     _chatSearchController.dispose();
     _scrollController.dispose();
@@ -194,8 +197,8 @@ class _ChatScreenState extends State<ChatScreen> {
         sessionId = null;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                AppLocalizations.of(context)!.savedSessionOtherDirectory),
+            content:
+                Text(AppLocalizations.of(context)!.savedSessionOtherDirectory),
             duration: const Duration(seconds: 5),
           ));
         }
@@ -319,6 +322,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
     _textController.text = trimmed;
+    _textController.selection = TextSelection.collapsed(offset: trimmed.length);
+    if (context.read<SettingsProvider>().voiceConfirmBeforeSend) {
+      _inputFocusNode.requestFocus();
+      return;
+    }
     await _sendMessage();
   }
 
@@ -379,7 +387,6 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() => _pendingAttachments.add(File(result.files.single.path!)));
     }
   }
-
 
   // ── Git status ──────────────────────────────────────────────────────────
 
@@ -498,8 +505,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content:
-                Text(AppLocalizations.of(context)!.sessionSummarized)),
+            content: Text(AppLocalizations.of(context)!.sessionSummarized)),
       );
     }
   }
@@ -546,8 +552,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-            content:
-                Text(AppLocalizations.of(context)!.noModelsAvailable)),
+                content: Text(AppLocalizations.of(context)!.noModelsAvailable)),
           );
         }
         return;
@@ -584,9 +589,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child:
-                      Text(AppLocalizations.of(context)!.selectModel,
-                          style: theme.textTheme.titleMedium),
+                  child: Text(AppLocalizations.of(context)!.selectModel,
+                      style: theme.textTheme.titleMedium),
                 ),
                 ListTile(
                   leading: const Icon(Icons.auto_awesome),
@@ -643,8 +647,8 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  AppLocalizations.of(context)!.failedLoadModels('$e'))),
+              content:
+                  Text(AppLocalizations.of(context)!.failedLoadModels('$e'))),
         );
       }
     }
@@ -716,14 +720,12 @@ class _ChatScreenState extends State<ChatScreen> {
       if (share != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  AppLocalizations.of(context)!.shareLinkMessage(share))),
+              content:
+                  Text(AppLocalizations.of(context)!.shareLinkMessage(share))),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(AppLocalizations.of(context)!.shareCreated)),
+          SnackBar(content: Text(AppLocalizations.of(context)!.shareCreated)),
         );
       }
     }
@@ -737,9 +739,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final info = _provider!.sessionInfo;
     if (info == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text(AppLocalizations.of(context)!.noSessionInfo)),
+        SnackBar(content: Text(AppLocalizations.of(context)!.noSessionInfo)),
       );
       return;
     }
@@ -763,7 +763,8 @@ class _ChatScreenState extends State<ChatScreen> {
               Text(AppLocalizations.of(ctx)!.sessionInfo,
                   style: Theme.of(ctx).textTheme.titleMedium),
               const Divider(),
-              _infoRow(AppLocalizations.of(ctx)!.modelLabel, _formatModel(info)),
+              _infoRow(
+                  AppLocalizations.of(ctx)!.modelLabel, _formatModel(info)),
               _infoRow('Agent', info['agent'] ?? 'default'),
               if (info['cost'] != null) _infoRow('Cost', '\$${info['cost']}'),
               if (info['tokens'] != null)
@@ -800,7 +801,6 @@ class _ChatScreenState extends State<ChatScreen> {
     if (m is Map) return '${m['id'] ?? '?'} (${m['providerID'] ?? '?'})';
     return info['modelID']?.toString() ?? 'default';
   }
-
 
   Widget _infoRow(String label, dynamic value) {
     return Padding(
@@ -843,16 +843,15 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(AppLocalizations.of(context)!
-                  .commandExecuted(command))),
+              content:
+                  Text(AppLocalizations.of(context)!.commandExecuted(command))),
         );
       }
     }).catchError((e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  AppLocalizations.of(context)!.commandFailed('$e'))),
+              content: Text(AppLocalizations.of(context)!.commandFailed('$e'))),
         );
       }
     });
@@ -1007,8 +1006,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: Text(
                             _provider?.directory != null
                                 ? _shortenPath(_provider!.directory!)
-                                : AppLocalizations.of(context)!
-                                    .chooseWorkspace,
+                                : AppLocalizations.of(context)!.chooseWorkspace,
                             style: TextStyle(
                               fontSize: 12,
                               color: Theme.of(context)
@@ -1030,6 +1028,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
         centerTitle: false,
         actions: [
+          if (_provider != null) _buildConnectionAction(_provider!),
           if (!_isSearching)
             IconButton(
               icon: const Icon(Icons.search, size: 22),
@@ -1095,7 +1094,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         value: 'info',
                         child: ListTile(
                           leading: const Icon(Icons.info_outline),
-                          title: Text(AppLocalizations.of(context)!.sessionInfo),
+                          title:
+                              Text(AppLocalizations.of(context)!.sessionInfo),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
@@ -1117,6 +1117,86 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       body: _buildBody(),
+    );
+  }
+
+  Widget _buildConnectionAction(OpenCodeProvider provider) {
+    return AnimatedBuilder(
+      animation: provider,
+      builder: (context, _) {
+        if (provider.isSending) {
+          return const Tooltip(
+            message: 'Sending',
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (provider.lastSendError != null) {
+          return IconButton(
+            tooltip: provider.canRetryLastSend ? 'Send failed' : 'Send status',
+            icon: Icon(
+              provider.canRetryLastSend
+                  ? Icons.error_outline
+                  : Icons.info_outline,
+              size: 22,
+            ),
+            color: provider.canRetryLastSend
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+            onPressed: () => _showSendError(provider),
+          );
+        }
+
+        final status = provider.connectionState;
+        if (status == ConnectionStatus.online) {
+          return const SizedBox.shrink();
+        }
+
+        final icon = switch (status) {
+          ConnectionStatus.connecting => Icons.sync,
+          ConnectionStatus.error => Icons.cloud_off_outlined,
+          ConnectionStatus.offline => Icons.cloud_off_outlined,
+          ConnectionStatus.online => Icons.cloud_done_outlined,
+        };
+        final tooltip = switch (status) {
+          ConnectionStatus.connecting => 'Reconnecting',
+          ConnectionStatus.error => 'Connection error',
+          ConnectionStatus.offline => 'Offline',
+          ConnectionStatus.online => 'Online',
+        };
+        return IconButton(
+          tooltip: tooltip,
+          icon: Icon(icon, size: 22),
+          onPressed: () => provider.reconnect(),
+        );
+      },
+    );
+  }
+
+  void _showSendError(OpenCodeProvider provider) {
+    final error = provider.lastSendError;
+    if (error == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error),
+        duration: const Duration(seconds: 8),
+        action: provider.canRetryLastSend
+            ? SnackBarAction(
+                label: AppLocalizations.of(context)!.retry,
+                onPressed: provider.retryLastSend,
+              )
+            : null,
+      ),
     );
   }
 
@@ -1452,7 +1532,8 @@ class _ChatScreenState extends State<ChatScreen> {
               ListTile(
                 leading: const Icon(Icons.undo),
                 title: Text(AppLocalizations.of(context)!.revertChanges),
-                subtitle: Text(AppLocalizations.of(context)!.revertChangesSubtitle),
+                subtitle:
+                    Text(AppLocalizations.of(context)!.revertChangesSubtitle),
                 onTap: () async {
                   Navigator.pop(ctx);
                   final ok = await _provider!.revertMessage(messageId);
@@ -1507,6 +1588,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildInput() {
     return ChatInputBar(
       controller: _textController,
+      focusNode: _inputFocusNode,
       layerLink: _autocomplete.layerLink,
       voiceService: _voiceService,
       pendingAttachments: _pendingAttachments,

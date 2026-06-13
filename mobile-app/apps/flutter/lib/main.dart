@@ -41,6 +41,7 @@ class PaiMobileApp extends StatelessWidget {
             ..loadThemeMode()
             ..loadThemeAppearance()
             ..loadShowThinking()
+            ..loadVoiceSettings()
             ..loadPulseSettings(),
         ),
         ChangeNotifierProvider(
@@ -74,7 +75,9 @@ class PaiMobileApp extends StatelessWidget {
         ChangeNotifierProxyProvider<ClientProvider, OpenCodeProvider>(
           create: (_) => OpenCodeProvider(),
           update: (_, clientProv, prev) {
-            if (prev != null && clientProv.client != null && prev.clientOrNull != clientProv.client) {
+            if (prev != null &&
+                clientProv.client != null &&
+                prev.clientOrNull != clientProv.client) {
               prev.updateClient(clientProv.client!);
             }
             return prev!;
@@ -157,50 +160,50 @@ class _AppShellState extends State<_AppShell> with WidgetsBindingObserver {
         builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
       final useDynamic = settingsProvider.useDynamicColor;
       return MaterialApp(
-      navigatorKey: _navigatorKey,
-      title: 'PAI — OpenCode AI',
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('pt'), Locale('en')],
-      themeMode: settingsProvider.themeMode,
-      theme: AppTheme.light(
-        seed: settingsProvider.seedColor,
-        dynamicScheme: useDynamic ? lightDynamic : null,
-        variant: settingsProvider.schemeVariant,
-      ),
-      darkTheme: AppTheme.dark(
-        seed: settingsProvider.seedColor,
-        dynamicScheme: useDynamic ? darkDynamic : null,
-        pureBlack: settingsProvider.pureBlack,
-        variant: settingsProvider.schemeVariant,
-      ),
-      home: isConfigured ? const ChatScreen() : const _WelcomeScreen(),
-      routes: {
-        '/settings': (context) => const SettingsScreen(),
-        '/chat': (context) => const ChatScreen(),
-        '/machines': (context) => const MachinesScreen(),
-        '/providers': (context) => const ProvidersScreen(),
-        '/terminal': (context) => const TerminalScreen(),
-      },
-      // Render the lock as an overlay above the Navigator so it covers EVERY
-      // route (settings, terminal, providers…), not just the home route.
-      builder: (context, child) {
-        return Stack(
-          children: [
-            if (child != null) child,
-            Consumer<AppLockProvider>(
-              builder: (context, lock, _) => lock.isLocked
-                  ? const LockScreen()
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        );
-      },
+        navigatorKey: _navigatorKey,
+        title: 'PAI — OpenCode AI',
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('pt'), Locale('en')],
+        themeMode: settingsProvider.themeMode,
+        theme: AppTheme.light(
+          seed: settingsProvider.seedColor,
+          dynamicScheme: useDynamic ? lightDynamic : null,
+          variant: settingsProvider.schemeVariant,
+        ),
+        darkTheme: AppTheme.dark(
+          seed: settingsProvider.seedColor,
+          dynamicScheme: useDynamic ? darkDynamic : null,
+          pureBlack: settingsProvider.pureBlack,
+          variant: settingsProvider.schemeVariant,
+        ),
+        home: isConfigured ? const ChatScreen() : const _WelcomeScreen(),
+        routes: {
+          '/settings': (context) => const SettingsScreen(),
+          '/chat': (context) => const ChatScreen(),
+          '/machines': (context) => const MachinesScreen(),
+          '/providers': (context) => const ProvidersScreen(),
+          '/terminal': (context) => const TerminalScreen(),
+        },
+        // Render the lock as an overlay above the Navigator so it covers EVERY
+        // route (settings, terminal, providers…), not just the home route.
+        builder: (context, child) {
+          return Stack(
+            children: [
+              if (child != null) child,
+              Consumer<AppLockProvider>(
+                builder: (context, lock, _) => lock.isLocked
+                    ? const LockScreen()
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          );
+        },
       );
     });
   }

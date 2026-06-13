@@ -20,190 +20,199 @@ class SettingsScreen extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.dns_outlined),
-              title: Text(l10n.machines),
-              subtitle: Text(l10n.machinesSubtitle),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/machines'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.hub_outlined),
-              title: Text(l10n.aiProviders),
-              subtitle: Text(l10n.aiProvidersSubtitle),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProvidersScreen()),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.dns_outlined),
+                title: Text(l10n.machines),
+                subtitle: Text(l10n.machinesSubtitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.pushNamed(context, '/machines'),
               ),
-            ),
-
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 16),
-
-            Text(l10n.appearance, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            SegmentedButton<ThemeMode>(
-              segments: [
-                ButtonSegment(
-                  value: ThemeMode.system,
-                  label: Text(l10n.systemTheme),
-                  icon: const Icon(Icons.brightness_auto),
+              ListTile(
+                leading: const Icon(Icons.hub_outlined),
+                title: Text(l10n.aiProviders),
+                subtitle: Text(l10n.aiProvidersSubtitle),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProvidersScreen()),
                 ),
-                ButtonSegment(
-                  value: ThemeMode.light,
-                  label: Text(l10n.lightTheme),
-                  icon: const Icon(Icons.light_mode),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.dark,
-                  label: Text(l10n.darkTheme),
-                  icon: const Icon(Icons.dark_mode),
-                ),
-              ],
-              selected: {settings.themeMode},
-              onSelectionChanged: (s) => settings.setThemeMode(s.first),
-            ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              title: Text(l10n.dynamicColor),
-              subtitle: Text(l10n.dynamicColorSubtitle),
-              value: settings.useDynamicColor,
-              onChanged: settings.setUseDynamicColor,
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (!settings.useDynamicColor) ...[
-              const SizedBox(height: 8),
-              Text(l10n.accentColor),
-              const SizedBox(height: 8),
-              _SeedColorPicker(settings: settings),
+              ),
+              const SizedBox(height: 24),
+              const Divider(),
               const SizedBox(height: 16),
-              Text(l10n.colorStyle),
+              Text(l10n.appearance,
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              SegmentedButton<DynamicSchemeVariant>(
-                showSelectedIcon: false,
+              SegmentedButton<ThemeMode>(
                 segments: [
                   ButtonSegment(
-                    value: DynamicSchemeVariant.tonalSpot,
-                    label: Text(l10n.colorStyleSoft),
+                    value: ThemeMode.system,
+                    label: Text(l10n.systemTheme),
+                    icon: const Icon(Icons.brightness_auto),
                   ),
                   ButtonSegment(
-                    value: DynamicSchemeVariant.vibrant,
-                    label: Text(l10n.colorStyleVibrant),
+                    value: ThemeMode.light,
+                    label: Text(l10n.lightTheme),
+                    icon: const Icon(Icons.light_mode),
                   ),
                   ButtonSegment(
-                    value: DynamicSchemeVariant.fidelity,
-                    label: Text(l10n.colorStyleFaithful),
-                  ),
-                  ButtonSegment(
-                    value: DynamicSchemeVariant.expressive,
-                    label: Text(l10n.colorStyleExpressive),
+                    value: ThemeMode.dark,
+                    label: Text(l10n.darkTheme),
+                    icon: const Icon(Icons.dark_mode),
                   ),
                 ],
-                selected: {settings.schemeVariant},
-                onSelectionChanged: (s) => settings.setSchemeVariant(s.first),
+                selected: {settings.themeMode},
+                onSelectionChanged: (s) => settings.setThemeMode(s.first),
               ),
-              const SizedBox(height: 8),
-            ],
-            SwitchListTile(
-              title: Text(l10n.pureBlack),
-              subtitle: Text(l10n.pureBlackSubtitle),
-              value: settings.pureBlack,
-              onChanged: settings.setPureBlack,
-              contentPadding: EdgeInsets.zero,
-            ),
-            SwitchListTile(
-              title: Text(l10n.showThinking),
-              subtitle: Text(l10n.showThinkingSubtitle),
-              value: settings.showThinking,
-              onChanged: settings.setShowThinking,
-              contentPadding: EdgeInsets.zero,
-            ),
-
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 16),
-
-            Text(l10n.pulseSectionTitle,
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              title: Text(l10n.pulseEnableTitle),
-              subtitle: Text(l10n.pulseEnableSubtitle),
-              value: settings.pulseEnabled,
-              onChanged: settings.setPulseEnabled,
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (settings.pulseEnabled) ...[
+              const SizedBox(height: 16),
               SwitchListTile(
-                title: Text(l10n.pulseMilestones),
-                value: settings.pulseSpeakMilestone,
-                onChanged: (v) => settings.setPulseLevel(milestone: v),
+                title: Text(l10n.dynamicColor),
+                subtitle: Text(l10n.dynamicColorSubtitle),
+                value: settings.useDynamicColor,
+                onChanged: settings.setUseDynamicColor,
                 contentPadding: EdgeInsets.zero,
               ),
-              SwitchListTile(
-                title: Text(l10n.pulseAttention),
-                value: settings.pulseSpeakAttention,
-                onChanged: (v) => settings.setPulseLevel(attention: v),
-                contentPadding: EdgeInsets.zero,
-              ),
-              SwitchListTile(
-                title: Text(l10n.pulseDigests),
-                value: settings.pulseSpeakDigest,
-                onChanged: (v) => settings.setPulseLevel(digest: v),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ],
-
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 16),
-
-            Text(l10n.security, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Consumer<AppLockProvider>(
-              builder: (ctx, lock, _) => Column(
-                children: [
-                  SwitchListTile(
-                    title: Text(l10n.appLock),
-                    subtitle: Text(lock.deviceAuthAvailable
-                        ? l10n.appLockSubtitleAvailable
-                        : l10n.appLockSubtitleUnavailable),
-                    value: lock.lockEnabled,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: lock.deviceAuthAvailable
-                        ? (v) => lock.setLockEnabled(v)
-                        : null,
-                  ),
-                  if (lock.lockEnabled)
-                    ListTile(
-                      title: Text(l10n.lockTimeout),
-                      subtitle: Text(lock.lockTimeout.label),
-                      contentPadding: EdgeInsets.zero,
-                      trailing: DropdownButton<LockTimeout>(
-                        value: lock.lockTimeout,
-                        underline: const SizedBox.shrink(),
-                        onChanged: (v) {
-                          if (v != null) lock.setLockTimeout(v);
-                        },
-                        items: LockTimeout.values
-                            .map((t) => DropdownMenuItem(
-                                  value: t,
-                                  child: Text(t.label),
-                                ))
-                            .toList(),
-                      ),
+              if (!settings.useDynamicColor) ...[
+                const SizedBox(height: 8),
+                Text(l10n.accentColor),
+                const SizedBox(height: 8),
+                _SeedColorPicker(settings: settings),
+                const SizedBox(height: 16),
+                Text(l10n.colorStyle),
+                const SizedBox(height: 8),
+                SegmentedButton<DynamicSchemeVariant>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                      value: DynamicSchemeVariant.tonalSpot,
+                      label: Text(l10n.colorStyleSoft),
                     ),
-                ],
+                    ButtonSegment(
+                      value: DynamicSchemeVariant.vibrant,
+                      label: Text(l10n.colorStyleVibrant),
+                    ),
+                    ButtonSegment(
+                      value: DynamicSchemeVariant.fidelity,
+                      label: Text(l10n.colorStyleFaithful),
+                    ),
+                    ButtonSegment(
+                      value: DynamicSchemeVariant.expressive,
+                      label: Text(l10n.colorStyleExpressive),
+                    ),
+                  ],
+                  selected: {settings.schemeVariant},
+                  onSelectionChanged: (s) => settings.setSchemeVariant(s.first),
+                ),
+                const SizedBox(height: 8),
+              ],
+              SwitchListTile(
+                title: Text(l10n.pureBlack),
+                subtitle: Text(l10n.pureBlackSubtitle),
+                value: settings.pureBlack,
+                onChanged: settings.setPureBlack,
+                contentPadding: EdgeInsets.zero,
               ),
-            ),
-          ],
-        ),
+              SwitchListTile(
+                title: Text(l10n.showThinking),
+                subtitle: Text(l10n.showThinkingSubtitle),
+                value: settings.showThinking,
+                onChanged: settings.setShowThinking,
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(l10n.voiceSectionTitle,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                title: Text(l10n.voiceConfirmBeforeSendTitle),
+                subtitle: Text(l10n.voiceConfirmBeforeSendSubtitle),
+                value: settings.voiceConfirmBeforeSend,
+                onChanged: settings.setVoiceConfirmBeforeSend,
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(l10n.pulseSectionTitle,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                title: Text(l10n.pulseEnableTitle),
+                subtitle: Text(l10n.pulseEnableSubtitle),
+                value: settings.pulseEnabled,
+                onChanged: settings.setPulseEnabled,
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (settings.pulseEnabled) ...[
+                SwitchListTile(
+                  title: Text(l10n.pulseMilestones),
+                  value: settings.pulseSpeakMilestone,
+                  onChanged: (v) => settings.setPulseLevel(milestone: v),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                SwitchListTile(
+                  title: Text(l10n.pulseAttention),
+                  value: settings.pulseSpeakAttention,
+                  onChanged: (v) => settings.setPulseLevel(attention: v),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                SwitchListTile(
+                  title: Text(l10n.pulseDigests),
+                  value: settings.pulseSpeakDigest,
+                  onChanged: (v) => settings.setPulseLevel(digest: v),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(l10n.security,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Consumer<AppLockProvider>(
+                builder: (ctx, lock, _) => Column(
+                  children: [
+                    SwitchListTile(
+                      title: Text(l10n.appLock),
+                      subtitle: Text(lock.deviceAuthAvailable
+                          ? l10n.appLockSubtitleAvailable
+                          : l10n.appLockSubtitleUnavailable),
+                      value: lock.lockEnabled,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: lock.deviceAuthAvailable
+                          ? (v) => lock.setLockEnabled(v)
+                          : null,
+                    ),
+                    if (lock.lockEnabled)
+                      ListTile(
+                        title: Text(l10n.lockTimeout),
+                        subtitle: Text(lock.lockTimeout.label),
+                        contentPadding: EdgeInsets.zero,
+                        trailing: DropdownButton<LockTimeout>(
+                          value: lock.lockTimeout,
+                          underline: const SizedBox.shrink(),
+                          onChanged: (v) {
+                            if (v != null) lock.setLockTimeout(v);
+                          },
+                          items: LockTimeout.values
+                              .map((t) => DropdownMenuItem(
+                                    value: t,
+                                    child: Text(t.label),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -242,8 +251,8 @@ class _SeedColorPicker extends StatelessWidget {
         for (final color in _swatches)
           InkWell(
             customBorder: const CircleBorder(),
-            onTap: () => settings.setSeedColor(
-                color == AppTheme.defaultSeed ? null : color),
+            onTap: () => settings
+                .setSeedColor(color == AppTheme.defaultSeed ? null : color),
             child: Container(
               width: 40,
               height: 40,

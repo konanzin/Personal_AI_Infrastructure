@@ -6,6 +6,10 @@ import 'package:http/http.dart' as http;
 
 import '../models/chat_event.dart';
 import 'api_errors.dart';
+import 'sse_payload_parsing.dart' as sse;
+
+const bool _verboseSseRaw =
+    bool.fromEnvironment('PAI_SSE_VERBOSE', defaultValue: false);
 
 /// Configuration for the OpenCode client.
 class ClientConfig {
@@ -272,20 +276,20 @@ class OpenCodeClient {
         'GET' => _restClient.get(url, headers: _headers(extra: extraHeaders)),
         'POST' => _restClient.post(
             url,
-            headers: _headers(
-                jsonBody: encodedBody != null, extra: extraHeaders),
+            headers:
+                _headers(jsonBody: encodedBody != null, extra: extraHeaders),
             body: encodedBody,
           ),
         'PUT' => _restClient.put(
             url,
-            headers: _headers(
-                jsonBody: encodedBody != null, extra: extraHeaders),
+            headers:
+                _headers(jsonBody: encodedBody != null, extra: extraHeaders),
             body: encodedBody,
           ),
         'PATCH' => _restClient.patch(
             url,
-            headers: _headers(
-                jsonBody: encodedBody != null, extra: extraHeaders),
+            headers:
+                _headers(jsonBody: encodedBody != null, extra: extraHeaders),
             body: encodedBody,
           ),
         'DELETE' =>
@@ -497,8 +501,10 @@ class OpenCodeClient {
           } else if (line.isEmpty) {
             if (currentData.isNotEmpty) {
               final rawData = currentData.toString();
-              debugPrint(
-                  '[PAI_SSE_RAW] Event: $currentEventType | bytes=${rawData.length}');
+              if (_verboseSseRaw) {
+                debugPrint(
+                    '[PAI_SSE_RAW] Event: $currentEventType | bytes=${rawData.length}');
+              }
               final event = _buildTypedEvent(
                 currentEventType,
                 rawData,
@@ -559,47 +565,6 @@ class OpenCodeClient {
     }
   }
 
-  /// Extract session ID from the various nested shapes OpenCode uses.
-  String? _extractSessionId(dynamic parsed) {
-    if (parsed is! Map<String, dynamic>) return null;
-
-    final props = parsed['properties'] as Map<String, dynamic>?;
-    if (props != null) {
-      final info = props['info'] as Map<String, dynamic>?;
-      if (info != null && info['sessionID'] is String) {
-        return info['sessionID'] as String;
-      }
-
-      final part = props['part'] as Map<String, dynamic>?;
-      if (part != null && part['sessionID'] is String) {
-        return part['sessionID'] as String;
-      }
-
-      final message = props['message'] as Map<String, dynamic>?;
-      if (message != null && message['sessionID'] is String) {
-        return message['sessionID'] as String;
-      }
-
-      final session = props['session'] as Map<String, dynamic>?;
-      if (session != null && session['id'] is String) {
-        return session['id'] as String;
-      }
-
-      if (props['sessionID'] is String) {
-        return props['sessionID'] as String;
-      }
-    }
-
-    if (parsed['sessionID'] is String) {
-      return parsed['sessionID'] as String;
-    }
-    if (parsed['sessionId'] is String) {
-      return parsed['sessionId'] as String;
-    }
-
-    return null;
-  }
-
   /// Build a typed ChatEvent from raw SSE event data.
   @visibleForTesting
   ChatEvent? buildTypedEventForTest(String eventName, String data) {
@@ -610,24 +575,11 @@ class OpenCodeClient {
   ChatEvent? _buildTypedEvent(String eventName, String data) {
     if (eventName.isEmpty && data.isEmpty) return null;
 
-    Map<String, dynamic>? parsed;
-    String rawType = '';
+    final parsed = data.isNotEmpty ? sse.asPayloadMap(data) : null;
+    // Fallback to SSE event: header if JSON had no type field.
+    final rawType = _string(parsed?['type']) ?? eventName;
 
-    if (data.isNotEmpty) {
-      try {
-        parsed = jsonDecode(data) as Map<String, dynamic>;
-        if (parsed['type'] is String) {
-          rawType = parsed['type'] as String;
-        }
-      } catch (_) {
-        // Data is not JSON, treat as plain string
-      }
-    }
-
-    // Fallback to SSE event: header if JSON had no type field
-    if (rawType.isEmpty) rawType = eventName;
-
-    final sessionId = parsed != null ? _extractSessionId(parsed) : null;
+    final sessionId = parsed != null ? sse.extractSessionId(parsed) : null;
 
     switch (rawType) {
       case 'server.connected':
@@ -676,8 +628,8 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ToolCallInputStartedEvent(
-            callId: props['callID'] as String? ?? '',
-            toolName: props['name'] as String? ?? '',
+            callId: _string(props['callID']) ?? '',
+            toolName: _string(props['name']) ?? '',
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -688,8 +640,8 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ToolCallInputDeltaEvent(
-            callId: props['callID'] as String? ?? '',
-            delta: props['delta'] as String? ?? '',
+            callId: _string(props['callID']) ?? '',
+            delta: _string(props['delta']) ?? '',
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -700,8 +652,8 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ToolCallInputEndedEvent(
-            callId: props['callID'] as String? ?? '',
-            text: props['text'] as String? ?? '',
+            callId: _string(props['callID']) ?? '',
+            text: _string(props['text']) ?? '',
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -712,10 +664,10 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ToolCallCalledEvent(
-            callId: props['callID'] as String? ?? '',
-            toolName: props['tool'] as String? ?? '',
-            input: (props['input'] as Map<String, dynamic>?) ?? {},
-            provider: (props['provider'] as Map<String, dynamic>?) ?? {},
+            callId: _string(props['callID']) ?? '',
+            toolName: _string(props['tool']) ?? '',
+            input: _mapOrEmpty(props['input']),
+            provider: _mapOrEmpty(props['provider']),
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -726,11 +678,9 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ToolCallProgressEvent(
-            callId: props['callID'] as String? ?? '',
-            structured: (props['structured'] as Map<String, dynamic>?) ?? {},
-            content: (props['content'] as List<dynamic>?)
-                    ?.cast<Map<String, dynamic>>() ??
-                [],
+            callId: _string(props['callID']) ?? '',
+            structured: _mapOrEmpty(props['structured']),
+            content: _mapListOrEmpty(props['content']),
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -741,12 +691,10 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ToolCallSuccessEvent(
-            callId: props['callID'] as String? ?? '',
-            structured: (props['structured'] as Map<String, dynamic>?) ?? {},
-            content: (props['content'] as List<dynamic>?)
-                    ?.cast<Map<String, dynamic>>() ??
-                [],
-            provider: (props['provider'] as Map<String, dynamic>?) ?? {},
+            callId: _string(props['callID']) ?? '',
+            structured: _mapOrEmpty(props['structured']),
+            content: _mapListOrEmpty(props['content']),
+            provider: _mapOrEmpty(props['provider']),
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -756,11 +704,11 @@ class OpenCodeClient {
       case 'session.next.tool.failed':
         final props = _extractProperties(parsed);
         if (props != null) {
-          final error = props['error'] as Map<String, dynamic>?;
+          final error = _mapOrEmpty(props['error']);
           return ToolCallFailedEvent(
-            callId: props['callID'] as String? ?? '',
-            errorMessage: error?['message'] as String? ?? 'Unknown error',
-            provider: (props['provider'] as Map<String, dynamic>?) ?? {},
+            callId: _string(props['callID']) ?? '',
+            errorMessage: _string(error['message']) ?? 'Unknown error',
+            provider: _mapOrEmpty(props['provider']),
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -771,8 +719,8 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ShellStartedEvent(
-            callId: props['callID'] as String? ?? '',
-            command: props['command'] as String? ?? '',
+            callId: _string(props['callID']) ?? '',
+            command: _string(props['command']) ?? '',
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -783,8 +731,8 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return ShellEndedEvent(
-            callId: props['callID'] as String? ?? '',
-            output: props['output'] as String? ?? '',
+            callId: _string(props['callID']) ?? '',
+            output: _string(props['output']) ?? '',
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -806,8 +754,8 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return PermissionRepliedEvent(
-            requestId: props['requestID'] as String? ?? '',
-            reply: props['reply'] as String? ?? '',
+            requestId: _string(props['requestID']) ?? '',
+            reply: _string(props['reply']) ?? '',
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -828,12 +776,9 @@ class OpenCodeClient {
       case 'question.replied':
         final props = _extractProperties(parsed);
         if (props != null) {
-          final answers = (props['answers'] as List<dynamic>?)
-                  ?.map((a) => (a as List<dynamic>).cast<String>())
-                  .toList() ??
-              [];
+          final answers = _stringMatrixOrEmpty(props['answers']);
           return QuestionRepliedEvent(
-            requestId: props['requestID'] as String? ?? '',
+            requestId: _string(props['requestID']) ?? '',
             answers: answers,
             sessionId: sessionId,
             originalEvent: rawType,
@@ -845,7 +790,7 @@ class OpenCodeClient {
         final props = _extractProperties(parsed);
         if (props != null) {
           return QuestionRejectedEvent(
-            requestId: props['requestID'] as String? ?? '',
+            requestId: _string(props['requestID']) ?? '',
             sessionId: sessionId,
             originalEvent: rawType,
           );
@@ -935,14 +880,14 @@ class OpenCodeClient {
       final delta = props['delta'];
       if (delta is String) return delta;
       if (delta is Map) {
-        final text = delta['text'] as String?;
+        final text = _string(delta['text']);
         if (text != null) return text;
       }
     }
     final delta = parsed?['delta'];
     if (delta is String) return delta;
     if (delta is Map) {
-      final text = delta['text'] as String?;
+      final text = _string(delta['text']);
       if (text != null) return text;
     }
     return null;
@@ -952,22 +897,48 @@ class OpenCodeClient {
   String? _extractText(Map<String, dynamic>? parsed) {
     final props = _extractProperties(parsed);
     if (props != null) {
-      final text = props['text'];
-      if (text is String) return text;
+      final text = _string(props['text']);
+      if (text != null) return text;
     }
-    final text = parsed?['text'];
-    if (text is String) return text;
-    return null;
+    return _string(parsed?['text']);
   }
 
   /// Extract reasoning ID from event.
   String? _extractReasoningId(Map<String, dynamic>? parsed) {
     final props = _extractProperties(parsed);
     if (props != null) {
-      final id = props['reasoningID'];
-      if (id is String) return id;
+      final id = _string(props['reasoningID']);
+      if (id != null) return id;
     }
     return null;
+  }
+
+  String? _string(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    return value.toString();
+  }
+
+  Map<String, dynamic> _mapOrEmpty(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return const {};
+  }
+
+  List<Map<String, dynamic>> _mapListOrEmpty(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  List<List<String>> _stringMatrixOrEmpty(dynamic value) {
+    if (value is! List) return const [];
+    return [
+      for (final row in value)
+        if (row is List) [for (final item in row) _string(item) ?? ''],
+    ];
   }
 
   /// Create a new session, optionally scoped to [directory].
@@ -1131,7 +1102,9 @@ class OpenCodeClient {
   // ── PTY (Termius-style terminal over the OpenCode runtime plane) ───────
 
   Map<String, String>? _ptyQuery(String? directory) =>
-      directory != null && directory.isNotEmpty ? {'directory': directory} : null;
+      directory != null && directory.isNotEmpty
+          ? {'directory': directory}
+          : null;
 
   /// List PTY sessions, optionally scoped to a directory.
   Future<List<dynamic>> listPtys({String? directory}) async {
@@ -1409,7 +1382,8 @@ class OpenCodeClient {
     );
     return _decodeListOrItems(response, 'list files')
         .whereType<Map>()
-        .map((item) => OpenCodeFileNode.fromJson(Map<String, dynamic>.from(item)))
+        .map((item) =>
+            OpenCodeFileNode.fromJson(Map<String, dynamic>.from(item)))
         .toList();
   }
 

@@ -9,7 +9,7 @@ import 'package:flutter/services.dart';
 /// transcreve e entrega texto para o chat enviar ao OpenCode.
 class VoiceService {
   static const MethodChannel _channel = MethodChannel(
-    'com.example.pai_mobile_flutter/voice',
+    'dev.pai.mobile/voice',
   );
 
   // Callbacks
@@ -28,7 +28,7 @@ class VoiceService {
   /// Inicializa o reconhecimento de fala
   Future<void> initSpeech() async {
     if (_isInitialized) return;
-    
+
     try {
       await _channel.invokeMethod('initSpeechRecognizer');
       _isInitialized = true;
@@ -38,11 +38,11 @@ class VoiceService {
   }
 
   /// Inicia o reconhecimento de fala
-  /// 
+  ///
   /// [locale] - Locale para reconhecimento (ex: "pt-BR", "en-US")
   Future<void> startListening({String locale = 'pt-BR'}) async {
     if (!_isInitialized) await initSpeech();
-    
+
     try {
       await _channel.invokeMethod('startListening', {'locale': locale});
     } on PlatformException catch (e) {
@@ -79,35 +79,35 @@ class VoiceService {
           onSpeechResult?.call(text);
         }
         break;
-        
+
       case 'onSpeechPartial':
         final text = call.arguments['text'] as String?;
         if (text != null) {
           onSpeechPartial?.call(text);
         }
         break;
-        
+
       case 'onSpeechStatus':
         final status = call.arguments['status'] as String?;
         if (status != null) {
           onSpeechStatus?.call(status);
         }
         break;
-        
+
       case 'onSpeechError':
         final error = call.arguments['error'] as String?;
         if (error != null) {
           onSpeechError?.call(error);
         }
         break;
-        
+
       case 'onSoundLevel':
         final level = call.arguments['level'] as double?;
         if (level != null) {
           onSoundLevel?.call(level);
         }
         break;
-        
+
       default:
         debugPrint('Unknown method call: ${call.method}');
     }

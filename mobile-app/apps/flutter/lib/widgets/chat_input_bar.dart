@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 
 class ChatInputBar extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final LayerLink layerLink;
   final VoiceService voiceService;
   final List<File> pendingAttachments;
@@ -20,6 +21,7 @@ class ChatInputBar extends StatelessWidget {
   const ChatInputBar({
     super.key,
     required this.controller,
+    this.focusNode,
     required this.layerLink,
     required this.voiceService,
     required this.pendingAttachments,
@@ -54,7 +56,8 @@ class ChatInputBar extends StatelessWidget {
                     final f = pendingAttachments[i];
                     final isImage = guessMime(f.path).startsWith('image/');
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(12),
@@ -65,7 +68,8 @@ class ChatInputBar extends StatelessWidget {
                           if (isImage)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(f, width: 32, height: 32, fit: BoxFit.cover),
+                              child: Image.file(f,
+                                  width: 32, height: 32, fit: BoxFit.cover),
                             )
                           else
                             const Icon(Icons.insert_drive_file, size: 18),
@@ -82,7 +86,9 @@ class ChatInputBar extends StatelessWidget {
                           const SizedBox(width: 4),
                           GestureDetector(
                             onTap: () => onRemoveAttachment(i),
-                            child: Icon(Icons.close, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                            child: Icon(Icons.close,
+                                size: 16,
+                                color: theme.colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ),
@@ -107,13 +113,15 @@ class ChatInputBar extends StatelessWidget {
                         icon: const Icon(Icons.add),
                         iconSize: 22,
                         color: theme.colorScheme.onSurfaceVariant,
-                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        constraints:
+                            const BoxConstraints(minWidth: 40, minHeight: 40),
                         padding: EdgeInsets.zero,
                       ),
                     ),
                     Expanded(
                       child: TextField(
                         controller: controller,
+                        focusNode: focusNode,
                         decoration: InputDecoration(
                           hintText: AppLocalizations.of(context)!.askPaiHint,
                           border: InputBorder.none,
@@ -140,7 +148,8 @@ class ChatInputBar extends StatelessWidget {
                                   iconSize: 20,
                                   style: IconButton.styleFrom(
                                     backgroundColor: theme.colorScheme.primary,
-                                    foregroundColor: theme.colorScheme.onPrimary,
+                                    foregroundColor:
+                                        theme.colorScheme.onPrimary,
                                     minimumSize: const Size(36, 36),
                                     padding: EdgeInsets.zero,
                                   ),

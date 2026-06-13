@@ -40,7 +40,8 @@ class AppSettings {
       username: username ?? this.username,
       password: password ?? this.password,
       isConfigured: isConfigured ?? this.isConfigured,
-      requestTimeoutSeconds: requestTimeoutSeconds ?? this.requestTimeoutSeconds,
+      requestTimeoutSeconds:
+          requestTimeoutSeconds ?? this.requestTimeoutSeconds,
       defaultDirectory: defaultDirectory ?? this.defaultDirectory,
     );
   }
@@ -67,7 +68,7 @@ class SettingsProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final timeout = prefs.getInt('request_timeout_seconds') ?? 30;
       final defaultDir = prefs.getString('default_directory');
-      
+
       if (credentials['serverUrl'] != null) {
         _settings = AppSettings(
           serverUrl: credentials['serverUrl']!,
@@ -223,7 +224,8 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setPulseLevel({bool? milestone, bool? attention, bool? digest}) async {
+  Future<void> setPulseLevel(
+      {bool? milestone, bool? attention, bool? digest}) async {
     final prefs = await SharedPreferences.getInstance();
     if (milestone != null) {
       _pulseSpeakMilestone = milestone;
@@ -255,6 +257,24 @@ class SettingsProvider extends ChangeNotifier {
         key: kPulseSpeakAttentionKey, value: _pulseSpeakAttention);
     await FlutterForegroundTask.saveData(
         key: kPulseSpeakDigestKey, value: _pulseSpeakDigest);
+  }
+
+  // ── Voice input ───────────────────────────────────────────────────────
+  bool _voiceConfirmBeforeSend = false;
+  bool get voiceConfirmBeforeSend => _voiceConfirmBeforeSend;
+
+  Future<void> loadVoiceSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _voiceConfirmBeforeSend =
+        prefs.getBool('voice_confirm_before_send') ?? false;
+    notifyListeners();
+  }
+
+  Future<void> setVoiceConfirmBeforeSend(bool value) async {
+    _voiceConfirmBeforeSend = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('voice_confirm_before_send', value);
+    notifyListeners();
   }
 
   // ── Theme ─────────────────────────────────────────────────────────────

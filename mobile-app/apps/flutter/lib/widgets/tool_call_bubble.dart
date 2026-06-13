@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../models/message_part.dart';
 import '../theme.dart';
@@ -59,7 +59,9 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            onTap: hasExpandableContent ? () => setState(() => _expanded = !_expanded) : null,
+            onTap: hasExpandableContent
+                ? () => setState(() => _expanded = !_expanded)
+                : null,
             borderRadius: BorderRadius.circular(8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -131,9 +133,17 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
   }
 
   bool _hasContent() {
-    if (widget.toolCall.state == ToolCallState.error && widget.toolCall.errorMessage != null) return true;
-    if (widget.toolCall.input.keys.any((k) => !k.startsWith('_'))) return true;
-    if (widget.toolCall.state == ToolCallState.completed && widget.toolCall.content.isNotEmpty) return true;
+    if (widget.toolCall.state == ToolCallState.error &&
+        widget.toolCall.errorMessage != null) {
+      return true;
+    }
+    if (widget.toolCall.input.keys.any((k) => !k.startsWith('_'))) {
+      return true;
+    }
+    if (widget.toolCall.state == ToolCallState.completed &&
+        widget.toolCall.content.isNotEmpty) {
+      return true;
+    }
     return false;
   }
 
@@ -145,7 +155,8 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(50),
         borderRadius: BorderRadius.circular(8),
         border: Border(
-          left: BorderSide(color: theme.colorScheme.outline.withAlpha(80), width: 2),
+          left: BorderSide(
+              color: theme.colorScheme.outline.withAlpha(80), width: 2),
         ),
       ),
       child: Column(
@@ -174,14 +185,17 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
               ),
             ),
           ),
-          if (widget.toolCall.state == ToolCallState.error && widget.toolCall.errorMessage != null)
+          if (widget.toolCall.state == ToolCallState.error &&
+              widget.toolCall.errorMessage != null)
             Text(
               widget.toolCall.errorMessage!,
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.error),
             ),
           if (widget.toolCall.input.keys.any((k) => !k.startsWith('_')))
             _buildInput(theme),
-          if (widget.toolCall.state == ToolCallState.completed && widget.toolCall.content.isNotEmpty)
+          if (widget.toolCall.state == ToolCallState.completed &&
+              widget.toolCall.content.isNotEmpty)
             _buildOutput(theme),
         ],
       ),
@@ -232,7 +246,8 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
             child: MarkdownBody(
               data: item.text,
               styleSheet: MarkdownStyleSheet(
-                p: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                p: TextStyle(
+                    fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                 code: TextStyle(
                   fontSize: 11,
                   color: theme.colorScheme.primary,
@@ -243,7 +258,8 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
           );
         } else if (item is ToolFileContent) {
           return Chip(
-            avatar: Icon(Icons.insert_drive_file, size: 14, color: theme.colorScheme.primary),
+            avatar: Icon(Icons.insert_drive_file,
+                size: 14, color: theme.colorScheme.primary),
             label: Text(item.name ?? 'File', style: theme.textTheme.bodySmall),
             backgroundColor: theme.colorScheme.primaryContainer.withAlpha(80),
             side: BorderSide.none,
@@ -261,19 +277,28 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
       case ToolCallState.pending:
         return (
           theme.semanticColors.warning,
-          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: theme.semanticColors.warning)),
+          SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                  strokeWidth: 1.5, color: theme.semanticColors.warning)),
           'Preparing...',
         );
       case ToolCallState.running:
         return (
           theme.colorScheme.primary,
-          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5, color: theme.colorScheme.primary)),
+          SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                  strokeWidth: 1.5, color: theme.colorScheme.primary)),
           'Running...',
         );
       case ToolCallState.completed:
         return (
           theme.semanticColors.success,
-          Icon(Icons.check_circle, color: theme.semanticColors.success, size: 16),
+          Icon(Icons.check_circle,
+              color: theme.semanticColors.success, size: 16),
           'Done',
         );
       case ToolCallState.error:

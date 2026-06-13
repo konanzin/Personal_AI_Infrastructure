@@ -57,6 +57,20 @@ class _LifecycleObserver with WidgetsBindingObserver {
   }
 }
 
+class _PendingSend {
+  const _PendingSend({
+    required this.parts,
+    required this.model,
+    required this.scopeEpoch,
+    required this.sessionId,
+  });
+
+  final List<Map<String, dynamic>> parts;
+  final Map<String, String>? model;
+  final int scopeEpoch;
+  final String sessionId;
+}
+
 class OpenCodeProvider with ChangeNotifier {
   OpenCodeClient? _client;
   OpenCodeClient? get clientOrNull => _client;
@@ -141,6 +155,10 @@ class OpenCodeProvider with ChangeNotifier {
 
   /// Whether the agent is currently streaming a response.
   bool _isStreaming = false;
+
+  bool _isSending = false;
+  String? _lastSendError;
+  _PendingSend? _lastFailedSend;
 
   /// Latest error message from SSE, cleared on next successful event.
   String? _lastError;
@@ -251,6 +269,9 @@ class OpenCodeProvider with ChangeNotifier {
     _partMessageIds.clear();
     _streamedTextLength = 0;
     _isStreaming = false;
+    _isSending = false;
+    _lastSendError = null;
+    _lastFailedSend = null;
     _lastError = null;
     _sessionInfo = null;
     _modelOverride = null;
@@ -373,12 +394,21 @@ class OpenCodeProvider with ChangeNotifier {
   /// Whether the agent is currently streaming.
   bool get isStreaming => _isStreaming;
 
+  /// Whether a message POST is currently in flight.
+  bool get isSending => _isSending;
+
   /// Latest error message from SSE (null if no error).
   String? get lastError => _lastError;
+
+  /// Latest user-visible send failure (null if no send error).
+  String? get lastSendError => _lastSendError;
+
+  bool get canRetryLastSend => _lastFailedSend != null;
 
   /// Clears the last error.
   void clearError() {
     _lastError = null;
+    _lastSendError = null;
     notifyListeners();
   }
 
@@ -680,11 +710,13 @@ class OpenCodeProvider with ChangeNotifier {
             final input = stateMap?['input'] is Map
                 ? Map<String, dynamic>.from(stateMap!['input'] as Map)
                 : <String, dynamic>{};
+            final content = _toolContentFromHistoryOutput(stateMap?['output']);
             msgToolCalls.add(ToolCallPart(
               id: callId,
               name: toolName,
               state: toolState,
               input: input,
+              content: content,
               textInsertOffset: 0,
             ));
 
@@ -899,6 +931,15 @@ class OpenCodeProvider with ChangeNotifier {
     }
   }
 
+  List<ToolContent> _toolContentFromHistoryOutput(dynamic output) {
+    if (output == null) return const [];
+    if (output is List) return parseToolContent(output);
+    if (output is Map) return parseToolContent([output]);
+    final text = output.toString();
+    if (text.isEmpty) return const [];
+    return [ToolTextContent(text: text)];
+  }
+
   /// Cria uma nova sessão no OpenCode, usando _directory corrente.
   Future<void> createSession({String? title}) async {
     final epoch = _scopeEpoch;
@@ -1068,8 +1109,16 @@ class OpenCodeProvider with ChangeNotifier {
     final sessionId = _currentSessionId;
     if (sessionId == null) return;
 
+    _isSending = true;
+    _lastSendError = null;
+    notifyListeners();
+
     final agent = await _resolveOutgoingAgent(client);
-    if (epoch != _scopeEpoch) return; // scope changed during agent discovery
+    if (epoch != _scopeEpoch) {
+      _isSending = false;
+      notifyListeners();
+      return;
+    }
 
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       final userMessageIdBeforeSend = _lastUserMessageId;
@@ -1087,10 +1136,18 @@ class OpenCodeProvider with ChangeNotifier {
           await client.sendMessage(sessionId, textPart,
               directory: _directory, agent: agent);
         }
+        _isSending = false;
+        _lastSendError = null;
+        _lastFailedSend = null;
+        notifyListeners();
         return;
       } catch (e) {
         debugPrint('[PAI_SSE] Send attempt ${attempt + 1} failed: $e');
-        if (epoch != _scopeEpoch) return; // scope changed; stale send
+        if (epoch != _scopeEpoch) {
+          _isSending = false;
+          notifyListeners();
+          return;
+        }
 
         final serverAcceptedMessage = _lastUserMessageId != null &&
             _lastUserMessageId != userMessageIdBeforeSend;
@@ -1099,6 +1156,10 @@ class OpenCodeProvider with ChangeNotifier {
           debugPrint(
             '[PAI_SSE] Send failed after server accepted message; not retrying',
           );
+          _isSending = false;
+          _lastSendError = e.toString();
+          _lastFailedSend = null;
+          notifyListeners();
           return;
         }
 
@@ -1113,6 +1174,14 @@ class OpenCodeProvider with ChangeNotifier {
             : null;
         if (retryableError == null || attempt >= maxRetries) {
           _lastError = e.toString();
+          _lastSendError = e.toString();
+          _lastFailedSend = _PendingSend(
+            parts: _cloneParts(parts),
+            model: model == null ? null : Map<String, String>.from(model),
+            scopeEpoch: epoch,
+            sessionId: sessionId,
+          );
+          _isSending = false;
           _isStreaming = false;
           notifyListeners();
           return;
@@ -1129,6 +1198,29 @@ class OpenCodeProvider with ChangeNotifier {
         await Future.delayed(delay);
       }
     }
+  }
+
+  bool retryLastSend() {
+    final pending = _lastFailedSend;
+    if (pending == null) return false;
+
+    if (pending.scopeEpoch != _scopeEpoch ||
+        pending.sessionId != _currentSessionId) {
+      _lastFailedSend = null;
+      _lastSendError = 'Cannot retry after switching sessions';
+      notifyListeners();
+      return false;
+    }
+
+    _lastFailedSend = null;
+    _lastSendError = null;
+    _sendInBackground(_cloneParts(pending.parts), pending.model);
+    notifyListeners();
+    return true;
+  }
+
+  List<Map<String, dynamic>> _cloneParts(List<Map<String, dynamic>> parts) {
+    return parts.map((part) => Map<String, dynamic>.from(part)).toList();
   }
 
   /// Escuta eventos SSE e extrai texto da resposta

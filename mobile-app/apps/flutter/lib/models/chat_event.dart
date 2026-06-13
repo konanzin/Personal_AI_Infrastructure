@@ -1,4 +1,33 @@
 /// Base class for all chat events from the OpenCode SSE stream.
+String _eventString(dynamic value) {
+  if (value == null) return '';
+  if (value is String) return value;
+  return value.toString();
+}
+
+Map<String, dynamic>? _eventMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return null;
+}
+
+Map<String, dynamic> _eventMapOrEmpty(dynamic value) {
+  return _eventMap(value) ?? const {};
+}
+
+List<String> _eventStringList(dynamic value) {
+  if (value is! List) return const [];
+  return [for (final item in value) _eventString(item)];
+}
+
+List<Map<String, dynamic>> _eventMapList(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map((item) => Map<String, dynamic>.from(item))
+      .toList();
+}
+
 abstract class ChatEvent {
   final String type;
   final String? sessionId;
@@ -264,7 +293,7 @@ class TextDeltaEvent extends ChatEvent {
 /// Text ended.
 class TextEndedEvent extends ChatEvent {
   const TextEndedEvent({super.sessionId, super.originalEvent})
-    : super(type: 'text_ended');
+      : super(type: 'text_ended');
 }
 
 /// Reasoning delta from assistant.
@@ -317,14 +346,14 @@ class PermissionRequest {
   });
 
   factory PermissionRequest.fromJson(Map<String, dynamic> json) {
-    final toolJson = json['tool'] as Map<String, dynamic>?;
+    final toolJson = _eventMap(json['tool']);
     return PermissionRequest(
-      id: json['id'] as String? ?? '',
-      sessionID: json['sessionID'] as String? ?? '',
-      permission: json['permission'] as String? ?? '',
-      patterns: (json['patterns'] as List<dynamic>?)?.cast<String>() ?? [],
-      metadata: (json['metadata'] as Map<String, dynamic>?) ?? {},
-      always: (json['always'] as List<dynamic>?)?.cast<String>() ?? [],
+      id: _eventString(json['id']),
+      sessionID: _eventString(json['sessionID']),
+      permission: _eventString(json['permission']),
+      patterns: _eventStringList(json['patterns']),
+      metadata: _eventMapOrEmpty(json['metadata']),
+      always: _eventStringList(json['always']),
       tool: toolJson != null ? ToolReference.fromJson(toolJson) : null,
     );
   }
@@ -342,8 +371,8 @@ class ToolReference {
 
   factory ToolReference.fromJson(Map<String, dynamic> json) {
     return ToolReference(
-      messageID: json['messageID'] as String? ?? '',
-      callID: json['callID'] as String? ?? '',
+      messageID: _eventString(json['messageID']),
+      callID: _eventString(json['callID']),
     );
   }
 }
@@ -363,14 +392,12 @@ class QuestionRequest {
   });
 
   factory QuestionRequest.fromJson(Map<String, dynamic> json) {
-    final questionsJson = json['questions'] as List<dynamic>?;
-    final toolJson = json['tool'] as Map<String, dynamic>?;
+    final toolJson = _eventMap(json['tool']);
     return QuestionRequest(
-      id: json['id'] as String? ?? '',
-      sessionID: json['sessionID'] as String? ?? '',
-      questions: questionsJson
-          ?.map((q) => QuestionInfo.fromJson(q as Map<String, dynamic>))
-          .toList() ?? [],
+      id: _eventString(json['id']),
+      sessionID: _eventString(json['sessionID']),
+      questions:
+          _eventMapList(json['questions']).map(QuestionInfo.fromJson).toList(),
       tool: toolJson != null ? QuestionTool.fromJson(toolJson) : null,
     );
   }
@@ -393,15 +420,13 @@ class QuestionInfo {
   });
 
   factory QuestionInfo.fromJson(Map<String, dynamic> json) {
-    final optionsJson = json['options'] as List<dynamic>?;
     return QuestionInfo(
-      question: json['question'] as String? ?? '',
-      header: json['header'] as String? ?? '',
-      options: optionsJson
-          ?.map((o) => QuestionOption.fromJson(o as Map<String, dynamic>))
-          .toList() ?? [],
-      multiple: json['multiple'] as bool? ?? false,
-      custom: json['custom'] as bool? ?? false,
+      question: _eventString(json['question']),
+      header: _eventString(json['header']),
+      options:
+          _eventMapList(json['options']).map(QuestionOption.fromJson).toList(),
+      multiple: json['multiple'] == true,
+      custom: json['custom'] == true,
     );
   }
 }
@@ -418,8 +443,8 @@ class QuestionOption {
 
   factory QuestionOption.fromJson(Map<String, dynamic> json) {
     return QuestionOption(
-      label: json['label'] as String? ?? '',
-      description: json['description'] as String? ?? '',
+      label: _eventString(json['label']),
+      description: _eventString(json['description']),
     );
   }
 }
@@ -436,8 +461,8 @@ class QuestionTool {
 
   factory QuestionTool.fromJson(Map<String, dynamic> json) {
     return QuestionTool(
-      messageID: json['messageID'] as String? ?? '',
-      callID: json['callID'] as String? ?? '',
+      messageID: _eventString(json['messageID']),
+      callID: _eventString(json['callID']),
     );
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/chat_message.dart';
@@ -30,7 +30,7 @@ class MarkdownSegment {
 }
 
 /// Splits message text into prose and fenced-code segments so code blocks
-/// can be rendered by [CodeBlockWidget] directly. flutter_markdown's custom
+/// can be rendered by [CodeBlockWidget] directly. Markdown's custom
 /// 'pre' builders leave a dangling inline element behind (its `visitText`
 /// returns null), tripping the `_inlines.isEmpty` assert on every fenced
 /// block — bypassing it for fences avoids that entirely.
@@ -188,6 +188,7 @@ class ChatMessageTile extends StatelessWidget {
   }
 
   Widget _buildUserBubble(BuildContext context, ThemeData theme) {
+    final attachments = message.attachments.toList();
     return RepaintBoundary(
       child: Align(
         alignment: Alignment.centerRight,
@@ -200,19 +201,38 @@ class ChatMessageTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary,
                   borderRadius: BorderRadius.circular(20).copyWith(
                     bottomRight: const Radius.circular(4),
                   ),
                 ),
-                child: Text(
-                  message.text ?? '',
-                  style: TextStyle(
-                    color: theme.colorScheme.onPrimary,
-                    fontSize: 16,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      message.text ?? '',
+                      style: TextStyle(
+                        color: theme.colorScheme.onPrimary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    if (attachments.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          for (final attachment in attachments)
+                            _AttachmentChip(attachment: attachment),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
               if (timestamp != null)
@@ -244,19 +264,19 @@ class ChatMessageTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (toolCalls.isNotEmpty || shellCommands.isNotEmpty || fileChanges.isNotEmpty)
+              if (toolCalls.isNotEmpty ||
+                  shellCommands.isNotEmpty ||
+                  fileChanges.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      for (final tc in toolCalls)
-                        ToolCallBubble(toolCall: tc),
+                      for (final tc in toolCalls) ToolCallBubble(toolCall: tc),
                       for (final sh in shellCommands)
                         ShellCommandBubble(shell: sh),
-                      for (final fc in fileChanges)
-                        FileDiffCard(change: fc),
+                      for (final fc in fileChanges) FileDiffCard(change: fc),
                     ],
                   ),
                 ),
@@ -276,7 +296,8 @@ class ChatMessageTile extends StatelessWidget {
                 ReasoningMessageBubble(reasoning: reasoning!),
               if (displayText.isNotEmpty)
                 Column(
-                  key: ValueKey('md-$historyIndex-${isStreaming ? displayText.length : 0}'),
+                  key: ValueKey(
+                      'md-$historyIndex-${isStreaming ? displayText.length : 0}'),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -378,10 +399,83 @@ class ChatMessageTile extends StatelessWidget {
 
   static String _monthName(int month) {
     const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return names[month - 1];
+  }
+}
+
+class _AttachmentChip extends StatelessWidget {
+  const _AttachmentChip({required this.attachment});
+
+  final Attachment attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isImage = attachment is FileAttachment &&
+        (attachment as FileAttachment).mimeType.startsWith('image/');
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.onPrimary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.onPrimary.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isImage)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.memory(
+                (attachment as FileAttachment).bytes,
+                width: 24,
+                height: 24,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.image_outlined,
+                  size: 18,
+                  color: theme.colorScheme.onPrimary,
+                ),
+              ),
+            )
+          else
+            Icon(
+              Icons.insert_drive_file_outlined,
+              size: 18,
+              color: theme.colorScheme.onPrimary,
+            ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              attachment.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: theme.colorScheme.onPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -421,7 +515,8 @@ class _AnsweredQuestionBubble extends StatefulWidget {
   const _AnsweredQuestionBubble({required this.data});
 
   @override
-  State<_AnsweredQuestionBubble> createState() => _AnsweredQuestionBubbleState();
+  State<_AnsweredQuestionBubble> createState() =>
+      _AnsweredQuestionBubbleState();
 }
 
 class _AnsweredQuestionBubbleState extends State<_AnsweredQuestionBubble> {
@@ -433,14 +528,10 @@ class _AnsweredQuestionBubbleState extends State<_AnsweredQuestionBubble> {
     final questions = widget.data.request.questions;
     final answers = widget.data.answers;
 
-    final questionText = questions
-        .map((q) => q.question)
-        .where((q) => q.isNotEmpty)
-        .join(' / ');
-    final answerText = answers
-        .where((a) => a.isNotEmpty)
-        .map((a) => a.join(', '))
-        .join(' | ');
+    final questionText =
+        questions.map((q) => q.question).where((q) => q.isNotEmpty).join(' / ');
+    final answerText =
+        answers.where((a) => a.isNotEmpty).map((a) => a.join(', ')).join(' | ');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -460,7 +551,8 @@ class _AnsweredQuestionBubbleState extends State<_AnsweredQuestionBubble> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.chat_bubble_outline, size: 14, color: theme.colorScheme.primary),
+                  Icon(Icons.chat_bubble_outline,
+                      size: 14, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
                     AppLocalizations.of(context)!.question,
@@ -496,7 +588,8 @@ class _AnsweredQuestionBubbleState extends State<_AnsweredQuestionBubble> {
                 color: theme.colorScheme.surfaceContainerHighest.withAlpha(50),
                 borderRadius: BorderRadius.circular(8),
                 border: Border(
-                  left: BorderSide(color: theme.colorScheme.primary.withAlpha(80), width: 2),
+                  left: BorderSide(
+                      color: theme.colorScheme.primary.withAlpha(80), width: 2),
                 ),
               ),
               child: Column(
