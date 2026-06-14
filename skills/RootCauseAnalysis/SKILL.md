@@ -21,7 +21,7 @@ If this directory exists, load and apply any `PREFERENCES.md`, configurations, o
    ```bash
    curl -s -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the RootCauseAnalysis skill to ACTION"}' \
+     -d '{"message": "Running the WORKFLOWNAME workflow in the RootCauseAnalysis skill to ACTION", "language": "en-US"}' \
      > /dev/null 2>&1 &
    ```
 

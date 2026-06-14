@@ -16,11 +16,13 @@ This schema is a **stable contract**: additive changes only; breaking changes bu
   "slug": "20260611-180000_my-task_ab12cd | null",
   "title": "human-friendly work title | null",
   "speak": "one speakable sentence (≤160 chars), template-generated",
+  "language": "BCP-47 language tag for speak, currently en-US or pt-BR",
   "data": { "event-specific fields": "..." }
 }
 ```
 
-- `speak` is always **deterministic** (built from event fields by `buildSpeak()` in `pai-hooks.lib.js`). Renderers MAY ignore it and build their own localized phrase from `event` + `data` — `speak` is the English default, localization is a renderer concern.
+- `speak` is deterministic for system events (built from event fields by `buildSpeak()` in `pai-hooks.lib.js`). Final agent speech is explicit: the model calls the native `pai_notify` tool with the exact speak line.
+- `language` is required for spoken rendering. Mobile TTS uses it as the voice selector and does not infer language from `speak`.
 - Routine activity (individual tool calls, classifier decisions) never appears here — that is what `tool-activity.jsonl` and the other observability streams are for.
 
 ## Levels
@@ -37,7 +39,7 @@ This schema is a **stable contract**: additive changes only; breaking changes bu
 |---|---|---|---|
 | `session_started` | milestone | a session starts attached to tracked work (existing ISA slug found at `session.created`). Plain native sessions start silently. | `project` |
 | `phase_transition` | milestone | ISA frontmatter `phase` changes (detected inside `syncISAToWorkRegistry` — the single source of truth for phase) | `phase`, `previous_phase`, `progress` |
-| `agent_completed` | milestone | a `🎯 COMPLETED:` line appears in an assistant message (`message.updated`); deduped per message | `completed_line`, `agent`, `message_id` |
+| `agent_completed` | milestone | the assistant calls the native `pai_notify` tool before its final response; deduped per response message | `completed_line`, `agent`, `message_id`, `source`, `language` |
 | `guard_denied` | attention | AgentGuard or SkillGuard hard-denies an invocation | `guard` (`agent`\|`skill`), `target`, `reason` |
 | `security_blocked` | attention | SecurityPipeline blocks a bash command, sensitive write, or dangerous prompt | `tool` (`bash`\|`write`\|`edit`\|`prompt`), `reason`, `target?` |
 | `tool_failing` | attention | the same tool fails 3 times in a row within a session (emitted once per streak; success resets it) | `tool`, `count`, `last_error` |
@@ -60,4 +62,5 @@ Consumer rules of thumb:
 
 - Emission never throws into the main flow (failures are swallowed).
 - In-memory dedupe/streak state resets on plugin reload — worst case is one duplicate or one missed `tool_failing`, never a corrupted stream.
-- During streaming, `agent_completed` fires when the `🎯 COMPLETED:` line first appears (it terminates PAI responses, so the message is effectively complete).
+- `🎯 COMPLETED:` is kept as a visible final response convention, but streamed assistant text is not parsed as a voice trigger.
+- Legacy `POST /notify` remains accepted for inherited agent startup/progress messages. Speaking payloads must include `language`; `voice_enabled:false` payloads are treated as dashboard-only.

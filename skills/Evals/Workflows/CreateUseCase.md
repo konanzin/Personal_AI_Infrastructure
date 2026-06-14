@@ -7,7 +7,7 @@ Create a new evaluation use case with test cases and scoring criteria.
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the CreateUseCase workflow in the Evals skill to create eval use case"}' \
+  -d '{"message": "Running the CreateUseCase workflow in the Evals skill to create eval use case", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

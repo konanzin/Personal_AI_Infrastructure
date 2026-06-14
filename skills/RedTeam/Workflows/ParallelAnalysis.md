@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the ParallelAnalysis workflow in the RedTeam skill to red team arguments"}' \
+  -d '{"message": "Running the ParallelAnalysis workflow in the RedTeam skill to red team arguments", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

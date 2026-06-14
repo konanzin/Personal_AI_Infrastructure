@@ -534,6 +534,10 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         return l10n.connectingOverSsh;
       case BootstrapStep.provisioningKey:
         return l10n.provisioningDedicatedSshKey;
+      case BootstrapStep.installingPaiEcosystem:
+        return l10n.installingPaiEcosystem;
+      case BootstrapStep.startingPulseBroker:
+        return l10n.startingPulseBroker;
       case BootstrapStep.locatingOpenCode:
         return l10n.locatingOpenCode;
       case BootstrapStep.installingController:
@@ -544,6 +548,22 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         return l10n.waitingForHttpAttempt(
             event.attempt ?? 0, event.maxAttempts ?? 0);
     }
+  }
+
+  String _remoteSetupFailureMessage(BootstrapOutcome result) {
+    final l10n = AppLocalizations.of(context)!;
+    final base = result.exitCode != null
+        ? l10n.remoteSetupFailedExit(result.exitCode!)
+        : l10n.remoteSetupFailed;
+    final detail = result.message
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .lastOrNull;
+    if (detail == null) return base;
+    final compact =
+        detail.length > 180 ? '${detail.substring(0, 180)}...' : detail;
+    return '$base: $compact';
   }
 
   Future<bool> _bootstrapOpenCodeViaSsh({bool showSnackBar = true}) async {
@@ -647,9 +667,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         message = l10n.openCodeMissingRemote;
         color = Theme.of(context).colorScheme.error;
       case BootstrapFailureKind.remoteCommandFailed:
-        message = result.exitCode != null
-            ? l10n.remoteSetupFailedExit(result.exitCode!)
-            : l10n.remoteSetupFailed;
+        message = _remoteSetupFailureMessage(result);
         color = Theme.of(context).colorScheme.error;
       case BootstrapFailureKind.sshConnectFailed:
         message = l10n.sshBootstrapFailed;

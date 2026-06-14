@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Upgrade workflow in the PAIUpgrade skill to check for upgrades"}' \
+  -d '{"message": "Running the Upgrade workflow in the PAIUpgrade skill to check for upgrades", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

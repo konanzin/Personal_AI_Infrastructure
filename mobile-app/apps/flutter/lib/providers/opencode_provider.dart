@@ -194,6 +194,10 @@ class OpenCodeProvider with ChangeNotifier {
     _connectivity.addListener(_onConnectionStateChanged);
     _connectivity.startMonitoring();
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
+    PulseServiceController.pushPresence(
+      focusedSession: _currentSessionId,
+      foregrounded: _isInForeground,
+    );
   }
 
   /// Updates the HTTP client (called when credentials/timeout change).
@@ -786,6 +790,9 @@ class OpenCodeProvider with ChangeNotifier {
         final messageText = textBuffer.toString();
 
         if (role == 'user') {
+          if (_isInternalPaiContextLoadedMessage(messageText)) {
+            continue;
+          }
           _flushPendingToolCalls(pendingToolCalls);
           pendingToolCalls = [];
           pendingReasoning = StringBuffer();
@@ -1865,6 +1872,12 @@ class OpenCodeProvider with ChangeNotifier {
       if (partId != null) return _partMessageIds[partId];
     }
     return null;
+  }
+
+  bool _isInternalPaiContextLoadedMessage(String text) {
+    final normalized = text.trim();
+    return normalized == '[PAI Context Loaded]' ||
+        normalized == '✅ PAI Context loaded for Silas';
   }
 
   /// Extrai informações da part de eventos message.part.updated

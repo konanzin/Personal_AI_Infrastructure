@@ -7,7 +7,7 @@ Create a custom LLM-as-Judge using templates.
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the CreateJudge workflow in the Evals skill to create LLM judge"}' \
+  -d '{"message": "Running the CreateJudge workflow in the Evals skill to create LLM judge", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

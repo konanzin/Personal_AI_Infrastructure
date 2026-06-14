@@ -8,6 +8,7 @@ PulseEvent ev({
   String level = 'milestone',
   String session = 's1',
   String speak = 'spoken line',
+  String? language = 'en-US',
   String timestamp = '2026-06-11T20:00:00.000Z',
   Map<String, dynamic> data = const {},
 }) =>
@@ -20,14 +21,17 @@ PulseEvent ev({
       'slug': null,
       'title': null,
       'speak': speak,
+      if (language != null) 'language': language,
       'data': data,
     });
 
 void main() {
   group('PulseEvent', () {
     test('dedupeKey mirrors the broker (message_id > phase > timestamp)', () {
-      expect(ev(data: {'message_id': 'm1'}).dedupeKey, 's1:phase_transition:m1');
-      expect(ev(data: {'phase': 'verify'}).dedupeKey, 's1:phase_transition:verify');
+      expect(
+          ev(data: {'message_id': 'm1'}).dedupeKey, 's1:phase_transition:m1');
+      expect(ev(data: {'phase': 'verify'}).dedupeKey,
+          's1:phase_transition:verify');
       expect(ev().dedupeKey, 's1:phase_transition:2026-06-11T20:00:00.000Z');
     });
 
@@ -35,9 +39,20 @@ void main() {
       expect(ev(level: 'brand-new-level').level, PulseLevel.milestone);
     });
 
+    test('language is parsed from the event envelope', () {
+      expect(ev(language: 'pt-BR').language, 'pt-BR');
+      expect(ev(language: null).language, isNull);
+    });
+
     test('delivery frame parses broker render decision', () {
       final d = PulseDelivery.fromFrame({
-        'event': {'event': 'guard_denied', 'level': 'attention', 'session_id': 's1', 'speak': 'x'},
+        'event': {
+          'event': 'guard_denied',
+          'level': 'attention',
+          'session_id': 's1',
+          'speak': 'x',
+          'language': 'en-US',
+        },
         'render': {'speak': false, 'reason': 'session-on-screen'},
         'dedupe_key': 'k1',
       });
@@ -54,26 +69,53 @@ void main() {
       expect(r.markAndCheckFresh('k1'), false);
     });
 
-    test('catch-up keeps every attention but only the latest milestone/digest', () {
+    test('catch-up keeps every attention but only the latest milestone/digest',
+        () {
       final r = PulseReconciler();
       final out = r.reconcile([
         ev(data: {'phase': 'plan'}),
         ev(data: {'phase': 'build'}),
-        ev(level: 'attention', event: 'guard_denied', data: {'message_id': 'a1'}),
-        ev(level: 'attention', event: 'security_blocked', data: {'message_id': 'a2'}),
+        ev(
+            level: 'attention',
+            event: 'guard_denied',
+            data: {'message_id': 'a1'}),
+        ev(
+            level: 'attention',
+            event: 'security_blocked',
+            data: {'message_id': 'a2'}),
         ev(data: {'phase': 'verify'}),
-        ev(level: 'digest', event: 'session_completed', data: {'message_id': 'd1'}),
+        ev(
+            level: 'digest',
+            event: 'session_completed',
+            data: {'message_id': 'd1'}),
       ]);
-      expect(out.map((e) => e.level).where((l) => l == PulseLevel.attention).length, 2);
-      expect(out.where((e) => e.level == PulseLevel.milestone).single.data['phase'], 'verify');
+      expect(
+          out
+              .map((e) => e.level)
+              .where((l) => l == PulseLevel.attention)
+              .length,
+          2);
+      expect(
+          out
+              .where((e) => e.level == PulseLevel.milestone)
+              .single
+              .data['phase'],
+          'verify');
       expect(out.where((e) => e.level == PulseLevel.digest).length, 1);
     });
 
     test('skipped backlog never resurfaces on the next reconcile', () {
       final r = PulseReconciler();
-      r.reconcile([ev(data: {'phase': 'plan'}), ev(data: {'phase': 'build'})]);
+      r.reconcile([
+        ev(data: {'phase': 'plan'}),
+        ev(data: {'phase': 'build'})
+      ]);
       // 'plan' was skipped (only latest spoken) but must count as seen:
-      expect(r.reconcile([ev(data: {'phase': 'plan'})]), isEmpty);
+      expect(
+          r.reconcile([
+            ev(data: {'phase': 'plan'})
+          ]),
+          isEmpty);
     });
 
     test('capacity bound evicts oldest keys', () {

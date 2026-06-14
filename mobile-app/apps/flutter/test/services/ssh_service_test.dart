@@ -18,6 +18,37 @@ void main() {
     });
   });
 
+  group('PAI ecosystem bootstrap commands', () {
+    test('installs or updates the remote PAI ecosystem', () {
+      final command = installPaiEcosystemCommand();
+
+      expect(command, startsWith('sh -lc '));
+      expect(command, contains(paiDefaultRepositoryUrl));
+      expect(command, contains(paiDefaultRepositoryBranch));
+      expect(command, contains('PAI-opencode'));
+      expect(
+          command, isNot(contains(r'repo_branch="${PAI_REPO_BRANCH:-main}"')));
+      expect(command, isNot(contains(r'$HOME/Personal_AI_Infrastructure')));
+      expect(command,
+          contains(r'${repo_branch}:refs/remotes/origin/${repo_branch}'));
+      expect(command, contains('opencode/install.sh'));
+      expect(command, contains('--update'));
+      expect(command, contains('pulse-broker.ts'));
+      expect(command, contains('apt-get install'));
+    });
+
+    test('starts Pulse Broker and verifies health', () {
+      final command = startPulseBrokerCommand();
+
+      expect(command, startsWith('sh -lc '));
+      expect(command, contains('pulse-broker.service'));
+      expect(command, contains('pulse-broker.ts'));
+      expect(command, contains(r'http://127.0.0.1:$port/health'));
+      expect(command, contains('systemctl --user enable --now'));
+      expect(command, contains('setsid'));
+    });
+  });
+
   group('OpenCode controller script', () {
     test('installs lifecycle controller script', () {
       final command = installPaiOpenCodeControllerCommand();

@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Comparisons workflow in the Art skill to create side-by-side visuals"}' \
+  -d '{"message": "Running the Comparisons workflow in the Art skill to create side-by-side visuals", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

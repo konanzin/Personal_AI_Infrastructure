@@ -12,7 +12,7 @@ effort: medium
    ```bash
    curl -s -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the Remotion skill to ACTION"}' \
+     -d '{"message": "Running the WORKFLOWNAME workflow in the Remotion skill to ACTION", "language": "en-US"}' \
      > /dev/null 2>&1 &
    ```
 

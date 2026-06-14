@@ -761,7 +761,7 @@ abstract class AppLocalizations {
   /// No description provided for @setupOpenCodeViaSsh.
   ///
   /// In pt, this message translates to:
-  /// **'Configurar OpenCode via SSH'**
+  /// **'Configurar PAI/OpenCode via SSH'**
   String get setupOpenCodeViaSsh;
 
   /// No description provided for @directOpenCodeServer.
@@ -851,7 +851,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingUpOpenCode.
   ///
   /// In pt, this message translates to:
-  /// **'Configurando OpenCode'**
+  /// **'Configurando ecossistema PAI'**
   String get settingUpOpenCode;
 
   /// No description provided for @connectingOverSsh.
@@ -865,6 +865,18 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Gerando e instalando uma chave SSH dedicada...'**
   String get provisioningDedicatedSshKey;
+
+  /// No description provided for @installingPaiEcosystem.
+  ///
+  /// In pt, this message translates to:
+  /// **'Instalando ou atualizando o ecossistema PAI...'**
+  String get installingPaiEcosystem;
+
+  /// No description provided for @startingPulseBroker.
+  ///
+  /// In pt, this message translates to:
+  /// **'Iniciando o Pulse Broker...'**
+  String get startingPulseBroker;
 
   /// No description provided for @locatingOpenCode.
   ///

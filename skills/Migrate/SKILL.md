@@ -10,7 +10,7 @@ description: "Intakes existing content from external sources, classifies each ch
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Starting the migration. Scanning source and classifying chunks."}' \
+  -d '{"message": "Starting the migration. Scanning source and classifying chunks.", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Reproduce workflow in the Interceptor skill to reproduce a bug"}' \
+  -d '{"message": "Running the Reproduce workflow in the Interceptor skill to reproduce a bug", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

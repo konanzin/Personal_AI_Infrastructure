@@ -198,6 +198,17 @@ const SPEAK_BUILDERS = {
   },
 };
 
+export function normalizeNotificationLanguage(language) {
+  if (typeof language !== 'string') return null;
+  const raw = language.trim().replace(/_/g, '-');
+  if (!raw) return null;
+  const [code, region] = raw.split('-');
+  const lowerCode = code.toLowerCase();
+  if (lowerCode === 'pt') return `pt-${(region || 'BR').toUpperCase()}`;
+  if (lowerCode === 'en') return `en-${(region || 'US').toUpperCase()}`;
+  return null;
+}
+
 export function buildSpeak(event, data = {}) {
   const builder = SPEAK_BUILDERS[event];
   const phrase = builder ? builder(data) : `PAI event: ${event}`;
@@ -205,8 +216,21 @@ export function buildSpeak(event, data = {}) {
   return truncate(String(phrase).replace(/\s+/g, ' ').trim(), 160);
 }
 
-export function emitNotification({ event, sessionId, slug = null, title = null, data = {}, speak = null, level = null }) {
+export function emitNotification({
+  event,
+  sessionId,
+  slug = null,
+  title = null,
+  data = {},
+  speak = null,
+  level = null,
+  language = null,
+}) {
   try {
+    const normalizedLanguage =
+      normalizeNotificationLanguage(language) ||
+      normalizeNotificationLanguage(data.language) ||
+      'en-US';
     const entry = {
       v: 1,
       timestamp: getISOTimestamp(),
@@ -216,6 +240,7 @@ export function emitNotification({ event, sessionId, slug = null, title = null, 
       slug,
       title: title || data.title || slug || null,
       speak: speak ? truncate(String(speak).replace(/\s+/g, ' ').trim(), 160) : buildSpeak(event, { ...data, slug, title }),
+      language: normalizedLanguage,
       data,
     };
     appendJsonL(NOTIFICATIONS_PATH, entry);
@@ -1017,6 +1042,7 @@ export async function emitPulseEvent(event) {
 
 export async function notifyPulse(message, options = {}) {
   try {
+    const language = normalizeNotificationLanguage(options.language);
     await fetch('http://localhost:31337/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1024,6 +1050,7 @@ export async function notifyPulse(message, options = {}) {
         message,
         voice_enabled: options.voice_enabled || false,
         voice_id: options.voice_id || process.env.ELEVENLABS_VOICE_ID,
+        ...(language ? { language } : {}),
       }),
       signal: AbortSignal.timeout(2000),
     });

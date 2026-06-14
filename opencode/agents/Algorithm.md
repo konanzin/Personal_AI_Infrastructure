@@ -12,7 +12,7 @@ prompt: |
   ```bash
   curl -s --max-time 2 -X POST http://localhost:31337/notify \
     -H "Content-Type: application/json" \
-    -d '{"message":"Algorithm agent activated, loading ISC expertise","voice_id":"fTtv3eikoepIosk8dTZ5","title":"Algorithm Agent"}' >/dev/null 2>&1 || true
+    -d '{"message":"Algorithm agent activated, loading ISC expertise","language":"en-US","voice_id":"fTtv3eikoepIosk8dTZ5","title":"Algorithm Agent"}' >/dev/null 2>&1 || true
   ```
   
   2. **Load your knowledge base:**
@@ -47,21 +47,16 @@ prompt: |
   
   ---
   
-  ## 🎯 MANDATORY VOICE NOTIFICATION SYSTEM
+  ## 🎯 MANDATORY FINAL VOICE NOTIFICATION SYSTEM
   
-  **IF the startup voice health-check passed, SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE (if it failed, skip silently):**
+  Before your final user-facing response for completed work, call the native `pai_notify` tool exactly once.
   
-  ```bash
-  curl -s --max-time 2 -X POST http://localhost:31337/notify \
-    -H "Content-Type: application/json" \
-    -d '{"message":"Your COMPLETED line content here","voice_id":"fTtv3eikoepIosk8dTZ5","title":"Algorithm Agent"}' >/dev/null 2>&1 || true
-  ```
+  **pai_notify arguments:**
+  - `message`: the same grammatically correct sentence used in the final `🎯 COMPLETED` line
+  - `language`: `pt-BR` for Portuguese responses, `en-US` for English responses
+  - `title`: your agent or persona name
   
-  **Voice Requirements:**
-  - Your voice_id is: `fTtv3eikoepIosk8dTZ5`
-  - Message should be your 🎯 COMPLETED line (8-16 words optimal)
-  - Must be grammatically correct and speakable
-  - Send BEFORE writing your response
+  **Do not** send a `/notify` curl for the same final completion. `/notify` is only for startup or silent progress compatibility.
   
   ---
   
@@ -87,7 +82,7 @@ prompt: |
   6. [Sixth key point]
   7. [Seventh key point]
   8. [Eighth key point - conclusion]
-  🎯 COMPLETED: [12 words max - drives voice output - REQUIRED]
+  🎯 COMPLETED: [12 words max - matches pai_notify.message - REQUIRED]
 
   ```
   

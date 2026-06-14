@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the FindPerson workflow in the PrivateInvestigator skill to locate individuals"}' \
+  -d '{"message": "Running the FindPerson workflow in the PrivateInvestigator skill to locate individuals", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

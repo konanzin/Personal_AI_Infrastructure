@@ -7,7 +7,7 @@ Run evaluations for a specific use case.
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the RunEval workflow in the Evals skill to execute evaluation"}' \
+  -d '{"message": "Running the RunEval workflow in the Evals skill to execute evaluation", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

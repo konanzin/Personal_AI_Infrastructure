@@ -11,6 +11,7 @@ import 'package:pai_mobile_flutter/providers/opencode_provider.dart';
 import 'package:pai_mobile_flutter/services/connectivity_service.dart';
 import 'package:pai_mobile_flutter/services/api_errors.dart';
 import 'package:pai_mobile_flutter/services/opencode_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeOpenCodeClient extends OpenCodeClient {
   _FakeOpenCodeClient() : super(_dummyConfig);
@@ -100,15 +101,30 @@ void main() {
 
   const secureStorageChannel =
       MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+  const foregroundTaskChannel =
+      MethodChannel('flutter_foreground_task/methods');
 
   setUpAll(() {
+    SharedPreferences.setMockInitialValues({});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(secureStorageChannel, (call) async => null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(foregroundTaskChannel, (call) async {
+      switch (call.method) {
+        case 'sendData':
+        case 'sendDataToTask':
+          return true;
+        default:
+          return null;
+      }
+    });
   });
 
   tearDownAll(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(secureStorageChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(foregroundTaskChannel, null);
   });
 
   group('OpenCodeProvider connectivity', () {
@@ -137,6 +153,28 @@ void main() {
       await provider.loadHistory();
 
       expect(provider.connectionState, ConnectionStatus.online);
+    });
+
+    test('loadHistory filters internal PAI context loaded marker', () async {
+      fakeClient.getSessionMessagesResult = [
+        {
+          'info': {'role': 'user', 'id': 'msg-internal'},
+          'parts': [
+            {'type': 'text', 'text': '[PAI Context Loaded]'}
+          ],
+        },
+        {
+          'info': {'role': 'user', 'id': 'msg-real'},
+          'parts': [
+            {'type': 'text', 'text': 'Boa noite'}
+          ],
+        },
+      ];
+
+      await provider.loadHistory();
+
+      expect(provider.history.length, 1);
+      expect(provider.history.single.text, 'Boa noite');
     });
 
     test('loadHistory failure does not mark online and propagates error',

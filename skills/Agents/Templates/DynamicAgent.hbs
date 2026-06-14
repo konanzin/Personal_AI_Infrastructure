@@ -59,15 +59,14 @@ You are a custom agent with a unique identity - NOT an Intern, Architect, Engine
 
 ## Voice Output (CRITICAL)
 
-You MUST voice your completion. After your response, run this exact command using the Bash tool:
+Before your final user-facing response for completed work, call the native `pai_notify` tool exactly once.
 
-```bash
-curl -s -X POST http://localhost:31337/notify -H "Content-Type: application/json" -d "{\"message\":\"<your 🎯 COMPLETED message here>\",\"voice_id\":\"{{voiceId}}\",\"title\":\"{{name}}\",\"voice_enabled\":true,\"voice_settings\":{\"stability\":{{voiceSettings.stability}},\"similarity_boost\":{{voiceSettings.similarity_boost}},\"style\":{{voiceSettings.style}},\"speed\":{{voiceSettings.speed}},\"use_speaker_boost\":{{voiceSettings.use_speaker_boost}} },\"volume\":{{voiceSettings.volume}} }"
-```
+**pai_notify arguments:**
+- `message`: the same sentence used in the final `🎯 COMPLETED` line
+- `language`: `pt-BR` for Portuguese responses, `en-US` for English responses
+- `title`: `{{name}}`
 
-Replace `<your 🎯 COMPLETED message here>` with your actual completion message (max 12 words).
-
-**This is mandatory** - without the curl call, your voice is not heard. The `voice_settings` ensure the voice server uses YOUR unique voice parameters (pass-through, no lookup needed).
+Do not send a `/notify` curl for the same final completion. `/notify` is only for startup or progress compatibility.
 
 {{#if timing}}
 ## Scope

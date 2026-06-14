@@ -40,6 +40,7 @@ class SshService {
     String? privateKeyPem,
     String? password,
     String? expectedHostKeyFingerprint,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     disconnect();
     final identities = privateKeyPem != null && privateKeyPem.trim().isNotEmpty
@@ -56,7 +57,7 @@ class SshService {
         ? expectedHostKeyFingerprint
         : null;
 
-    final socket = await SSHSocket.connect(host, port);
+    final socket = await SSHSocket.connect(host, port).timeout(timeout);
     _client = SSHClient(
       socket,
       username: username,
@@ -70,7 +71,7 @@ class SshService {
       },
     );
     try {
-      await _client!.authenticated;
+      await _client!.authenticated.timeout(timeout);
     } on SSHHostkeyError {
       disconnect();
       if (pin != null && _hostKeyFingerprint != pin) {
@@ -178,6 +179,281 @@ if ! grep -qxF "\$key" "\$ak" 2>/dev/null; then
 fi
 ''';
   return 'sh -c ${shellEscape(script)}';
+}
+
+const paiDefaultRepositoryUrl =
+    'https://github.com/konanzin/Personal_AI_Infrastructure.git';
+const paiDefaultRepositoryBranch = 'dori';
+const paiDefaultRepositoryDir = r'$HOME/PAI-opencode';
+
+const _installPaiEcosystemScript = r'''
+set -eu
+
+log() { printf '[pai-bootstrap] %s\n' "$*"; }
+warn() { printf '[pai-bootstrap][warn] %s\n' "$*" >&2; }
+die() { printf '[pai-bootstrap][error] %s\n' "$*" >&2; exit "${2:-1}"; }
+
+export PATH="$HOME/.opencode/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+
+repo_url="${PAI_REPO_URL:-https://github.com/konanzin/Personal_AI_Infrastructure.git}"
+repo_branch="${PAI_REPO_BRANCH:-dori}"
+repo_dir="${PAI_REPO_DIR:-$HOME/PAI-opencode}"
+
+as_root() {
+  if [ "$(id -u)" = "0" ]; then
+    "$@"
+    return $?
+  fi
+  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo "$@"
+    return $?
+  fi
+  return 126
+}
+
+ensure_base_packages() {
+  missing=""
+  for cmd in bash git curl; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing="$missing $cmd"
+    fi
+  done
+
+  if [ -z "$missing" ]; then
+    log "base packages ok"
+    return 0
+  fi
+
+  if ! command -v apt-get >/dev/null 2>&1; then
+    die "missing commands:$missing; install bash, git and curl first" 127
+  fi
+
+  log "installing base packages:$missing"
+  as_root apt-get update ||
+    die "root or passwordless sudo is required to install:$missing" 126
+  as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates $missing ||
+    die "could not install base packages:$missing" 126
+}
+
+ensure_repo() {
+  parent="$(dirname "$repo_dir")"
+  mkdir -p "$parent"
+
+  if [ -d "$repo_dir/.git" ]; then
+    log "updating PAI repository at $repo_dir"
+    git -C "$repo_dir" fetch --depth=1 origin "+${repo_branch}:refs/remotes/origin/${repo_branch}" ||
+      git -C "$repo_dir" fetch origin "+${repo_branch}:refs/remotes/origin/${repo_branch}" ||
+      warn "could not fetch origin/$repo_branch; using current checkout"
+    if git -C "$repo_dir" rev-parse --verify "origin/$repo_branch" >/dev/null 2>&1; then
+      git -C "$repo_dir" checkout -q -B "$repo_branch" "origin/$repo_branch" ||
+        die "could not checkout origin/$repo_branch in $repo_dir" 74
+      git -C "$repo_dir" merge --ff-only "origin/$repo_branch" ||
+        warn "could not fast-forward $repo_branch; using current checkout"
+    fi
+  elif [ -e "$repo_dir" ]; then
+    die "$repo_dir exists but is not a git repository" 73
+  else
+    log "cloning PAI repository into $repo_dir"
+    git clone --depth=1 --branch "$repo_branch" "$repo_url" "$repo_dir" ||
+      { rmdir "$repo_dir" 2>/dev/null || true; git clone "$repo_url" "$repo_dir"; }
+  fi
+
+  if [ ! -f "$repo_dir/opencode/install.sh" ]; then
+    die "PAI installer not found at $repo_dir/opencode/install.sh" 74
+  fi
+}
+
+install_pai() {
+  log "running PAI installer"
+  bash "$repo_dir/opencode/install.sh" --update
+  export PATH="$HOME/.opencode/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+
+  if ! command -v opencode >/dev/null 2>&1 &&
+     [ ! -x "$HOME/.opencode/bin/opencode" ] &&
+     [ ! -x "$HOME/.local/bin/opencode" ] &&
+     [ ! -x "$HOME/.bun/bin/opencode" ]; then
+    die "opencode was not installed by the PAI installer" 127
+  fi
+
+  if ! command -v bun >/dev/null 2>&1 && [ ! -x "$HOME/.bun/bin/bun" ]; then
+    die "bun was not installed by the PAI installer" 127
+  fi
+
+  if [ ! -f "$HOME/.config/opencode/PAI/broker/pulse-broker.ts" ]; then
+    die "Pulse Broker files were not installed" 74
+  fi
+
+  log "PAI ecosystem installed"
+}
+
+ensure_base_packages
+ensure_repo
+install_pai
+''';
+
+/// Installs or updates the full remote PAI/OpenCode ecosystem.
+///
+/// The command is intentionally idempotent. It guarantees the base OS tools
+/// needed by the repo installer, clones/updates the PAI repo, runs
+/// `opencode/install.sh --update`, and verifies that OpenCode, Bun, and the
+/// Pulse Broker files exist before the mobile bootstrap continues.
+String installPaiEcosystemCommand() {
+  return 'sh -lc ${shellEscape(_installPaiEcosystemScript)}';
+}
+
+const _startPulseBrokerScript = r'''
+set -eu
+
+log() { printf '[pai-bootstrap] %s\n' "$*"; }
+warn() { printf '[pai-bootstrap][warn] %s\n' "$*" >&2; }
+die() { printf '[pai-bootstrap][error] %s\n' "$*" >&2; exit "${2:-1}"; }
+
+export PATH="$HOME/.opencode/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+
+pai_dir="${PAI_DIR:-$HOME/.config/opencode/PAI}"
+broker="$pai_dir/broker/pulse-broker.ts"
+port="${PULSE_BROKER_PORT:-31337}"
+unit_name="pulse-broker.service"
+unit_file="$HOME/.config/systemd/user/$unit_name"
+state_dir="$HOME/.local/state/pai-mobile"
+pid_file="$state_dir/pulse-broker.pid"
+log_file="$state_dir/pulse-broker.log"
+
+health() {
+  curl -fsS --max-time 2 "http://127.0.0.1:$port/health" >/dev/null 2>&1
+}
+
+runtime_ready() {
+  if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export XDG_RUNTIME_DIR
+  fi
+  [ -d "$XDG_RUNTIME_DIR" ] || return 1
+  if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    export DBUS_SESSION_BUS_ADDRESS
+  fi
+  return 0
+}
+
+systemd_available() {
+  [ "${PAI_PULSE_NO_SYSTEMD:-0}" = "1" ] && return 1
+  command -v systemctl >/dev/null 2>&1 || return 1
+  runtime_ready || return 1
+  systemctl --user show-environment >/dev/null 2>&1
+}
+
+wait_for_health() {
+  i=0
+  while [ "$i" -lt 20 ]; do
+    if health; then
+      return 0
+    fi
+    sleep 0.5
+    i=$((i + 1))
+  done
+  return 1
+}
+
+find_bun() {
+  if command -v bun >/dev/null 2>&1; then
+    command -v bun
+    return 0
+  fi
+  if [ -x "$HOME/.bun/bin/bun" ]; then
+    printf '%s\n' "$HOME/.bun/bin/bun"
+    return 0
+  fi
+  return 1
+}
+
+write_unit() {
+  mkdir -p "$(dirname "$unit_file")"
+  cat > "$unit_file" <<EOF
+[Unit]
+Description=PAI Pulse Broker (notifications fan-out, port $port)
+After=network.target
+
+[Service]
+Type=simple
+Environment=PAI_DIR=$pai_dir
+Environment=PULSE_BROKER_PORT=$port
+ExecStart="$bun_bin" "$broker" --port "$port"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+}
+
+start_process() {
+  mkdir -p "$state_dir"
+
+  if [ -f "$pid_file" ]; then
+    old_pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      if health; then
+        log "Pulse Broker already running pid=$old_pid"
+        return 0
+      fi
+      kill "$old_pid" 2>/dev/null || true
+    fi
+  fi
+
+  : > "$log_file"
+  if command -v setsid >/dev/null 2>&1; then
+    setsid "$bun_bin" "$broker" --port "$port" >> "$log_file" 2>&1 < /dev/null &
+  else
+    nohup "$bun_bin" "$broker" --port "$port" >> "$log_file" 2>&1 < /dev/null &
+  fi
+  pid="$!"
+  printf '%s\n' "$pid" > "$pid_file"
+
+  if wait_for_health; then
+    log "Pulse Broker started mode=process pid=$pid port=$port"
+    return 0
+  fi
+
+  warn "Pulse Broker process did not become healthy"
+  tail -n 25 "$log_file" >&2 2>/dev/null || true
+  return 1
+}
+
+if [ ! -f "$broker" ]; then
+  die "Pulse Broker script missing at $broker" 74
+fi
+
+bun_bin="$(find_bun)" || die "bun not found; run the PAI installer first" 127
+
+if health; then
+  log "Pulse Broker already healthy on port $port"
+  exit 0
+fi
+
+if systemd_available; then
+  write_unit
+  systemctl --user daemon-reload || warn "systemctl daemon-reload failed"
+  if systemctl --user enable --now "$unit_name"; then
+    loginctl enable-linger "$(id -un)" >/dev/null 2>&1 || true
+    if wait_for_health; then
+      log "Pulse Broker started mode=systemd unit=$unit_name port=$port"
+      exit 0
+    fi
+  fi
+  warn "Pulse Broker systemd start failed; trying process fallback"
+  journalctl --user -u "$unit_name" -n 25 --no-pager >&2 2>/dev/null || true
+fi
+
+start_process
+''';
+
+/// Starts the remote Pulse Broker on port 31337 and verifies `/health`.
+///
+/// It prefers a user systemd service, with a detached process fallback for
+/// servers that do not expose a user systemd bus over SSH.
+String startPulseBrokerCommand() {
+  return 'sh -lc ${shellEscape(_startPulseBrokerScript)}';
 }
 
 const paiOpenCodeControllerPath = r'$HOME/.local/bin/pai-opencode';

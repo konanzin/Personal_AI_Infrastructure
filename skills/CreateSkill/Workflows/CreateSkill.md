@@ -7,7 +7,7 @@ Create a new skill following the canonical structure with proper TitleCase namin
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the CreateSkill workflow in the CreateSkill skill to create new skill"}' \
+  -d '{"message": "Running the CreateSkill workflow in the CreateSkill skill to create new skill", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 
@@ -104,7 +104,7 @@ description: [What it does]. USE WHEN [intent triggers using OR]. NOT FOR [confu
    ```bash
    curl -s -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
-     -d '{"message": "Running WORKFLOWNAME in SKILLNAME"}' \
+     -d '{"message": "Running WORKFLOWNAME in SKILLNAME", "language": "en-US"}' \
      > /dev/null 2>&1 &
    ```
 

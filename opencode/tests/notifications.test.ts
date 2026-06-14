@@ -47,6 +47,7 @@ describe("Notifications — emitNotification envelope", () => {
     expect(e.slug).toBe("20260611_my-task");
     expect(e.speak).toContain("My Task");
     expect(e.speak).toContain("verify");
+    expect(e.language).toBe("en-US");
     expect(e.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
@@ -83,6 +84,18 @@ describe("Notifications — emitNotification envelope", () => {
     });
 
     expect(readEvents()[0].speak).toBe("Shipped the parser with tests");
+  });
+
+  test("explicit language overrides the default selector", () => {
+    emitNotification({
+      event: "agent_completed",
+      sessionId: "s",
+      speak: "Tarefa concluída",
+      language: "pt_BR",
+      data: {},
+    });
+
+    expect(readEvents()[0].language).toBe("pt-BR");
   });
 
   test("unknown events fall back to milestone and a generic speak", () => {

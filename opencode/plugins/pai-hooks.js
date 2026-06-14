@@ -27,6 +27,7 @@ import {
   existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, readdirSync, statSync, unlinkSync,
 } from 'fs';
 import { join, dirname } from 'path';
+import { tool } from '@opencode-ai/plugin';
 
 import {
   PAI_DIR, MEMORY_DIR, STATE_DIR, WORK_DIR, LEARNING_DIR, OBSERVABILITY_DIR,
@@ -46,6 +47,7 @@ import {
   getRecentWorkSessions,
   isISAArtifactPath, extractISAState, syncISAToWorkRegistry,
   emitNotification,
+  normalizeNotificationLanguage,
 } from './lib/pai-hooks.lib.js';
 
 import {
@@ -181,7 +183,10 @@ ${classificationContext}
 - Small screen: answer directly and concisely; short paragraphs over long lists.
 - No decorative output sections (no STORY EXPLANATION, no multi-block emoji headers).
 - Keep everything structural: ISA updates, phase discipline, verification evidence.
-- Always end completed work with a '🎯 COMPLETED:' line of 8-16 speakable words.
+- Before the final user-facing response for completed work, call the pai_notify tool exactly once.
+- pai_notify.language must be "pt-BR" for Portuguese speech or "en-US" for English speech.
+- pai_notify.message must be the same short sentence used in the final visible '🎯 COMPLETED:' line.
+- Always end completed work with a visible '🎯 COMPLETED:' line; it is not parsed for voice.
 
 ## Session
 session_id: ${sessionId || 'unknown'}
@@ -215,6 +220,12 @@ Use your own judgment to classify each prompt:
 **Override:** /e1–/e5 in user prompt forces tier. **Fail-safe:** unsure → ALGORITHM E3.
 
 **Note:** /pai is only a manual shortcut/debug command.
+
+## Voice Contract
+- Before the final user-facing response for completed work, call the pai_notify tool exactly once.
+- Set pai_notify.language to "pt-BR" when the spoken sentence is Portuguese and "en-US" when it is English.
+- Use a short, grammatically correct pai_notify.message, and repeat that same sentence in the final visible '🎯 COMPLETED:' line.
+- The '🎯 COMPLETED:' line is kept for continuity and is not parsed as the voice trigger.
 
 ## Session
 session_id: ${sessionId || 'unknown'}
@@ -257,7 +268,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
 
   // Notification support state (in-memory; losing it on reload only risks
   // a duplicate/missed notification, never corrupts the stream)
-  const completedLinesEmitted = new Set(); // `${sessionId}:${messageId}` already notified
+  const paiNotifyEmitted = new Set(); // `${sessionId}:${messageId}` already notified by pai_notify
   const consecutiveToolFailures = new Map(); // sessionId -> Map(tool -> count)
   const TOOL_FAILING_THRESHOLD = 3;
 
@@ -292,6 +303,80 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   await logStructured('info', 'Plugin initialized');
 
   const hooks = {
+    tool: {
+      pai_notify: tool({
+        description: 'Send the final PAI voice notification to Pulse. Use exactly once before the final completed response.',
+        args: {
+          message: tool.schema.string()
+            .min(1)
+            .max(160)
+            .describe('Short speakable completion sentence. Use the same sentence in the final 🎯 COMPLETED line.'),
+          language: tool.schema.enum(['pt-BR', 'en-US'])
+            .describe('Language of the spoken sentence. Use pt-BR for Portuguese and en-US for English.'),
+          title: tool.schema.string()
+            .min(1)
+            .max(80)
+            .optional()
+            .describe('Optional human-readable speaker or agent title.'),
+        },
+        async execute(args, context) {
+          const message = String(args.message || '').replace(/\s+/g, ' ').trim();
+          const language = normalizeNotificationLanguage(args.language);
+          if (!message) {
+            throw new Error('pai_notify requires a non-empty message.');
+          }
+          if (!language) {
+            throw new Error('pai_notify requires language "pt-BR" or "en-US".');
+          }
+
+          const sessionId = context.sessionID || 'unknown';
+          const messageId = context.messageID || hashString(`${message}:${language}`, 12);
+          const dedupeKey = `${sessionId}:${messageId}`;
+          if (paiNotifyEmitted.has(dedupeKey)) {
+            return {
+              title: 'Pulse already notified',
+              output: `Voice notification already sent for this response (${language}).`,
+              metadata: { language, message_id: messageId, deduped: true },
+            };
+          }
+          paiNotifyEmitted.add(dedupeKey);
+          if (paiNotifyEmitted.size > 500) {
+            paiNotifyEmitted.delete(paiNotifyEmitted.values().next().value);
+          }
+
+          context.metadata?.({
+            title: args.title || 'PAI voice notification',
+            metadata: { language, message_id: messageId },
+          });
+
+          const entry = emitNotification({
+            event: 'agent_completed',
+            sessionId,
+            title: args.title || context.agent || null,
+            speak: message,
+            language,
+            data: {
+              completed_line: message,
+              agent: context.agent || null,
+              message_id: messageId,
+              source: 'pai_notify',
+              language,
+            },
+          });
+
+          return {
+            title: 'Pulse notified',
+            output: `Queued final voice notification (${language}).`,
+            metadata: {
+              event: entry?.event || 'agent_completed',
+              language,
+              message_id: messageId,
+            },
+          };
+        },
+      }),
+    },
+
     // ═══════════════════════════════════════════════════════════════
     // F0: Default PAI Runtime — make normal OpenCode prompts behave like PAI
     //
@@ -535,21 +620,6 @@ ${activeWork}`);
         console.log(`[PAI] 🚀 Session started at ${timestamp}`);
         console.log(`[PAI] 📁 Project: ${project?.name || directory || 'unknown'}`);
         console.log(`[PAI] 🔑 Session ID: ${sessionId}`);
-
-        // Seed session with PAI context via noReply prompt
-        try {
-          if (client?.session?.prompt) {
-            await client.session.prompt({
-              path: { id: sessionId },
-              body: {
-                noReply: true,
-                parts: [{ type: 'text', text: '[PAI Context Loaded]' }],
-              },
-            });
-          }
-        } catch (e) {
-          // Silent fail — noReply injection is best-effort
-        }
 
         // Initialize or update session registry (atomic read-modify-write)
         let registry = safeReadJson(sessionRegistryPath, { sessions: {}, lastSessionId: null, version: '2.0' });
@@ -1307,7 +1377,6 @@ ${activeWork}`);
       const timestamp = getISOTimestamp();
       const message = input.message || input.info;
       const isUserMessage = message?.role === 'user' || message?.author === 'user';
-      const isAssistantMessage = message?.role === 'assistant' || message?.author === 'assistant';
 
       try {
         if (!message?.content) return;
@@ -1317,36 +1386,6 @@ ${activeWork}`);
           : JSON.stringify(message.content);
 
         if (!content || content.length < 5) return;
-
-        // ═══════════════════════════════════════════════════════════════
-        // Notification: agent_completed — the '🎯 COMPLETED:' line is the
-        // voice contract every PAI agent ends finished work with. It sits
-        // at the end of a response, so its presence implies the message is
-        // effectively complete; dedupe handles streaming re-fires.
-        // ═══════════════════════════════════════════════════════════════
-        if (isAssistantMessage) {
-          const completedMatch = content.match(/🎯 COMPLETED:\s*(.+)/);
-          if (completedMatch) {
-            const completedLine = completedMatch[1].trim();
-            const dedupeKey = `${sessionId}:${message.id || hashString(completedLine, 12)}`;
-            if (!completedLinesEmitted.has(dedupeKey)) {
-              completedLinesEmitted.add(dedupeKey);
-              if (completedLinesEmitted.size > 500) {
-                completedLinesEmitted.delete(completedLinesEmitted.values().next().value);
-              }
-              emitNotification({
-                event: 'agent_completed',
-                sessionId,
-                title: message.agent || null,
-                data: {
-                  completed_line: truncate(completedLine, 200),
-                  agent: message.agent || null,
-                  message_id: message.id || null,
-                },
-              });
-            }
-          }
-        }
 
         // Use PromptInspector to check for dangerous patterns
         const result = inspectPrompt(content);
@@ -1922,8 +1961,10 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
   // this adapter routes the real runtime signals into them.
   //
   // Message content lives in message *parts* (not `message.content`), so
-  // the 🎯 capture/satisfaction path is fed from `message.part.updated`
-  // with a role cache built from `message.updated`.
+  // post-message inspection and satisfaction capture are fed from
+  // `message.part.updated` with a role cache built from `message.updated`.
+  // Final voice is not parsed from streamed text; it is sent explicitly via
+  // the native `pai_notify` tool.
   // ═══════════════════════════════════════════════════════════════
 
   const messageMetaCache = new Map(); // messageID -> { role, agent }

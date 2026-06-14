@@ -19,7 +19,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
    ```bash
    curl -s -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the BitterPillEngineering skill to ACTION"}' \
+     -d '{"message": "Running the WORKFLOWNAME workflow in the BitterPillEngineering skill to ACTION", "language": "en-US"}' \
      > /dev/null 2>&1 &
    ```
 

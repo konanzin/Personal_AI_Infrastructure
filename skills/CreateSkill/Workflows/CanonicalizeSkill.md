@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the CanonicalizeSkill workflow in the CreateSkill skill to restructure skill"}' \
+  -d '{"message": "Running the CanonicalizeSkill workflow in the CreateSkill skill to restructure skill", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

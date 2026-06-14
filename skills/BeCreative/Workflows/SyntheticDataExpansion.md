@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the SyntheticDataExpansion workflow in the BeCreative skill to expand a seed corpus"}' \
+  -d '{"message": "Running the SyntheticDataExpansion workflow in the BeCreative skill to expand a seed corpus", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

@@ -1,0 +1,14 @@
+{
+  "name": "pai-opencode-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "test:security": "bun test tests/security-pipeline.test.ts"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "1.15.11",
+    "bun-types": "latest"
+  }
+}

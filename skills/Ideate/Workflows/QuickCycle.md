@@ -9,7 +9,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the QuickCycle workflow in the Ideate skill to fast-generate novel candidates"}' \
+  -d '{"message": "Running the QuickCycle workflow in the Ideate skill to fast-generate novel candidates", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

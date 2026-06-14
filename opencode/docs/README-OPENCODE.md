@@ -73,7 +73,7 @@ The LLM classifier uses `opencode run --model <model>` internally and includes L
 
 `pai-hooks.js` adapts PAI hook behavior to OpenCode events.
 
-**Runtime reality (v2.12.0, verified against `@opencode-ai/plugin` 1.16 types):** `chat.message`, `tool.execute.*` and the `experimental.*` hooks are real plugin hooks; **session lifecycle and message updates are bus events** delivered through the generic `event` hook, and the permission hook is `permission.ask`. The named handlers below remain the canonical implementations — a runtime adapter at the end of the plugin routes the bus events into them (message content is reconstructed from `message.part.updated`, since real payloads carry text in parts, not `message.content`).
+**Runtime reality (v2.12.0, verified against `@opencode-ai/plugin` 1.16 types):** `chat.message`, `tool.execute.*`, custom `tool` definitions, and the `experimental.*` hooks are real plugin hooks; **session lifecycle and message updates are bus events** delivered through the generic `event` hook, and the permission hook is `permission.ask`. The named handlers below remain the canonical implementations — a runtime adapter at the end of the plugin routes the bus events into them (message content is reconstructed from `message.part.updated`, since real payloads carry text in parts, not `message.content`). Final voice is intentionally **not** parsed from streamed text: agents call the native `pai_notify` tool with `message` and `language`.
 
 - `session.created`: initialize PAI session state and summarize context availability
 - `chat.message`: **classify mode/tier explicitly** AND **pre-sanitize blocked prompts before they reach the model** (replaces denied content with security warning)

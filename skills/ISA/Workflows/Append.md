@@ -61,7 +61,7 @@ ISC-keyed evidence line. Used at VERIFY phase to record how each ISC was probed.
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Append workflow in the ISA skill"}' \
+  -d '{"message": "Running the Append workflow in the ISA skill", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

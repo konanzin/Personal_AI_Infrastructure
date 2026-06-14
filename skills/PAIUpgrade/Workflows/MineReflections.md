@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the MineReflections workflow to extract upgrade candidates from algorithm reflections"}' \
+  -d '{"message": "Running the MineReflections workflow to extract upgrade candidates from algorithm reflections", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

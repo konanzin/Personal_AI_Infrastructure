@@ -12,7 +12,7 @@ purpose: Migrate CLI from Tier 1 (manual) to Tier 2 (Commander.js)
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the UpgradeTier workflow in the CreateCLI skill to upgrade CLI tier"}' \
+  -d '{"message": "Running the UpgradeTier workflow in the CreateCLI skill to upgrade CLI tier", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

@@ -27,6 +27,7 @@ class PulseEvent {
   final String? slug;
   final String? title;
   final String speak;
+  final String? language;
   final Map<String, dynamic> data;
 
   const PulseEvent({
@@ -38,6 +39,7 @@ class PulseEvent {
     required this.slug,
     required this.title,
     required this.speak,
+    required this.language,
     required this.data,
   });
 
@@ -50,6 +52,7 @@ class PulseEvent {
         slug: json['slug'] as String?,
         title: json['title'] as String?,
         speak: (json['speak'] as String? ?? '').trim(),
+        language: _readLanguage(json['language']),
         data: (json['data'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
 
@@ -61,6 +64,12 @@ class PulseEvent {
         timestamp;
     return '$sessionId:$event:$marker';
   }
+}
+
+String? _readLanguage(Object? value) {
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }
 
 class PulseDelivery {
@@ -79,8 +88,8 @@ class PulseDelivery {
   });
 
   factory PulseDelivery.fromFrame(Map<String, dynamic> frame) {
-    final event =
-        PulseEvent.fromJson((frame['event'] as Map?)?.cast<String, dynamic>() ?? const {});
+    final event = PulseEvent.fromJson(
+        (frame['event'] as Map?)?.cast<String, dynamic>() ?? const {});
     return PulseDelivery(
       event: event,
       dedupeKey: frame['dedupe_key'] as String? ?? event.dedupeKey,

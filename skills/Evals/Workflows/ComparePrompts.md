@@ -9,7 +9,7 @@ A/B test two prompt versions to determine which performs better.
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the ComparePrompts workflow in the Evals skill to A/B test prompts"}' \
+  -d '{"message": "Running the ComparePrompts workflow in the Evals skill to A/B test prompts", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

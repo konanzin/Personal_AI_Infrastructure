@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the StandardCreativity workflow in the BeCreative skill to apply creative thinking"}' \
+  -d '{"message": "Running the StandardCreativity workflow in the BeCreative skill to apply creative thinking", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

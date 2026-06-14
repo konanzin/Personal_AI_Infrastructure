@@ -23,6 +23,7 @@ const mkEvent = (over: Partial<NotificationEvent> = {}): NotificationEvent => ({
   slug: "slug-1",
   title: "Work",
   speak: "Work entered the verify phase",
+  language: "en-US",
   data: { phase: "verify" },
   ...over,
 });
@@ -91,17 +92,18 @@ describe("Broker lib — routing policy v1", () => {
 
 describe("Broker lib — legacy /notify translation", () => {
   test("message becomes a milestone legacy_notify with speak", () => {
-    const ev = translateLegacyNotify({ message: "Running the Research workflow", title: "Ava Chen", voice_id: "x" });
+    const ev = translateLegacyNotify({ message: "Running the Research workflow", title: "Ava Chen", voice_id: "x", language: "en-US" });
     expect(ev).not.toBeNull();
     expect(ev!.event).toBe("legacy_notify");
     expect(ev!.level).toBe("milestone");
     expect(ev!.speak).toBe("Running the Research workflow");
+    expect(ev!.language).toBe("en-US");
     expect(ev!.title).toBe("Ava Chen");
     expect(ev!.data.voice_id).toBe("x");
   });
 
   test("phase payloads map to phase_transition", () => {
-    const ev = translateLegacyNotify({ message: "Entering VERIFY", phase: "VERIFY", slug: "s" });
+    const ev = translateLegacyNotify({ message: "Entering VERIFY", phase: "VERIFY", slug: "s", language: "en-US" });
     expect(ev!.event).toBe("phase_transition");
     expect(ev!.data.phase).toBe("verify");
     expect(ev!.slug).toBe("s");
@@ -110,6 +112,10 @@ describe("Broker lib — legacy /notify translation", () => {
   test("voice_enabled:false yields empty speak (dashboard-only upstream)", () => {
     const ev = translateLegacyNotify({ message: "silent progress", voice_enabled: false });
     expect(ev!.speak).toBe("");
+  });
+
+  test("speaking payloads without language are rejected", () => {
+    expect(translateLegacyNotify({ message: "This would speak without a selector" })).toBeNull();
   });
 
   test("missing message is rejected", () => {
@@ -236,7 +242,7 @@ describe("Broker integration", () => {
     const notifyRes = await fetch(`${base}/notify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Entering the VERIFY phase", phase: "VERIFY", title: "Vera" }),
+      body: JSON.stringify({ message: "Entering the VERIFY phase", phase: "VERIFY", title: "Vera", language: "en-US" }),
     });
     expect(notifyRes.status).toBe(200);
     const legacy = await nextFrame(frames);

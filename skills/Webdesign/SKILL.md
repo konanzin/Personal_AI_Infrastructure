@@ -10,7 +10,7 @@ effort: medium
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Webdesign skill", "voice_enabled": true}' > /dev/null
+  -d '{"message": "Running the Webdesign skill", "language": "en-US", "voice_enabled": true}' > /dev/null
 ```
 
 ## What This Skill Is

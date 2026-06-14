@@ -7,7 +7,7 @@ Improve an existing skill based on test feedback, user observations, or quality 
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the ImproveSkill workflow in the CreateSkill skill to improve skill quality"}' \
+  -d '{"message": "Running the ImproveSkill workflow in the CreateSkill skill to improve skill quality", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

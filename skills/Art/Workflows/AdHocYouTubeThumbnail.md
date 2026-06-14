@@ -7,7 +7,7 @@ Generate complete YouTube thumbnails from content input with dramatic tech backg
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the AdHocYouTubeThumbnail workflow in the Art skill to create thumbnails"}' \
+  -d '{"message": "Running the AdHocYouTubeThumbnail workflow in the Art skill to create thumbnails", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

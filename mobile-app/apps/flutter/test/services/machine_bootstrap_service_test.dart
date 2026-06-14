@@ -18,6 +18,7 @@ class _FakeSsh extends SshService {
     String? privateKeyPem,
     String? password,
     String? expectedHostKeyFingerprint,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     if (connectError != null) throw connectError!;
     connected = true;
@@ -64,15 +65,15 @@ void main() {
     final ssh = _FakeSsh();
     final events = await run(ssh).toList();
 
-    final steps = events
-        .whereType<BootstrapStepEvent>()
-        .map((e) => e.step)
-        .toList();
+    final steps =
+        events.whereType<BootstrapStepEvent>().map((e) => e.step).toList();
     expect(
         steps,
         containsAllInOrder([
           BootstrapStep.connecting,
           BootstrapStep.provisioningKey,
+          BootstrapStep.installingPaiEcosystem,
+          BootstrapStep.startingPulseBroker,
           BootstrapStep.locatingOpenCode,
           BootstrapStep.installingController,
           BootstrapStep.startingService,
@@ -91,16 +92,36 @@ void main() {
     expect(ssh.executed.any((c) => c.contains('authorized_keys')), isTrue);
   });
 
+  test('ensures PAI ecosystem before starting OpenCode', () async {
+    final ssh = _FakeSsh();
+    await run(ssh).toList();
+
+    final installPai = ssh.executed.indexWhere((c) =>
+        c.contains(paiDefaultRepositoryUrl) &&
+        c.contains('opencode/install.sh'));
+    final startPulse =
+        ssh.executed.indexWhere((c) => c.contains('pulse-broker.service'));
+    final lookup = ssh.executed.indexOf(remoteOpenCodeLookupCommand());
+    final controller = ssh.executed
+        .indexWhere((c) => c.contains(r'$HOME/.local/bin/pai-opencode'));
+
+    expect(installPai, isNonNegative);
+    expect(startPulse, isNonNegative);
+    expect(lookup, isNonNegative);
+    expect(controller, isNonNegative);
+    expect(installPai, lessThan(startPulse));
+    expect(startPulse, lessThan(lookup));
+    expect(lookup, lessThan(controller));
+  });
+
   test('existing key skips provisioning', () async {
     final ssh = _FakeSsh();
     const withKey = SshConfig(
         host: 'h', username: 'u', privateKey: '-----BEGIN PRIVATE KEY-----');
     final events = await run(ssh, config: withKey).toList();
 
-    final steps = events
-        .whereType<BootstrapStepEvent>()
-        .map((e) => e.step)
-        .toList();
+    final steps =
+        events.whereType<BootstrapStepEvent>().map((e) => e.step).toList();
     expect(steps, isNot(contains(BootstrapStep.provisioningKey)));
     final done = events.last as BootstrapDoneEvent;
     expect(done.outcome.provisionedPrivateKeyPem, isNull);
@@ -108,16 +129,30 @@ void main() {
 
   test('exit 127 maps to openCodeMissing', () async {
     final ssh = _FakeSsh()
-      ..executeError = (command) =>
-          command == remoteOpenCodeLookupCommand()
-              ? SshCommandException(command, 127, '')
-              : null;
+      ..executeError = (command) => command == remoteOpenCodeLookupCommand()
+          ? SshCommandException(command, 127, '')
+          : null;
 
     final events = await run(ssh).toList();
 
     final done = events.last as BootstrapDoneEvent;
     expect(done.outcome.success, isFalse);
     expect(done.outcome.failure, BootstrapFailureKind.openCodeMissing);
+    expect(ssh.disconnected, isTrue);
+  });
+
+  test('ecosystem install failure maps to remoteCommandFailed', () async {
+    final ssh = _FakeSsh()
+      ..executeError = (command) => command == installPaiEcosystemCommand()
+          ? SshCommandException(command, 127, 'missing dependency')
+          : null;
+
+    final events = await run(ssh).toList();
+
+    final done = events.last as BootstrapDoneEvent;
+    expect(done.outcome.success, isFalse);
+    expect(done.outcome.failure, BootstrapFailureKind.remoteCommandFailed);
+    expect(done.outcome.exitCode, 127);
     expect(ssh.disconnected, isTrue);
   });
 

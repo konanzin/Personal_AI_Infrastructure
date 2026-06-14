@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the SpawnParallelAgents workflow in the Agents skill to launch agents"}' \
+  -d '{"message": "Running the SpawnParallelAgents workflow in the Agents skill to launch agents", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

@@ -24,7 +24,7 @@ Adaptive question-and-answer that fills in or deepens an ISA's prose sections. U
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Interview workflow in the ISA skill"}' \
+  -d '{"message": "Running the Interview workflow in the ISA skill", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

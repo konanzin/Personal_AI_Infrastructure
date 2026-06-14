@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Update workflow in the Browser skill to sync capabilities"}' \
+  -d '{"message": "Running the Update workflow in the Browser skill to sync capabilities", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

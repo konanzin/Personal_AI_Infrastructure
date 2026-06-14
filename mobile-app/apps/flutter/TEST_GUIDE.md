@@ -111,11 +111,15 @@ Teste cada opção:
 
 - Inicie o Pulse Broker no host (`bun ~/.config/opencode/PAI/broker/pulse-broker.ts`) ou pelo serviço systemd de usuário.
 - No app, ative Pulse em Settings.
-- Gere uma notificação via `POST /notify` no broker ou por uma transição de fase ISA.
+- Configure `adb reverse tcp:31337 tcp:31337` para o A51.
+- Gere uma notificação live via `POST /notify` com `language`.
+- Com o app em primeiro plano, verificar: `event.speak` é falado por TTS.
 - Coloque o app em background.
-- Verificar: o foreground service continua ativo, a notificação local atualiza e o texto `event.speak` é falado por TTS.
-- Volte ao app e abra a sessão correspondente.
-- Verificar: presença/foco suprime fala para a sessão em tela.
+- Gere outra notificação live.
+- Verificar: o foreground service continua ativo e a notificação local atualiza, mas TTS não fala.
+- Force-stop/reabra o app para acionar catch-up via `/recent`.
+- Verificar: catch-up não fala backlog e não há prefixo "While you were away"/"Enquanto você esteve fora".
+- Guia detalhado: `PULSE_VOICE_A51_TEST_GUIDE.md`.
 
 ## Comandos Locais
 

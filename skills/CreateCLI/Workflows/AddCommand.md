@@ -12,7 +12,7 @@ purpose: Add new command to existing CLI
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the AddCommand workflow in the CreateCLI skill to add CLI command"}' \
+  -d '{"message": "Running the AddCommand workflow in the CreateCLI skill to add CLI command", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

@@ -7,7 +7,7 @@ Compare multiple models on the same prompt to determine the best performer.
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the CompareModels workflow in the Evals skill to compare model performance"}' \
+  -d '{"message": "Running the CompareModels workflow in the Evals skill to compare model performance", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

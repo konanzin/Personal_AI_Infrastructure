@@ -9,7 +9,7 @@ Inspired by Anthropic's skill-creator methodology: the only way to know if a ski
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the TestSkill workflow in the CreateSkill skill to test skill effectiveness"}' \
+  -d '{"message": "Running the TestSkill workflow in the CreateSkill skill to test skill effectiveness", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

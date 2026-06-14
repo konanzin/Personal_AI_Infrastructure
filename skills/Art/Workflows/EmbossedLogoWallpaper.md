@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the EmbossedLogoWallpaper workflow in the Art skill to create wallpapers"}' \
+  -d '{"message": "Running the EmbossedLogoWallpaper workflow in the Art skill to create wallpapers", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

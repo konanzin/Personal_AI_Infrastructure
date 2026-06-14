@@ -9,7 +9,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Dream workflow in the Ideate skill to free-associate inputs"}' \
+  -d '{"message": "Running the Dream workflow in the Ideate skill to free-associate inputs", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

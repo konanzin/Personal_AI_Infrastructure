@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the FindSources workflow in the PAIUpgrade skill to discover sources"}' \
+  -d '{"message": "Running the FindSources workflow in the PAIUpgrade skill to discover sources", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

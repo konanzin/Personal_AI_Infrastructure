@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the ReviewStories workflow in the Browser skill to validate user stories"}' \
+  -d '{"message": "Running the ReviewStories workflow in the Browser skill to validate user stories", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

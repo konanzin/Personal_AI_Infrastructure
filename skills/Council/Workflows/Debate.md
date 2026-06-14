@@ -7,7 +7,7 @@ Full structured multi-agent debate with 3 rounds and visible transcript.
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Debate workflow in the Council skill to run multi-agent debate"}' \
+  -d '{"message": "Running the Debate workflow in the Council skill to run multi-agent debate", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

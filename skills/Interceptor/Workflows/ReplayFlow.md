@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the ReplayFlow workflow in the Interceptor skill to replay a recorded flow"}' \
+  -d '{"message": "Running the ReplayFlow workflow in the Interceptor skill to replay a recorded flow", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

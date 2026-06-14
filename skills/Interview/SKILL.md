@@ -12,7 +12,7 @@ Before running the workflow, send:
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Starting the interview. Scanning phases first."}' \
+  -d '{"message": "Starting the interview. Scanning phases first.", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 
@@ -85,7 +85,7 @@ For each file:
    ```bash
    curl -s -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
-     -d '{"message": "Updated <FILE> — captured the refinement."}' \
+     -d '{"message": "Updated <FILE> — captured the refinement.", "language": "en-US"}' \
      > /dev/null 2>&1 &
    ```
 7. Ask: "Anything else for <FILE>, or move on?"

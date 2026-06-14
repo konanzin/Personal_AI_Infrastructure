@@ -136,7 +136,7 @@ How the voice embodies the character.]
 \`\`\`bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message":"[Agent name] activated, loading context","voice_id":"{voiceId}","title":"{persona.name}","voice_settings":{"stability":{voice.stability},"similarity_boost":{voice.similarity_boost},"style":{voice.style},"speed":{voice.speed},"use_speaker_boost":{voice.use_speaker_boost}},"volume":{voice.volume}}'
+  -d '{"message":"[Agent name] activated, loading context", "language": "en-US","voice_id":"{voiceId}","title":"{persona.name}","voice_settings":{"stability":{voice.stability},"similarity_boost":{voice.similarity_boost},"style":{voice.style},"speed":{voice.speed},"use_speaker_boost":{voice.use_speaker_boost}},"volume":{voice.volume}}'
 \`\`\`
 
 2. Load knowledge base:
@@ -144,12 +144,12 @@ curl -s -X POST http://localhost:31337/notify \
 
 ## Voice Notification Format
 
-Every response must include a voice curl:
-\`\`\`bash
-curl -s -X POST http://localhost:31337/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message":"[completion message]","voice_id":"{voiceId}","title":"{persona.name}","voice_settings":{"stability":{voice.stability},"similarity_boost":{voice.similarity_boost},"style":{voice.style},"speed":{voice.speed},"use_speaker_boost":{voice.use_speaker_boost}},"volume":{voice.volume}}'
-\`\`\`
+Before the final user-facing response for completed work, call the native `pai_notify` tool exactly once:
+- `message`: the same sentence used in the final `🎯 COMPLETED` line
+- `language`: `pt-BR` for Portuguese responses, `en-US` for English responses
+- `title`: `{persona.name}`
+
+Do not send a `/notify` curl for the same final completion. `/notify` is only for startup or progress compatibility.
 
 ## Output Format
 

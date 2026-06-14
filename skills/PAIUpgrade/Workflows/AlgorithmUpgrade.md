@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Algorithm Upgrade workflow to analyze and propose improvements to the PAI Algorithm"}' \
+  -d '{"message": "Running the Algorithm Upgrade workflow to analyze and propose improvements to the PAI Algorithm", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

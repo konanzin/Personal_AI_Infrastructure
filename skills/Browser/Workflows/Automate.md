@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Automate workflow in the Browser skill to execute a recipe template"}' \
+  -d '{"message": "Running the Automate workflow in the Browser skill to execute a recipe template", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Reconstruct workflow in the FirstPrinciples skill to build optimal solution"}' \
+  -d '{"message": "Running the Reconstruct workflow in the FirstPrinciples skill to build optimal solution", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

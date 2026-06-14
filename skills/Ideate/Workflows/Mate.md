@@ -9,7 +9,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Mate workflow in the Ideate skill to recombine ideas into offspring"}' \
+  -d '{"message": "Running the Mate workflow in the Ideate skill to recombine ideas into offspring", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

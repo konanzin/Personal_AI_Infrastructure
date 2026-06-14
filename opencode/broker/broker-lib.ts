@@ -17,6 +17,7 @@ export interface NotificationEvent {
   slug: string | null;
   title: string | null;
   speak: string;
+  language: string;
   data: Record<string, unknown>;
 }
 
@@ -120,6 +121,18 @@ export interface LegacyNotifyBody {
   slug?: string;
   agent?: string;
   level?: string;
+  language?: string;
+}
+
+function normalizeNotificationLanguage(language: unknown): string | null {
+  if (typeof language !== 'string') return null;
+  const raw = language.trim().replace(/_/g, '-');
+  if (!raw) return null;
+  const [code, region] = raw.split('-');
+  const lowerCode = code.toLowerCase();
+  if (lowerCode === 'pt') return `pt-${(region ?? 'BR').toUpperCase()}`;
+  if (lowerCode === 'en') return `en-${(region ?? 'US').toUpperCase()}`;
+  return null;
 }
 
 /**
@@ -135,6 +148,8 @@ export function translateLegacyNotify(body: LegacyNotifyBody, now: () => string 
   const level = body.level === 'attention' || body.level === 'digest' ? body.level : 'milestone';
   // voice_enabled:false upstream meant "dashboard only" — map to a muted speak
   const speak = body.voice_enabled === false ? '' : message.replace(/\s+/g, ' ').slice(0, 160);
+  const language = normalizeNotificationLanguage(body.language);
+  if (speak && !language) return null;
 
   return {
     v: 1,
@@ -145,6 +160,7 @@ export function translateLegacyNotify(body: LegacyNotifyBody, now: () => string 
     slug: body.slug ?? null,
     title: body.title ?? body.agent ?? null,
     speak,
+    language: language ?? 'en-US',
     data: {
       source: 'legacy_notify',
       ...(phase ? { phase } : {}),

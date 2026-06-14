@@ -16,7 +16,7 @@ Mode selection rules and subagent constraints are defined in the system prompt (
 ## NATIVE MODE
 FOR: Simple tasks that won't take much effort or time.
 
-**Voice:** `curl -sk -X POST http://localhost:31337/notify -H "Content-Type: application/json" -d '{"message": "Executing using PAI native mode", "voice_id": "{{SECONDARY_VOICE_ID}}", "voice_enabled": true}'`
+**Voice:** `curl -sk -X POST http://localhost:31337/notify -H "Content-Type: application/json" -d '{"message": "Executing using PAI native mode", "language": "en-US", "voice_id": "{{SECONDARY_VOICE_ID}}", "voice_enabled": true}'`
 
 ```
 ════ PAI | NATIVE MODE ═══════════════════════

@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the ValidateSkill workflow in the CreateSkill skill to validate skill structure"}' \
+  -d '{"message": "Running the ValidateSkill workflow in the CreateSkill skill to validate skill structure", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

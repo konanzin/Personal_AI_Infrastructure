@@ -9,8 +9,9 @@
 ///  - presence reported to the broker (focused session / foreground state)
 ///    so routing can stay silent while you are watching the session.
 ///
-/// Voice: SpeechEngine (platform TTS) speaks `event.speak` verbatim,
-/// coalesced per session. Settings (enabled, per-level toggles, language)
+/// Voice: SpeechEngine (platform TTS) speaks live `event.speak` verbatim
+/// while the app is foregrounded, coalesced per session. Settings (enabled,
+/// per-level toggles)
 /// travel via FlutterForegroundTask.saveData and live updates over
 /// sendDataToTask.
 library;
@@ -33,7 +34,7 @@ const kPulseEnabledKey = 'pulse.enabled';
 const kPulseSpeakMilestoneKey = 'pulse.speak.milestone';
 const kPulseSpeakAttentionKey = 'pulse.speak.attention';
 const kPulseSpeakDigestKey = 'pulse.speak.digest';
-const kPulseTtsLanguageKey = 'pulse.tts.language';
+const kPulseAppForegroundedKey = 'pulse.app.foregrounded';
 
 @pragma('vm:entry-point')
 void pulseListenerStartCallback() {
@@ -64,15 +65,26 @@ class PulseListenerTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    _brokerUrl = await FlutterForegroundTask.getData<String>(key: kPulseBrokerUrlKey) ?? '';
-    _speakMilestone = await FlutterForegroundTask.getData<bool>(key: kPulseSpeakMilestoneKey) ?? true;
-    _speakAttention = await FlutterForegroundTask.getData<bool>(key: kPulseSpeakAttentionKey) ?? true;
-    _speakDigest = await FlutterForegroundTask.getData<bool>(key: kPulseSpeakDigestKey) ?? true;
-    final language = await FlutterForegroundTask.getData<String>(key: kPulseTtsLanguageKey) ?? 'pt-BR';
-    _speech = NativeTtsEngine(language: language);
+    _brokerUrl =
+        await FlutterForegroundTask.getData<String>(key: kPulseBrokerUrlKey) ??
+            '';
+    _speakMilestone = await FlutterForegroundTask.getData<bool>(
+            key: kPulseSpeakMilestoneKey) ??
+        true;
+    _speakAttention = await FlutterForegroundTask.getData<bool>(
+            key: kPulseSpeakAttentionKey) ??
+        true;
+    _speakDigest =
+        await FlutterForegroundTask.getData<bool>(key: kPulseSpeakDigestKey) ??
+            true;
+    _appForegrounded = await FlutterForegroundTask.getData<bool>(
+            key: kPulseAppForegroundedKey) ??
+        false;
+    _speech = NativeTtsEngine();
 
     _flushTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      for (final event in _coalescer.flushDue(DateTime.now().millisecondsSinceEpoch)) {
+      for (final event
+          in _coalescer.flushDue(DateTime.now().millisecondsSinceEpoch)) {
         _render(event, speakHint: true);
       }
     });
@@ -90,9 +102,12 @@ class PulseListenerTaskHandler extends TaskHandler {
         _client = HttpClient()
           ..idleTimeout = const Duration(days: 1)
           ..connectionTimeout = const Duration(seconds: 10);
-        final uri = Uri.parse('$_brokerUrl/subscribe?device=phone&name=pai-mobile');
+        final uri =
+            Uri.parse('$_brokerUrl/subscribe?device=phone&name=pai-mobile');
         final res = await (await _client!.getUrl(uri)).close();
-        if (res.statusCode != 200) throw HttpException('subscribe ${res.statusCode}');
+        if (res.statusCode != 200) {
+          throw HttpException('subscribe ${res.statusCode}');
+        }
         _backoffIndex = 0;
         debugPrint('[pulse] connected to $_brokerUrl');
 
@@ -105,8 +120,10 @@ class PulseListenerTaskHandler extends TaskHandler {
             while ((sep = buffer.indexOf('\n\n')) != -1) {
               final frame = buffer.substring(0, sep);
               buffer = buffer.substring(sep + 2);
-              final dataLine =
-                  frame.split('\n').where((l) => l.startsWith('data: ')).firstOrNull;
+              final dataLine = frame
+                  .split('\n')
+                  .where((l) => l.startsWith('data: '))
+                  .firstOrNull;
               if (dataLine != null) _onFrame(dataLine.substring(6));
             }
           },
@@ -120,7 +137,8 @@ class PulseListenerTaskHandler extends TaskHandler {
         debugPrint('[pulse] connect failed: $e');
       }
       if (_stopping) break;
-      final delay = _backoffSeconds[_backoffIndex.clamp(0, _backoffSeconds.length - 1)];
+      final delay =
+          _backoffSeconds[_backoffIndex.clamp(0, _backoffSeconds.length - 1)];
       if (_backoffIndex < _backoffSeconds.length - 1) _backoffIndex++;
       await Future<void>.delayed(Duration(seconds: delay));
     }
@@ -151,8 +169,8 @@ class PulseListenerTaskHandler extends TaskHandler {
     }
   }
 
-  /// ADR-001 #1: fetch the backlog on every (re)connect and render what
-  /// deserves rendering (all attention, latest milestone/digest).
+  /// ADR-001 #1: fetch the backlog on every (re)connect and update local
+  /// notification/dedupe state. Recovered events never speak; voice is live-only.
   Future<void> _catchUp() async {
     try {
       final uri = Uri.parse('$_brokerUrl/recent?n=50');
@@ -163,44 +181,54 @@ class PulseListenerTaskHandler extends TaskHandler {
           .map((e) => PulseEvent.fromJson(e.cast<String, dynamic>()))
           .toList();
       for (final event in _reconciler.reconcile(events)) {
-        _render(event, speakHint: true, recovered: true);
+        _render(
+          event,
+          speakHint: false,
+          recovered: true,
+        );
       }
     } catch (e) {
       debugPrint('[pulse] catch-up failed: $e');
     }
   }
 
-  void _render(PulseEvent event, {required bool speakHint, bool recovered = false}) {
+  void _render(PulseEvent event,
+      {required bool speakHint, bool recovered = false}) {
     final levelEnabled = switch (event.level) {
       PulseLevel.milestone => _speakMilestone,
       PulseLevel.attention => _speakAttention,
       PulseLevel.digest => _speakDigest,
     };
 
-    // Digests only matter when you are away; foregrounded users see the chat.
-    final digestSuppressed = event.level == PulseLevel.digest && _appForegrounded;
-
     // Local focus guard mirrors the broker: never speak the session on screen.
     final watchingIt = _appForegrounded &&
         _focusedSession != null &&
         (_focusedSession == event.sessionId || _focusedSession == event.slug);
 
-    final speak = speakHint && levelEnabled && !watchingIt && !digestSuppressed;
+    final speak = !recovered &&
+        _appForegrounded &&
+        speakHint &&
+        levelEnabled &&
+        !watchingIt;
 
     FlutterForegroundTask.updateService(
       notificationTitle: event.title ?? 'PAI',
       notificationText: event.speak.isNotEmpty ? event.speak : event.event,
     );
-    if (speak && event.speak.isNotEmpty) {
-      final prefix = recovered ? 'Enquanto você esteve fora: ' : '';
-      unawaited(_speech?.speak('$prefix${event.speak}'));
+    final language = normalizePulseTtsLanguage(event.language);
+    if (speak && event.speak.isNotEmpty && language != null) {
+      unawaited(_speech?.speak(
+        event.speak,
+        language: language,
+      ));
     }
   }
 
   Future<void> _pushPresence() async {
     if (_subscriberId == null || _brokerUrl.isEmpty) return;
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 5);
       final req = await client.postUrl(Uri.parse('$_brokerUrl/presence'));
       req.headers.contentType = ContentType.json;
       req.write(jsonEncode({
@@ -300,7 +328,8 @@ class PulseServiceController {
 
   static Future<void> start({required String brokerUrl}) async {
     await ensureConfigured();
-    await FlutterForegroundTask.saveData(key: kPulseBrokerUrlKey, value: brokerUrl);
+    await FlutterForegroundTask.saveData(
+        key: kPulseBrokerUrlKey, value: brokerUrl);
     if (await FlutterForegroundTask.isRunningService) {
       await FlutterForegroundTask.restartService();
       return;
@@ -319,7 +348,10 @@ class PulseServiceController {
     }
   }
 
-  static void pushPresence({String? focusedSession, required bool foregrounded}) {
+  static void pushPresence(
+      {String? focusedSession, required bool foregrounded}) {
+    unawaited(FlutterForegroundTask.saveData(
+        key: kPulseAppForegroundedKey, value: foregrounded));
     FlutterForegroundTask.sendDataToTask({
       'type': 'presence',
       'focusedSession': focusedSession,

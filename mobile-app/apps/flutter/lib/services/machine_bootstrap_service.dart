@@ -13,6 +13,8 @@ import 'ssh_service.dart';
 enum BootstrapStep {
   connecting,
   provisioningKey,
+  installingPaiEcosystem,
+  startingPulseBroker,
   locatingOpenCode,
   installingController,
   startingService,
@@ -121,6 +123,12 @@ class MachineBootstrapService {
         provisionedKey = generated.privateKeyPem;
       }
 
+      yield const BootstrapStepEvent(BootstrapStep.installingPaiEcosystem);
+      await sshService.execute(installPaiEcosystemCommand());
+
+      yield const BootstrapStepEvent(BootstrapStep.startingPulseBroker);
+      await sshService.execute(startPulseBrokerCommand());
+
       yield const BootstrapStepEvent(BootstrapStep.locatingOpenCode);
       final opencodeBin =
           await sshService.execute(remoteOpenCodeLookupCommand());
@@ -138,7 +146,7 @@ class MachineBootstrapService {
       ));
 
       var result = await _checkHttp(
-        serverUrl, serverUsername, serverPassword, requestTimeoutSeconds);
+          serverUrl, serverUsername, serverPassword, requestTimeoutSeconds);
       for (var attempt = 1;
           !result.success && attempt <= httpRetries;
           attempt++) {
@@ -159,8 +167,8 @@ class MachineBootstrapService {
         provisionedPrivateKeyPem: provisionedKey,
       ));
     } on SshCommandException catch (e) {
-      final missing =
-          e.exitCode == 127 || e.stderr.contains('opencode not found');
+      final missing = e.command == remoteOpenCodeLookupCommand() &&
+          (e.exitCode == 127 || e.stderr.contains('opencode not found'));
       yield BootstrapDoneEvent(BootstrapOutcome(
         success: false,
         message: e.stderr,

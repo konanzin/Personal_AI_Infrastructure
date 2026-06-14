@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the TestForm workflow in the Interceptor skill to test a form"}' \
+  -d '{"message": "Running the TestForm workflow in the Interceptor skill to test a form", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

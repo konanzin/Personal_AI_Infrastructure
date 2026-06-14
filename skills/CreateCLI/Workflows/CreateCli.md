@@ -12,7 +12,7 @@ purpose: Generate complete, production-ready TypeScript CLI from requirements
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the CreateCli workflow in the CreateCLI skill to generate new CLI"}' \
+  -d '{"message": "Running the CreateCli workflow in the CreateCLI skill to generate new CLI", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

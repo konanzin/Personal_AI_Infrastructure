@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the AnnotatedScreenshots workflow in the Art skill to annotate images"}' \
+  -d '{"message": "Running the AnnotatedScreenshots workflow in the Art skill to annotate images", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the FullCycle workflow in the Ideate skill to evolve novel solutions"}' \
+  -d '{"message": "Running the FullCycle workflow in the Ideate skill to evolve novel solutions", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

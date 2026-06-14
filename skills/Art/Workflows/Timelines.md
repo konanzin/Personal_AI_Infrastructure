@@ -7,7 +7,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Timelines workflow in the Art skill to create timelines"}' \
+  -d '{"message": "Running the Timelines workflow in the Art skill to create timelines", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

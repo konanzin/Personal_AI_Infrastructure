@@ -13,9 +13,9 @@ const mockContext = {
   worktree: "/tmp"
 };
 
-async function loadPlugin() {
+async function loadPlugin(context = mockContext) {
   const module = await import(pluginPath);
-  return await module.default(mockContext);
+  return await module.default(context);
 }
 
 // Test plugin integration — verify hooks are properly exported
@@ -43,6 +43,12 @@ describe("Plugin Integration — Hook Registration", () => {
   test("plugin exports tool.execute.after hook", async () => {
     const plugin = await loadPlugin();
     expect(plugin["tool.execute.after"]).toBeDefined();
+  });
+
+  test("plugin exports native pai_notify tool", async () => {
+    const plugin = await loadPlugin();
+    expect(plugin.tool?.pai_notify).toBeDefined();
+    expect(plugin.tool.pai_notify.description).toContain("Pulse");
   });
 
   test("plugin version is 2.12.0", async () => {
@@ -229,10 +235,31 @@ describe("Plugin Integration — Runtime Event Bridge (OpenCode >=1.16)", () => 
     expect(existsSync(stateFile)).toBe(true);
   });
 
-  test("message part with 🎯 COMPLETED emits agent_completed via the bridge", async () => {
+  test("session.created does not inject a visible PAI Context Loaded prompt", async () => {
+    const prompts = [];
+    const plugin = await loadPlugin({
+      ...mockContext,
+      client: {
+        session: {
+          prompt: async (input) => prompts.push(input),
+        },
+      },
+    });
+
+    const sid = `ses-no-visible-context-${Math.floor(performance.now() * 1000)}`;
+    await plugin.event({
+      event: {
+        type: "session.created",
+        properties: { sessionID: sid, info: {} },
+      },
+    });
+
+    expect(prompts.length).toBe(0);
+  });
+
+  test("message part with 🎯 COMPLETED does not emit voice via the bridge", async () => {
     const plugin = await loadPlugin();
     const { readFileSync, existsSync } = await import("fs");
-    const { join } = await import("path");
 
     const sid = "ses-bridge-msg";
     const mid = `msg-${Math.floor(performance.now() * 1000)}`;
@@ -247,19 +274,65 @@ describe("Plugin Integration — Runtime Event Bridge (OpenCode >=1.16)", () => 
     });
 
     const { NOTIFICATIONS_PATH: stream } = await import("../plugins/lib/pai-hooks.lib.js");
+    const events = existsSync(stream) ? readFileSync(stream, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+    const completed = events.filter((e) => e.event === "agent_completed" && e.data.message_id === mid);
+    expect(completed.length).toBe(0);
+  });
+
+  test("pai_notify emits final agent_completed with explicit language", async () => {
+    const plugin = await loadPlugin();
+    const { readFileSync, existsSync, rmSync } = await import("fs");
+
+    const { NOTIFICATIONS_PATH: stream } = await import("../plugins/lib/pai-hooks.lib.js");
+    if (existsSync(stream)) rmSync(stream);
+
+    const sid = "ses-tool-voice";
+    const mid = `msg-${Math.floor(performance.now() * 1000)}`;
+    const metadataCalls: any[] = [];
+
+    const result = await plugin.tool.pai_notify.execute({
+      message: "A implementação de voz final ficou explícita",
+      language: "pt-BR",
+      title: "PAI",
+    }, {
+      sessionID: sid,
+      messageID: mid,
+      agent: "build-mobile",
+      directory: "/tmp",
+      worktree: "/tmp",
+      abort: new AbortController().signal,
+      metadata(input: any) {
+        metadataCalls.push(input);
+      },
+      ask: async () => undefined,
+    });
+
+    expect(result.output).toContain("pt-BR");
+    expect(metadataCalls.length).toBe(1);
     expect(existsSync(stream)).toBe(true);
+
     const events = readFileSync(stream, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
     const completed = events.filter((e) => e.event === "agent_completed" && e.data.message_id === mid);
     expect(completed.length).toBe(1);
-    expect(completed[0].speak).toBe("Bridge routed the completed line correctly");
+    expect(completed[0].speak).toBe("A implementação de voz final ficou explícita");
+    expect(completed[0].language).toBe("pt-BR");
+    expect(completed[0].data.source).toBe("pai_notify");
 
-    // Re-delivering the same part must not duplicate (dedupe guard)
-    await plugin.event({
-      event: {
-        type: "message.part.updated",
-        properties: { sessionID: sid, part: { id: "prt-1", messageID: mid, type: "text", text: "All done.\n\n🎯 COMPLETED: Bridge routed the completed line correctly" } },
-      },
+    const duplicate = await plugin.tool.pai_notify.execute({
+      message: "A implementação de voz final ficou explícita",
+      language: "pt-BR",
+    }, {
+      sessionID: sid,
+      messageID: mid,
+      agent: "build-mobile",
+      directory: "/tmp",
+      worktree: "/tmp",
+      abort: new AbortController().signal,
+      metadata() {},
+      ask: async () => undefined,
     });
+    expect(duplicate.output).toContain("already sent");
+
     const after = readFileSync(stream, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
       .filter((e) => e.event === "agent_completed" && e.data.message_id === mid);
     expect(after.length).toBe(1);

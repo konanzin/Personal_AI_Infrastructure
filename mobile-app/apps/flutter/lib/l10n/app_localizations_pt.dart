@@ -372,7 +372,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get testSsh => 'Testar SSH';
 
   @override
-  String get setupOpenCodeViaSsh => 'Configurar OpenCode via SSH';
+  String get setupOpenCodeViaSsh => 'Configurar PAI/OpenCode via SSH';
 
   @override
   String get directOpenCodeServer => 'Servidor OpenCode direto (opcional)';
@@ -423,7 +423,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get sshConnectionFailed => 'Conexão SSH falhou';
 
   @override
-  String get settingUpOpenCode => 'Configurando OpenCode';
+  String get settingUpOpenCode => 'Configurando ecossistema PAI';
 
   @override
   String get connectingOverSsh => 'Conectando via SSH...';
@@ -431,6 +431,13 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get provisioningDedicatedSshKey =>
       'Gerando e instalando uma chave SSH dedicada...';
+
+  @override
+  String get installingPaiEcosystem =>
+      'Instalando ou atualizando o ecossistema PAI...';
+
+  @override
+  String get startingPulseBroker => 'Iniciando o Pulse Broker...';
 
   @override
   String get locatingOpenCode => 'Localizando opencode na máquina remota...';

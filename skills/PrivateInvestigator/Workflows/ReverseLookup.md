@@ -5,7 +5,7 @@
 ```bash
 curl -s -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the ReverseLookup workflow in the PrivateInvestigator skill to trace identifiers"}' \
+  -d '{"message": "Running the ReverseLookup workflow in the PrivateInvestigator skill to trace identifiers", "language": "en-US"}' \
   > /dev/null 2>&1 &
 ```
 

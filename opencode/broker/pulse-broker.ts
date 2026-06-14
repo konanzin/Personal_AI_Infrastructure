@@ -206,7 +206,7 @@ const server = Bun.serve({
     if (req.method === 'POST' && url.pathname === '/notify') {
       const body = await req.json().catch(() => null);
       const event = body ? translateLegacyNotify(body) : null;
-      if (!event) return json({ error: 'missing message' }, 400);
+      if (!event) return json({ error: 'missing message or language' }, 400);
       // Append to the producer stream: single pipeline, the tailer fans out.
       mkdirSync(dirname(STREAM_PATH), { recursive: true });
       appendFileSync(STREAM_PATH, JSON.stringify(event) + '\n', 'utf-8');

@@ -654,7 +654,7 @@ ${approachBlock}
 \`\`\`bash
 curl -X POST http://localhost:31337/notify \\
   -H "Content-Type: application/json" \\
-  -d '{"message":"${agent.name} loading and ready to work","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
+  -d '{"message":"${agent.name} loading and ready to work", "language": "en-US","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
 \`\`\`
 
 2. **Then proceed with your task**
@@ -663,22 +663,16 @@ curl -X POST http://localhost:31337/notify \\
 
 ---
 
-## 🎯 MANDATORY VOICE NOTIFICATION SYSTEM
+## 🎯 MANDATORY FINAL VOICE NOTIFICATION SYSTEM
 
-**YOU MUST SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE:**
+Before your final user-facing response for completed work, call the native \`pai_notify\` tool exactly once.
 
-\`\`\`bash
-curl -X POST http://localhost:31337/notify \\
-  -H "Content-Type: application/json" \\
-  -d '{"message":"Your COMPLETED line content here","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
-\`\`\`
+**pai_notify arguments:**
+- \`message\`: the same grammatically correct sentence used in the final \`🎯 COMPLETED\` line
+- \`language\`: \`pt-BR\` for Portuguese responses, \`en-US\` for English responses
+- \`title\`: \`${agent.name}\`
 
-**Voice Requirements:**
-- Your voice_id is: \`${agent.voiceId}\`
-- Message should be your 🎯 COMPLETED line (8-16 words optimal)
-- Must be grammatically correct and speakable
-- Send BEFORE writing your response
-- DO NOT SKIP - the user needs to hear you speak
+Do not send a \`/notify\` curl for the same final completion. \`/notify\` is only for startup or progress compatibility.
 
 ---
 
@@ -703,13 +697,13 @@ curl -X POST http://localhost:31337/notify \\
 6. [Sixth key point]
 7. [Seventh key point]
 8. [Eighth key point - conclusion]
-🎯 COMPLETED: [12 words max - drives voice output - REQUIRED]
+🎯 COMPLETED: [12 words max - matches pai_notify.message - REQUIRED]
 \`\`\`
 
 **CRITICAL:**
 - STORY EXPLANATION MUST BE A NUMBERED LIST (1-8 items)
-- The 🎯 COMPLETED line is what the voice server speaks
-- Without this format, your response won't be heard
+- The 🎯 COMPLETED line must match the pai_notify.message already sent
+- Without pai_notify, the final voice notification will not be queued
 - This is a CONSTITUTIONAL REQUIREMENT
 
 ---
