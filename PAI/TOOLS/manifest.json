@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "runtime": "opencode",
+  "policy": {
+    "implemented": "File must exist under PAI/TOOLS and have smoke coverage.",
+    "deferred": "File may be absent, but every active consumer must declare an unavailable/deferred fallback.",
+    "optional": "Skill-specific helper; consumers must verify the file before calling it."
+  },
+  "tools": {
+    "Inference.ts": {
+      "status": "implemented",
+      "layer": "A",
+      "required_by": ["Algorithm Advisor", "AudioEditor", "Evals"],
+      "contract": "Provider-neutral command adapter. Returns structured unavailable when PAI_INFERENCE_CMD/OPENCODE_INFERENCE_CMD is unset.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/Inference.ts --json --level fast system user"]
+    },
+    "ForgeProgress.ts": {
+      "status": "implemented",
+      "layer": "A",
+      "required_by": ["Forge"],
+      "contract": "Codex CLI wrapper with structured unavailable/fail/ok JSON and work-scoped event/final files.",
+      "external_dependencies": ["codex CLI"],
+      "smoke": ["PAI_DIR=$(mktemp -d) PAI_DISABLE_CODEX=1 bash -lc 'echo prompt | bun PAI/TOOLS/ForgeProgress.ts --slug smoke'"]
+    },
+    "AnvilProgress.ts": {
+      "status": "implemented",
+      "layer": "A",
+      "required_by": ["Anvil"],
+      "contract": "Moonshot/Kimi wrapper. Returns structured unavailable when MOONSHOT_API_KEY is absent.",
+      "external_dependencies": ["MOONSHOT_API_KEY"],
+      "smoke": ["PAI_DIR=$(mktemp -d) env -u MOONSHOT_API_KEY bash -lc 'echo prompt | bun PAI/TOOLS/AnvilProgress.ts --slug smoke'"]
+    },
+    "CrossVendorAudit.ts": {
+      "status": "implemented",
+      "layer": "A",
+      "required_by": ["Cato", "Algorithm Rule 2a"],
+      "contract": "Read-only Codex audit orchestrator. Returns skipped when codex is unavailable or audit infrastructure fails.",
+      "external_dependencies": ["codex CLI"],
+      "smoke": ["PAI_DIR=$(mktemp -d) PAI_DISABLE_CODEX=1 bun PAI/TOOLS/CrossVendorAudit.ts --slug smoke --advisor-verdict '{}'"]
+    },
+    "Arthur.ts": {
+      "status": "implemented",
+      "layer": "A",
+      "required_by": ["Arthur"],
+      "contract": "Deterministic credential-policy narrator. Never emits raw credentials; denies/requires confirmation without explicit policy.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/Arthur.ts status"]
+    },
+    "MemoryRetriever.ts": {
+      "status": "implemented",
+      "layer": "B",
+      "required_by": ["Algorithm", "Knowledge skill"],
+      "contract": "Read-only BM25-lite retrieval over MEMORY/KNOWLEDGE.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/MemoryRetriever.ts anything --json"]
+    },
+    "KnowledgeGraph.ts": {
+      "status": "implemented",
+      "layer": "B",
+      "required_by": ["Knowledge skill"],
+      "contract": "Read-only graph navigation over MEMORY/KNOWLEDGE frontmatter and wikilinks.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/KnowledgeGraph.ts stats --json"]
+    },
+    "Checkpoint.ts": {
+      "status": "implemented",
+      "layer": "A",
+      "required_by": ["Algorithm CheckpointPerISC", "rollback preview"],
+      "contract": "OpenCode-native ISC checkpoint inspection. Auto-commit is allowlist-only via PAI/checkpoint-repos.txt; rollback prints preview commands and never executes destructive git operations.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/Checkpoint.ts list smoke --json"]
+    },
+    "SessionHarvester.ts": {
+      "status": "implemented",
+      "layer": "B",
+      "required_by": ["Knowledge skill mine subcommand"],
+      "contract": "Mines session transcript JSONL into learning files or review-only KNOWLEDGE/_harvest-queue candidates. Supports --dry-run and explicit --sessions-dir.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/SessionHarvester.ts --sessions-dir /tmp/pai-no-sessions --json"]
+    },
+    "KnowledgeHarvester.ts": {
+      "status": "implemented",
+      "layer": "B",
+      "required_by": ["Knowledge skill harvest/index/contradictions"],
+      "contract": "Maintains MEMORY/KNOWLEDGE with status, validate, index, contradictions, and conservative harvest from review queue/work/research sources.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/KnowledgeHarvester.ts status --json"]
+    },
+    "RemoveBg.ts": {
+      "status": "optional",
+      "layer": "C",
+      "required_by": ["Art workflows"],
+      "fallback": "Art workflows verify the wrapper exists, then use local rembg directly or report background removal unavailable."
+    },
+    "MigrateScan.ts": {
+      "status": "optional",
+      "layer": "C",
+      "required_by": ["Migrate skill"],
+      "fallback": "Migrate skill stops automated migration and offers manual one-chunk fallback."
+    },
+    "MigrateApprove.ts": {
+      "status": "optional",
+      "layer": "C",
+      "required_by": ["Migrate skill"],
+      "fallback": "Migrate skill stops automated migration and offers manual one-chunk fallback."
+    }
+  }
+}

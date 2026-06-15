@@ -3,7 +3,7 @@
  * Verifies dangerous commands are blocked at the security layer.
  */
 
-import { inspectBashCommand } from '../../plugins/lib/pai-hooks.lib.js';
+import { inspectBashCommand, inspectReadPath } from '../../plugins/lib/pai-hooks.lib.js';
 
 const isCurlMode = process.argv.includes('--curl');
 
@@ -30,7 +30,14 @@ function run() {
     console.log('E2E_FAIL: Deny reason does not mention rm -rf');
     process.exit(1);
   }
-  console.log('E2E_PASS: rm -rf blocked with correct violation');
+
+  const readResult = inspectReadPath('/etc/shadow');
+  if (readResult.action !== 'deny') {
+    console.log(`E2E_FAIL: /etc/shadow read not denied, got ${readResult.action}`);
+    process.exit(1);
+  }
+
+  console.log('E2E_PASS: rm -rf and sensitive read blocked with correct violations');
 }
 
 run();

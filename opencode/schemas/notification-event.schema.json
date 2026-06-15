@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pai.notification-event.v1",
+  "title": "PAI Notification Event",
+  "type": "object",
+  "required": [
+    "v",
+    "timestamp",
+    "level",
+    "event",
+    "session_id",
+    "slug",
+    "title",
+    "speak",
+    "language",
+    "data"
+  ],
+  "properties": {
+    "v": { "const": 1 },
+    "timestamp": { "type": "string" },
+    "level": { "enum": ["milestone", "attention", "digest"] },
+    "event": { "type": "string", "minLength": 1 },
+    "session_id": { "type": "string", "minLength": 1 },
+    "slug": { "type": ["string", "null"] },
+    "title": { "type": ["string", "null"] },
+    "speak": { "type": "string", "maxLength": 200 },
+    "language": { "type": "string", "pattern": "^(en|pt)-[A-Z]{2}$" },
+    "data": { "type": "object" }
+  }
+}

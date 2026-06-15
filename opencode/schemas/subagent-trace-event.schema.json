@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pai.subagent-trace-event.v1",
+  "title": "PAI Subagent Trace Event",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "event",
+    "session_id",
+    "type",
+    "name",
+    "success",
+    "duration_ms"
+  ],
+  "properties": {
+    "timestamp": { "type": "string" },
+    "event": { "enum": ["skill_invoked", "agent_spawned"] },
+    "session_id": { "type": "string", "minLength": 1 },
+    "type": { "enum": ["skill", "agent"] },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "success": { "type": "boolean" },
+    "duration_ms": { "type": "number", "minimum": 0 },
+    "metadata": { "type": "object" }
+  }
+}

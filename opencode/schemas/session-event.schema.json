@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pai.session-event.v1",
+  "title": "PAI Session Event",
+  "type": "object",
+  "required": ["timestamp", "event", "session_id", "payload"],
+  "properties": {
+    "timestamp": { "type": "string" },
+    "event": {
+      "enum": [
+        "session_created",
+        "state_sync",
+        "session_idle",
+        "session_archived",
+        "session_deleted"
+      ]
+    },
+    "session_id": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" }
+  }
+}

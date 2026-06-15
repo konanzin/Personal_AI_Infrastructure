@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pai.tool-failure-event.v1",
+  "title": "PAI Tool Failure Event",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "event",
+    "session_id",
+    "tool_name",
+    "failure_mode",
+    "error_message",
+    "retry_happened",
+    "security_involved",
+    "permission_involved",
+    "duration_ms"
+  ],
+  "properties": {
+    "timestamp": { "type": "string" },
+    "event": { "const": "tool_failure" },
+    "session_id": { "type": "string", "minLength": 1 },
+    "tool_name": { "type": "string", "minLength": 1 },
+    "failure_mode": {
+      "enum": ["error", "timeout", "permission_denied", "security_blocked", "exception"]
+    },
+    "error_message": { "type": "string" },
+    "retry_happened": { "type": "boolean" },
+    "security_involved": { "type": "boolean" },
+    "permission_involved": { "type": "boolean" },
+    "tool_input_preview": { "type": "string" },
+    "duration_ms": { "type": "number", "minimum": 0 },
+    "metadata": { "type": "object" }
+  }
+}

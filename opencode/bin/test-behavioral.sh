@@ -9,6 +9,7 @@ set -uo pipefail
 OPENCODE_DIR="${HOME}/.config/opencode"
 PAI_DIR="${OPENCODE_DIR}/PAI"
 PLUGINS_DIR="${OPENCODE_DIR}/plugins"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -44,8 +45,8 @@ run_test() {
 
 # ─── STRUCTURAL TESTS ─────────────────────────────────────
 echo "${BLUE}1. Structural${RESET}"
-run_test "Plugin version is 2.12.0" \
-    "grep -q \"PLUGIN_VERSION = '2.12.0'\" ${PLUGINS_DIR}/pai-hooks.js"
+run_test "Plugin version is 2.13.0" \
+    "grep -q \"PLUGIN_VERSION = '2.13.0'\" ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "10 handlers present" \
     "[ \$(grep -c '\".*\": async' ${PLUGINS_DIR}/pai-hooks.js) -eq 10 ]"
@@ -142,6 +143,12 @@ echo "${BLUE}5. System Context (experimental.chat.system.transform)${RESET}"
 
 run_test "buildPAISystemContext function exists" \
     "grep -q 'function buildPAISystemContext' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Runtime constitution file is installed" \
+    "[ -f ${PAI_DIR}/RUNTIME_CONSTITUTION.md ]"
+
+run_test "System transform loads runtime constitution" \
+    "grep -q 'RUNTIME_CONSTITUTION.md' ${PLUGINS_DIR}/pai-hooks.js"
 
 run_test "System transform supports lean profile (client agent)" \
     "grep -q 'readStoredClientAgent' ${PLUGINS_DIR}/pai-hooks.js && grep -q 'LEAN_AGENTS' ${PLUGINS_DIR}/pai-hooks.js"
@@ -297,8 +304,39 @@ run_test "tool.execute.before inspects bash" \
 run_test "tool.execute.before inspects writes" \
     "grep -q 'inspectWritePath' ${PLUGINS_DIR}/pai-hooks.js"
 
+run_test "tool.execute.before inspects reads" \
+    "grep -q 'inspectReadPath' ${PLUGINS_DIR}/pai-hooks.js"
+
+run_test "Containment inspector exists in lib" \
+    "grep -q 'inspectWriteContent' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
+
 run_test "chat.message pre-sanitizes blocked prompts" \
     "grep -q 'PAI SECURITY BLOCKED' ${PLUGINS_DIR}/pai-hooks.js"
+
+READ_GUARD_TEST=$(cat <<EOF
+import { inspectBashCommand, inspectReadPath, inspectWriteContent } from '${PLUGINS_DIR}/lib/pai-hooks.lib.js';
+const shadow = inspectReadPath('/etc/shadow');
+const env = inspectReadPath('.env');
+const catEnv = inspectBashCommand('cat .env');
+const leak = inspectWriteContent('public/leak.txt', '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----');
+console.log(
+  shadow.action === 'deny' &&
+  env.action === 'require_approval' &&
+  catEnv.action === 'require_approval' &&
+  leak.action === 'deny'
+  ? 'PASS' : 'FAIL'
+);
+EOF
+)
+
+READ_GUARD_RESULT=$(echo "$READ_GUARD_TEST" | bun run - 2>/dev/null || echo "FAIL")
+if [ "$READ_GUARD_RESULT" = "PASS" ]; then
+    pass "ReadGuard and containment functional test"
+    PASSED=$((PASSED + 1))
+else
+    fail "ReadGuard and containment functional test"
+fi
+TOTAL=$((TOTAL + 1))
 
 # ─── AGENT GUARD / SKILL GUARD TEST ───────────────────────
 echo ""
@@ -420,6 +458,12 @@ run_test "Agent spawned trace emitted" \
 run_test "Skill invoked trace emitted" \
     "grep -q 'skill_invoked' ${PLUGINS_DIR}/pai-hooks.js"
 
+run_test "Observability schemas installed" \
+    "[ \$(find ${PAI_DIR}/schemas -maxdepth 1 -type f -name '*.schema.json' 2>/dev/null | wc -l | tr -d ' ') -ge 6 ]"
+
+run_test "Observability contract docs installed" \
+    "[ -f ${OPENCODE_DIR}/docs/OBSERVABILITY_CONTRACTS.md ]"
+
 # Functional test of hashString
 HASH_TEST=$(cat <<EOF
 import { hashString } from '${PLUGINS_DIR}/lib/pai-hooks.lib.js';
@@ -481,6 +525,12 @@ echo "${BLUE}Pulse Broker${RESET}"
 run_test "Broker daemon and lib installed" \
     "[ -f ${PAI_DIR}/broker/pulse-broker.ts ] && [ -f ${PAI_DIR}/broker/broker-lib.ts ]"
 
+run_test "Pulse config declares optional broker scope" \
+    "grep -q 'status = \"optional-broker\"' ${PAI_DIR}/PULSE/PULSE.toml"
+
+run_test "Pulse config has no legacy jobs or missing tool calls" \
+    "! grep -q 'PAI/TOOLS' ${PAI_DIR}/PULSE/PULSE.toml && ! grep -q '\\[\\[job\\]\\]' ${PAI_DIR}/PULSE/PULSE.toml"
+
 run_test "Broker serves /health and legacy /api/pulse/health" \
     "grep -q \"'/health'\" ${PAI_DIR}/broker/pulse-broker.ts && grep -q '/api/pulse/health' ${PAI_DIR}/broker/pulse-broker.ts"
 
@@ -517,6 +567,18 @@ run_test "No installed agent references ~/.claude/" \
 
 run_test "No duplicated PAI/PAI/ paths in installed CLAUDE.md" \
     "! grep -q 'opencode/PAI/PAI/' ${PAI_DIR}/CLAUDE.md"
+
+run_test "Active PAI instructions match OpenCode runtime" \
+    "bash ${SCRIPT_DIR}/check-port-coherence.sh"
+
+run_test "Promise integrity validator passes" \
+    "bash ${SCRIPT_DIR}/validate-promise-integrity.sh"
+
+run_test "Doc integrity validator passes" \
+    "bun ${SCRIPT_DIR}/validate-doc-integrity.js --root ${OPENCODE_DIR}"
+
+run_test "Tools manifest validator passes" \
+    "bun ${SCRIPT_DIR}/validate-tools-manifest.js --root ${OPENCODE_DIR}"
 
 # Every installed command file must be registered in opencode.jsonc
 COMMANDS_OK=true
@@ -559,6 +621,107 @@ if [ "$PROMISES_OK" = true ]; then
 else
     fail "Agents promise missing paths:${MISSING_PROMISES}"
 fi
+
+# ─── PAI RUNTIME TOOLS ────────────────────────────────────
+echo ""
+echo "${BLUE}PAI Runtime Tools${RESET}"
+
+run_test "Tools manifest installed" \
+    "test -f ${PAI_DIR}/TOOLS/manifest.json"
+
+for tool in Inference.ts ForgeProgress.ts AnvilProgress.ts CrossVendorAudit.ts Arthur.ts MemoryRetriever.ts KnowledgeGraph.ts Checkpoint.ts SessionHarvester.ts KnowledgeHarvester.ts; do
+    run_test "${tool} installed" \
+        "test -f ${PAI_DIR}/TOOLS/${tool}"
+done
+
+TOOLS_TMP="$(mktemp -d)"
+
+if PAI_DIR="$TOOLS_TMP" bun "${PAI_DIR}/TOOLS/Inference.ts" --json --level fast system user 2>/dev/null | grep -q '"status": "unavailable"'; then
+    pass "Inference unavailable behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "Inference unavailable behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+if PAI_DIR="$TOOLS_TMP" PAI_DISABLE_CODEX=1 bash -lc "echo prompt | bun '${PAI_DIR}/TOOLS/ForgeProgress.ts' --slug smoke" 2>/dev/null | grep -q '"verdict": "unavailable"'; then
+    pass "ForgeProgress unavailable behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "ForgeProgress unavailable behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+if env -u MOONSHOT_API_KEY PAI_DIR="$TOOLS_TMP" bash -lc "echo prompt | bun '${PAI_DIR}/TOOLS/AnvilProgress.ts' --slug smoke" 2>/dev/null | grep -q '"verdict": "unavailable"'; then
+    pass "AnvilProgress unavailable behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "AnvilProgress unavailable behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+if PAI_DIR="$TOOLS_TMP" PAI_DISABLE_CODEX=1 bun "${PAI_DIR}/TOOLS/CrossVendorAudit.ts" --slug smoke --advisor-verdict '{}' 2>/dev/null | grep -q '"verdict": "skipped"'; then
+    pass "CrossVendorAudit skipped behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "CrossVendorAudit skipped behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+if PAI_DIR="$TOOLS_TMP" bun "${PAI_DIR}/TOOLS/Arthur.ts" status 2>/dev/null | grep -q '"verdict": "available"'; then
+    pass "Arthur status behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "Arthur status behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+MEMORY_TMP="$TOOLS_TMP"
+mkdir -p "${MEMORY_TMP}/MEMORY/KNOWLEDGE"
+
+if PAI_DIR="$MEMORY_TMP" bun "${PAI_DIR}/TOOLS/MemoryRetriever.ts" anything --json 2>/dev/null | grep -q '"status": "empty_archive"'; then
+    pass "MemoryRetriever empty archive behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "MemoryRetriever empty archive behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+if PAI_DIR="$MEMORY_TMP" bun "${PAI_DIR}/TOOLS/KnowledgeGraph.ts" stats --json 2>/dev/null | grep -q '"status": "empty_archive"'; then
+    pass "KnowledgeGraph empty archive behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "KnowledgeGraph empty archive behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+if PAI_DIR="$TOOLS_TMP" bun "${PAI_DIR}/TOOLS/Checkpoint.ts" list smoke --json 2>/dev/null | grep -q '"status": "ok"'; then
+    pass "Checkpoint list behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "Checkpoint list behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+NO_SESSIONS_DIR="${TOOLS_TMP}/no-sessions"
+mkdir -p "$NO_SESSIONS_DIR"
+if PAI_DIR="$TOOLS_TMP" bun "${PAI_DIR}/TOOLS/SessionHarvester.ts" --sessions-dir "$NO_SESSIONS_DIR" --json 2>/dev/null | grep -q '"status": "no_sessions"'; then
+    pass "SessionHarvester no-session behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "SessionHarvester no-session behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+if PAI_DIR="$TOOLS_TMP" bun "${PAI_DIR}/TOOLS/KnowledgeHarvester.ts" status --json 2>/dev/null | grep -q '"status": "empty_archive"'; then
+    pass "KnowledgeHarvester empty archive behavior"
+    PASSED=$((PASSED + 1))
+else
+    fail "KnowledgeHarvester empty archive behavior"
+fi
+TOTAL=$((TOTAL + 1))
+
+rm -rf "$TOOLS_TMP"
 
 # ─── REPORT ───────────────────────────────────────────────
 echo ""

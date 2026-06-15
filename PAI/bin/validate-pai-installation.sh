@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════
 #  PAI Installation Validator
-#  81 checkpoints across 12 categories
+#  Checkpoints across 12 categories
 # ═══════════════════════════════════════════════════════════
 
 set -uo pipefail
@@ -16,6 +16,9 @@ RESET='\033[0m'
 # ─── Paths ────────────────────────────────────────────────
 PAI_DIR="${HOME}/.config/opencode/PAI"
 OPENCODE_DIR="${HOME}/.config/opencode"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_MANIFEST="$PAI_DIR/install-manifest.json"
+CONFIG_TEMPLATE="$PAI_DIR/config/opencode.jsonc.template"
 
 # ─── Counters ─────────────────────────────────────────────
 TOTAL=0
@@ -35,6 +38,42 @@ fail() {
 }
 warn() { echo -e "  ${YELLOW}⚠${RESET} $1"; }
 section() { echo ""; echo -e "${BLUE}$1${RESET}"; }
+
+manifest_values() {
+    local key="$1"
+
+    if [ ! -f "$INSTALL_MANIFEST" ] || ! command -v bun &>/dev/null; then
+        return 0
+    fi
+
+    MANIFEST_PATH="$INSTALL_MANIFEST" MANIFEST_KEY="$key" bun -e '
+const fs = require("fs");
+const data = JSON.parse(fs.readFileSync(process.env.MANIFEST_PATH, "utf8"));
+for (const value of data[process.env.MANIFEST_KEY] ?? []) console.log(value);
+' 2>/dev/null
+}
+
+manifest_has() {
+    local key="$1"
+    local value="$2"
+
+    while IFS= read -r item; do
+        [ "$item" = "$value" ] && return 0
+    done < <(manifest_values "$key")
+
+    return 1
+}
+
+manifest_count() {
+    local key="$1"
+    manifest_values "$key" | sed '/^$/d' | wc -l | tr -d ' '
+}
+
+render_expected_config() {
+    local output="$1"
+    sed "s|\"./plugins/pai-hooks.js\"|\"${OPENCODE_DIR}/plugins/pai-hooks.js\"|" \
+        "$CONFIG_TEMPLATE" > "$output"
+}
 
 # ═══════════════════════════════════════════════════════════
 #  CHECKPOINTS
@@ -75,6 +114,14 @@ check_base_structure() {
         passed=$((passed + 1))
     else
         fail ".env missing"
+    fi
+    checks=$((checks + 1))
+
+    if [ -f "$INSTALL_MANIFEST" ]; then
+        pass "install-manifest.json exists"
+        passed=$((passed + 1))
+    else
+        fail "install-manifest.json missing"
     fi
     checks=$((checks + 1))
     
@@ -160,6 +207,22 @@ check_config() {
         fail "opencode.jsonc too small ($line_count lines)"
     fi
     checks=$((checks + 1))
+
+    if [ -f "$CONFIG_TEMPLATE" ]; then
+        local expected_config
+        expected_config="$(mktemp)"
+        render_expected_config "$expected_config"
+        if cmp -s "$expected_config" "${OPENCODE_DIR}/opencode.jsonc"; then
+            pass "opencode.jsonc matches generated template"
+            passed=$((passed + 1))
+        else
+            fail "opencode.jsonc drift from generated template"
+        fi
+        rm -f "$expected_config"
+    else
+        fail "Installed opencode.jsonc template missing"
+    fi
+    checks=$((checks + 1))
     
     if grep -q '"command"' "${OPENCODE_DIR}/opencode.jsonc"; then
         pass "Commands configured"
@@ -192,7 +255,15 @@ check_config() {
         fail "Default build agent is not PAI-aware"
     fi
     checks=$((checks + 1))
-    
+
+    if grep -q '"build-mobile"' "${OPENCODE_DIR}/opencode.jsonc"; then
+        pass "build-mobile lean-profile agent configured"
+        passed=$((passed + 1))
+    else
+        fail "build-mobile agent missing from opencode.jsonc"
+    fi
+    checks=$((checks + 1))
+
     if [ -f "$PAI_DIR/.version.json" ]; then
         pass ".version.json exists"
         passed=$((passed + 1))
@@ -242,12 +313,32 @@ check_skills() {
     local checks=0
     local passed=0
     
-    local skill_count=$(ls "${HOME}/.config/opencode/skills/" 2>/dev/null | wc -l)
-    if [ "$skill_count" -ge 10 ]; then
-        pass "$skill_count skills installed (current repo ships 46)"
+    local skill_count=$(find "${HOME}/.config/opencode/skills/" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+    local expected_skill_count
+    expected_skill_count="$(manifest_count "skills")"
+    if [ -n "$expected_skill_count" ] && [ "$expected_skill_count" -gt 0 ] && [ "$skill_count" -eq "$expected_skill_count" ]; then
+        pass "$skill_count skills installed (matches manifest)"
         passed=$((passed + 1))
     else
-        fail "Only $skill_count skills found"
+        fail "$skill_count skills installed; manifest expects ${expected_skill_count:-unknown}"
+    fi
+    checks=$((checks + 1))
+
+    local stale_skills=()
+    local skill_dir
+    while IFS= read -r skill_dir; do
+        local skill_name
+        skill_name="$(basename "$skill_dir")"
+        if ! manifest_has "skills" "$skill_name"; then
+            stale_skills+=("$skill_name")
+        fi
+    done < <(find "${HOME}/.config/opencode/skills/" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+
+    if [ ${#stale_skills[@]} -eq 0 ]; then
+        pass "No stale skill directories installed"
+        passed=$((passed + 1))
+    else
+        fail "Stale skill directories installed: ${stale_skills[*]}"
     fi
     checks=$((checks + 1))
     
@@ -414,16 +505,16 @@ check_agents() {
     local passed=0
     
     local agent_count=$(ls "${OPENCODE_DIR}/agents/"*.md 2>/dev/null | wc -l)
-    if [ "$agent_count" -ge 18 ]; then
+    if [ "$agent_count" -ge 15 ]; then
         pass "$agent_count agents installed"
         passed=$((passed + 1))
     else
         fail "Only $agent_count agents found"
     fi
     checks=$((checks + 1))
-    
-    local agents=("Algorithm" "Anvil" "Architect" "Arthur" "Artist" "BrowserAgent" "Cato" "ClaudeResearcher" "CodexResearcher" "Designer" "Engineer" "Forge" "GeminiResearcher" "GrokResearcher" "PerplexityResearcher" "QATester" "Silas" "UIReviewer")
-    
+
+    local agents=("Algorithm" "Anvil" "Architect" "Arthur" "Artist" "Cato" "ClaudeResearcher" "CodexResearcher" "Designer" "Engineer" "Forge" "GeminiResearcher" "GrokResearcher" "PerplexityResearcher" "Silas")
+
     for agent in "${agents[@]}"; do
         if [ -f "${OPENCODE_DIR}/agents/${agent}.md" ]; then
             pass "${agent}.md exists"
@@ -433,6 +524,29 @@ check_agents() {
         fi
         checks=$((checks + 1))
     done
+
+    # Deprecated agents must NOT be installed (replaced by the Interceptor skill)
+    local deprecated=("BrowserAgent" "QATester" "UIReviewer")
+    for agent in "${deprecated[@]}"; do
+        if [ ! -f "${OPENCODE_DIR}/agents/${agent}.md" ]; then
+            pass "${agent}.md absent (deprecated, replaced by Interceptor skill)"
+            passed=$((passed + 1))
+        else
+            fail "${agent}.md still installed (deprecated, should be removed)"
+        fi
+        checks=$((checks + 1))
+    done
+
+    # Specialists are subagents: they must not appear in client agent pickers
+    # (Shift+Tab cycle, mobile picker). Only build/build-mobile are primary.
+    local no_mode=$(grep -L "^mode: subagent" "${OPENCODE_DIR}/agents/"*.md 2>/dev/null | wc -l)
+    if [ "$no_mode" -eq 0 ]; then
+        pass "All installed agents declare mode: subagent"
+        passed=$((passed + 1))
+    else
+        fail "$no_mode agent files missing 'mode: subagent' (would pollute agent pickers)"
+    fi
+    checks=$((checks + 1))
     
     if grep -q '"pai"' "${OPENCODE_DIR}/opencode.jsonc" && grep -q '"agent": "Algorithm"' "${OPENCODE_DIR}/opencode.jsonc"; then
         pass "Algorithm command references Algorithm agent"
@@ -482,7 +596,35 @@ check_commands() {
         fail "/rate command still present in runtime config"
     fi
     checks=$((checks + 1))
-    
+
+    for cmd in "context-search" "cs" "pu"; do
+        if grep -q "\"${cmd}\"" "${OPENCODE_DIR}/opencode.jsonc"; then
+            pass "/${cmd} command registered"
+            passed=$((passed + 1))
+        else
+            fail "/${cmd} missing"
+        fi
+        checks=$((checks + 1))
+    done
+
+    local stale_commands=()
+    local command_file
+    while IFS= read -r command_file; do
+        local command_name
+        command_name="$(basename "$command_file")"
+        if ! manifest_has "commands" "$command_name"; then
+            stale_commands+=("$command_name")
+        fi
+    done < <(find "${OPENCODE_DIR}/commands" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+
+    if [ ${#stale_commands[@]} -eq 0 ]; then
+        pass "No stale command files installed"
+        passed=$((passed + 1))
+    else
+        fail "Stale command files installed: ${stale_commands[*]}"
+    fi
+    checks=$((checks + 1))
+
     echo "  Score: $passed/$checks"
     return $((checks - passed))
 }
@@ -499,12 +641,46 @@ check_tools() {
         fail "TOOLS/ missing"
     fi
     checks=$((checks + 1))
+
+    if [ -f "$PAI_DIR/TOOLS/manifest.json" ]; then
+        pass "TOOLS/manifest.json exists"
+        passed=$((passed + 1))
+    else
+        fail "TOOLS/manifest.json missing"
+    fi
+    checks=$((checks + 1))
+
+    for tool in Inference.ts ForgeProgress.ts AnvilProgress.ts CrossVendorAudit.ts Arthur.ts MemoryRetriever.ts KnowledgeGraph.ts Checkpoint.ts SessionHarvester.ts KnowledgeHarvester.ts; do
+        if [ -f "$PAI_DIR/TOOLS/$tool" ]; then
+            pass "$tool exists"
+            passed=$((passed + 1))
+        else
+            fail "$tool missing"
+        fi
+        checks=$((checks + 1))
+    done
     
     if [ -d "$PAI_DIR/bin" ]; then
         pass "bin/ directory exists"
         passed=$((passed + 1))
     else
         fail "bin/ missing"
+    fi
+    checks=$((checks + 1))
+
+    if [ -x "$PAI_DIR/bin/validate-tools-manifest.js" ]; then
+        pass "Tools manifest validator installed"
+        passed=$((passed + 1))
+    else
+        fail "Tools manifest validator missing or not executable"
+    fi
+    checks=$((checks + 1))
+
+    if [ -x "$PAI_DIR/bin/validate-tools-manifest.js" ] && bun "$PAI_DIR/bin/validate-tools-manifest.js" --root "$OPENCODE_DIR" >/dev/null 2>&1; then
+        pass "Tools manifest validator passes"
+        passed=$((passed + 1))
+    else
+        fail "Tools manifest validator detected runtime drift"
     fi
     checks=$((checks + 1))
     
@@ -532,18 +708,60 @@ check_documentation() {
         fail "CLAUDE.md missing"
     fi
     checks=$((checks + 1))
+
+    if [ -f "$PAI_DIR/RUNTIME_CONSTITUTION.md" ]; then
+        pass "RUNTIME_CONSTITUTION.md exists"
+        passed=$((passed + 1))
+    else
+        fail "RUNTIME_CONSTITUTION.md missing"
+    fi
+    checks=$((checks + 1))
+
+    if [ -f "${OPENCODE_DIR}/plugins/pai-hooks.js" ] && grep -q "RUNTIME_CONSTITUTION.md" "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
+        pass "OpenCode plugin loads RUNTIME_CONSTITUTION.md"
+        passed=$((passed + 1))
+    else
+        fail "OpenCode plugin does not load RUNTIME_CONSTITUTION.md"
+    fi
+    checks=$((checks + 1))
+
+    local schema_count
+    schema_count=$(find "$PAI_DIR/schemas" -maxdepth 1 -type f -name '*.schema.json' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$schema_count" -ge 6 ]; then
+        pass "Observability JSON schemas installed"
+        passed=$((passed + 1))
+    else
+        fail "Observability JSON schemas missing or incomplete"
+    fi
+    checks=$((checks + 1))
+
+    if [ -f "${OPENCODE_DIR}/docs/OBSERVABILITY_CONTRACTS.md" ]; then
+        pass "OpenCode observability contract docs installed"
+        passed=$((passed + 1))
+    else
+        fail "OpenCode observability contract docs missing"
+    fi
+    checks=$((checks + 1))
+
+    if [ -x "$PAI_DIR/bin/validate-doc-integrity.js" ]; then
+        pass "DocIntegrity validator installed"
+        passed=$((passed + 1))
+    else
+        fail "DocIntegrity validator missing or not executable"
+    fi
+    checks=$((checks + 1))
     
     echo "  Score: $passed/$checks"
     return $((checks - passed))
 }
 
 check_pulse() {
-    section "10. Pulse"
+    section "10. Pulse Scaffolding"
     local checks=0
     local passed=0
     
     if [ -d "$PAI_DIR/PULSE" ]; then
-        pass "PULSE/ directory exists"
+        pass "PULSE/ directory exists (scaffold)"
         passed=$((passed + 1))
     else
         fail "PULSE/ missing"
@@ -551,22 +769,58 @@ check_pulse() {
     checks=$((checks + 1))
     
     if [ -f "$PAI_DIR/PULSE/PULSE.toml" ]; then
-        pass "PULSE.toml exists"
+        pass "PULSE.toml exists (config scaffold)"
         passed=$((passed + 1))
     else
         fail "PULSE.toml missing"
     fi
     checks=$((checks + 1))
-    
-    local claude_refs=$(grep -r "\.claude/" "$PAI_DIR/PULSE/" --include="*.ts" --include="*.sh" --include="*.toml" -l --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out 2>/dev/null | grep -v patch-paths.sh | wc -l)
-    if [ "$claude_refs" -eq 0 ]; then
-        pass "No hardcoded ~/.claude/ paths (all migrated to ~/.config/opencode/)"
+
+    if [ -f "$PAI_DIR/PULSE/README.md" ]; then
+        pass "PULSE/README.md documents optional broker scope"
         passed=$((passed + 1))
     else
-        fail "$claude_refs files still have ~/.claude/ refs (should be ~/.config/opencode/)"
+        fail "PULSE/README.md missing"
+    fi
+    checks=$((checks + 1))
+
+    if grep -q 'status = "optional-broker"' "$PAI_DIR/PULSE/PULSE.toml" 2>/dev/null; then
+        pass "PULSE.toml declares optional broker scope"
+        passed=$((passed + 1))
+    else
+        fail "PULSE.toml does not declare optional broker scope"
+    fi
+    checks=$((checks + 1))
+
+    if ! grep -q 'PAI/TOOLS' "$PAI_DIR/PULSE/PULSE.toml" 2>/dev/null && ! grep -q '\[\[job\]\]' "$PAI_DIR/PULSE/PULSE.toml" 2>/dev/null; then
+        pass "PULSE.toml has no legacy jobs or missing tool calls"
+        passed=$((passed + 1))
+    else
+        fail "PULSE.toml still declares legacy jobs or PAI/TOOLS calls"
+    fi
+    checks=$((checks + 1))
+
+    if [ -f "$PAI_DIR/broker/pulse-broker.ts" ] && [ -f "$PAI_DIR/broker/broker-lib.ts" ]; then
+        pass "Pulse Broker installed (optional runtime, PAI/broker/)"
+        passed=$((passed + 1))
+    else
+        fail "Pulse Broker files missing from PAI/broker/"
     fi
     checks=$((checks + 1))
     
+    # Installed content must have no legacy Claude Code paths anywhere —
+    # PAI core, skills, agents, and commands (install.sh patch_installed_paths
+    # rewrites them at install time).
+    local claude_refs=$(grep -rlI "\.claude/" "$PAI_DIR" "${OPENCODE_DIR}/skills" "${OPENCODE_DIR}/agents" "${OPENCODE_DIR}/commands" --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out 2>/dev/null | grep -v patch-paths.sh | grep -v "$PAI_DIR/bin/" | wc -l)
+    if [ "$claude_refs" -eq 0 ]; then
+        pass "No hardcoded ~/.claude/ paths in installed content (all migrated to ~/.config/opencode/)"
+        passed=$((passed + 1))
+    else
+        fail "$claude_refs installed files still have ~/.claude/ refs (should be ~/.config/opencode/)"
+    fi
+    checks=$((checks + 1))
+    
+    echo "  Note: this validates Pulse files only, not a live daemon."
     echo "  Score: $passed/$checks"
     return $((checks - passed))
 }
@@ -589,6 +843,30 @@ check_algorithm() {
         passed=$((passed + 1))
     else
         fail "LATEST missing"
+    fi
+    checks=$((checks + 1))
+
+    if [ -x "${SCRIPT_DIR}/check-port-coherence.sh" ] && bash "${SCRIPT_DIR}/check-port-coherence.sh" >/dev/null 2>&1; then
+        pass "Active Algorithm/CLAUDE instructions match OpenCode runtime"
+        passed=$((passed + 1))
+    else
+        fail "Active Algorithm/CLAUDE instructions have stale runtime promises"
+    fi
+    checks=$((checks + 1))
+
+    if [ -x "${SCRIPT_DIR}/validate-promise-integrity.sh" ] && bash "${SCRIPT_DIR}/validate-promise-integrity.sh" >/dev/null 2>&1; then
+        pass "Promise integrity validator passes"
+        passed=$((passed + 1))
+    else
+        fail "Promise integrity validator detected runtime drift"
+    fi
+    checks=$((checks + 1))
+
+    if [ -x "${SCRIPT_DIR}/validate-doc-integrity.js" ] && bun "${SCRIPT_DIR}/validate-doc-integrity.js" --root "$OPENCODE_DIR" >/dev/null 2>&1; then
+        pass "Doc integrity validator passes"
+        passed=$((passed + 1))
+    else
+        fail "Doc integrity validator detected stale docs or missing runtime surfaces"
     fi
     checks=$((checks + 1))
     

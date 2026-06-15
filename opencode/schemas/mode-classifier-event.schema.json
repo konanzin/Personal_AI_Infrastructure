@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pai.mode-classifier-event.v1",
+  "title": "PAI Mode Classifier Event",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "session_id",
+    "event",
+    "mode",
+    "source",
+    "reason",
+    "confidence",
+    "latency_ms",
+    "fallback",
+    "prompt_hash"
+  ],
+  "properties": {
+    "timestamp": { "type": "string" },
+    "session_id": { "type": "string", "minLength": 1 },
+    "event": { "const": "mode_classification" },
+    "mode": { "enum": ["MINIMAL", "NATIVE", "ALGORITHM"] },
+    "tier": { "type": ["string", "null"], "pattern": "^E[1-5]$" },
+    "source": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "latency_ms": { "type": "number", "minimum": 0 },
+    "fallback": { "type": "boolean" },
+    "prompt_hash": { "type": "string", "minLength": 1 },
+    "prompt_preview": { "type": "string" }
+  }
+}

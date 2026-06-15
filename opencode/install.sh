@@ -1,7 +1,7 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════
 #  PAI for OpenCode — One-Command Installer
-#  Usage: ./install.sh [--update]
+#  Usage: ./install.sh [--update] [--check] [--repair] [--preserve-user]
 # ═══════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -21,15 +21,43 @@ PLUGINS_DIR="${OPENCODE_DIR}/plugins"
 AGENTS_DIR="${OPENCODE_DIR}/agents"
 SKILLS_DIR="${OPENCODE_DIR}/skills"
 COMMANDS_DIR="${OPENCODE_DIR}/commands"
+DOCS_DIR="${OPENCODE_DIR}/docs"
+INSTALL_MANIFEST="${REPO_DIR}/opencode/install-manifest.json"
 
 # ─── Flags ────────────────────────────────────────────────
 UPDATE_MODE=false
 BOOTSTRAP_DEPS=true
+CHECK_MODE=false
+REPAIR_MODE=false
+PRESERVE_USER=true
+
+CONFIG_REGENERATED=false
+ARCHIVE_DIR=""
+ARCHIVED_AGENTS=()
+ARCHIVED_COMMANDS=()
+ARCHIVED_SKILLS=()
 
 for arg in "$@"; do
     case "$arg" in
         --update) UPDATE_MODE=true ;;
         --no-bootstrap) BOOTSTRAP_DEPS=false ;;
+        --check) CHECK_MODE=true; BOOTSTRAP_DEPS=false ;;
+        --repair) REPAIR_MODE=true ;;
+        --preserve-user) PRESERVE_USER=true ;;
+        -h|--help)
+            echo "Usage: ./install.sh [--update] [--check] [--repair] [--preserve-user] [--no-bootstrap]"
+            echo ""
+            echo "  --check          Report drift between repo manifest and installed OpenCode runtime; make no changes."
+            echo "  --repair         Reinstall generated artifacts, archive stale generated dirs, and regenerate config."
+            echo "  --preserve-user  Preserve PAI/USER, PAI/MEMORY, and .env (default)."
+            echo "  --update         Create a full PAI backup before reinstalling."
+            echo "  --no-bootstrap   Do not install missing prerequisites automatically."
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $arg" >&2
+            exit 1
+            ;;
     esac
 done
 
@@ -38,6 +66,73 @@ log() { echo -e "${BLUE}[PAI-INSTALL]${RESET} $1"; }
 success() { echo -e "${GREEN}[SUCCESS]${RESET} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${RESET} $1"; }
 error() { echo -e "${RED}[ERROR]${RESET} $1"; }
+
+require_bun_for_manifest() {
+    if ! command -v bun &>/dev/null; then
+        error "bun is required to read opencode/install-manifest.json"
+        exit 1
+    fi
+}
+
+manifest_values() {
+    local key="$1"
+    require_bun_for_manifest
+    MANIFEST_PATH="$INSTALL_MANIFEST" MANIFEST_KEY="$key" bun -e '
+const fs = require("fs");
+const data = JSON.parse(fs.readFileSync(process.env.MANIFEST_PATH, "utf8"));
+for (const value of data[process.env.MANIFEST_KEY] ?? []) console.log(value);
+' 2>/dev/null
+}
+
+manifest_has() {
+    local key="$1"
+    local value="$2"
+    while IFS= read -r item; do
+        [ "$item" = "$value" ] && return 0
+    done < <(manifest_values "$key")
+    return 1
+}
+
+manifest_count() {
+    local key="$1"
+    manifest_values "$key" | sed '/^$/d' | wc -l | tr -d ' '
+}
+
+archive_generated_path() {
+    local path="$1"
+    local bucket="$2"
+    local name
+    name="$(basename "$path")"
+
+    if [ ! -e "$path" ]; then
+        return 0
+    fi
+
+    if [ -z "$ARCHIVE_DIR" ]; then
+        ARCHIVE_DIR="${OPENCODE_DIR}/.pai-stale/$(date +%Y%m%d-%H%M%S)"
+    fi
+
+    mkdir -p "$ARCHIVE_DIR/$bucket"
+
+    local target="$ARCHIVE_DIR/$bucket/$name"
+    if [ -e "$target" ]; then
+        target="$ARCHIVE_DIR/$bucket/${name}.$(date +%s)"
+    fi
+
+    mv "$path" "$target"
+}
+
+render_expected_config() {
+    local output="$1"
+
+    if [ ! -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" ]; then
+        error "Missing opencode/config/opencode.jsonc.template"
+        exit 1
+    fi
+
+    sed "s|\"./plugins/pai-hooks.js\"|\"${PLUGINS_DIR}/pai-hooks.js\"|" \
+        "${REPO_DIR}/opencode/config/opencode.jsonc.template" > "$output"
+}
 
 require_curl() {
     if ! command -v curl &>/dev/null; then
@@ -128,14 +223,68 @@ create_backup() {
 create_directories() {
     log "Creating directories..."
     
-    mkdir -p "$PAI_DIR"/{ALGORITHM,DOCUMENTATION,MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH},PULSE,TOOLS,TEMPLATES,USER/{TELOS,Config},bin,logs,tests}
+    mkdir -p "$PAI_DIR"/{ALGORITHM,DOCUMENTATION,MEMORY/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH},PULSE,TOOLS,TEMPLATES,USER/{TELOS,Config},bin,logs,tests,schemas}
     mkdir -p "$PAI_DIR/plugins/lib"
     mkdir -p "$PLUGINS_DIR"
     mkdir -p "$AGENTS_DIR"
     mkdir -p "$COMMANDS_DIR"
     mkdir -p "$SKILLS_DIR"
+    mkdir -p "$DOCS_DIR"
     
     success "Directories OK"
+}
+
+archive_stale_artifacts() {
+    log "Checking generated artifact drift..."
+
+    local stale
+
+    if [ -d "$AGENTS_DIR" ]; then
+        while IFS= read -r stale; do
+            [ -n "$stale" ] || continue
+            if [ -f "$AGENTS_DIR/$stale" ]; then
+                archive_generated_path "$AGENTS_DIR/$stale" "agents"
+                ARCHIVED_AGENTS+=("$stale")
+            fi
+        done < <(manifest_values "retired_agents")
+
+        while IFS= read -r file; do
+            local name
+            name="$(basename "$file")"
+            if ! manifest_has "agents" "$name"; then
+                archive_generated_path "$file" "agents"
+                ARCHIVED_AGENTS+=("$name")
+            fi
+        done < <(find "$AGENTS_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+    fi
+
+    if [ -d "$COMMANDS_DIR" ]; then
+        while IFS= read -r file; do
+            local name
+            name="$(basename "$file")"
+            if ! manifest_has "commands" "$name"; then
+                archive_generated_path "$file" "commands"
+                ARCHIVED_COMMANDS+=("$name")
+            fi
+        done < <(find "$COMMANDS_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+    fi
+
+    if [ -d "$SKILLS_DIR" ]; then
+        while IFS= read -r dir; do
+            local name
+            name="$(basename "$dir")"
+            if ! manifest_has "skills" "$name"; then
+                archive_generated_path "$dir" "skills"
+                ARCHIVED_SKILLS+=("$name")
+            fi
+        done < <(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+    fi
+
+    if [ ${#ARCHIVED_AGENTS[@]} -eq 0 ] && [ ${#ARCHIVED_COMMANDS[@]} -eq 0 ] && [ ${#ARCHIVED_SKILLS[@]} -eq 0 ]; then
+        success "No stale generated artifacts found"
+    else
+        success "Archived stale generated artifacts to $ARCHIVE_DIR"
+    fi
 }
 
 # ─── Install Plugins ──────────────────────────────────────
@@ -160,14 +309,6 @@ install_plugins() {
 # ─── Install Agents ───────────────────────────────────────
 install_agents() {
     log "Installing agents..."
-
-    # Remove agents this product used to ship and has since retired —
-    # cp -f never deletes, so stale files from old installs would otherwise
-    # keep showing up in agent pickers forever.
-    local retired=("BrowserAgent" "QATester" "UIReviewer" "e1" "e2" "e3" "e4" "e5" "rate")
-    for stale in "${retired[@]}"; do
-        rm -f "$AGENTS_DIR/${stale}.md"
-    done
 
     cp -f "${REPO_DIR}/opencode/agents/"*.md "$AGENTS_DIR/"
 
@@ -202,7 +343,7 @@ install_skills() {
     
     cp -R "${skills_src}/"* "$SKILLS_DIR/"
     
-    local count=$(ls "$SKILLS_DIR/" | wc -l)
+    local count=$(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
     success "$count skills installed"
 }
 
@@ -227,9 +368,21 @@ install_pai_core() {
         mkdir -p "$PAI_DIR/tests"
         cp -R "${REPO_DIR}/opencode/tests/e2e-runtime" "$PAI_DIR/tests/"
     fi
+
+    mkdir -p "$PAI_DIR/config"
+    cp -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" "$PAI_DIR/config/opencode.jsonc.template"
+    cp -f "${REPO_DIR}/opencode/install-manifest.json" "$PAI_DIR/install-manifest.json"
+
+    mkdir -p "$PAI_DIR/schemas"
+    cp -f "${REPO_DIR}/opencode/schemas/"*.json "$PAI_DIR/schemas/" 2>/dev/null || true
+
+    if [ -d "${REPO_DIR}/opencode/docs" ]; then
+        mkdir -p "$DOCS_DIR"
+        cp -f "${REPO_DIR}/opencode/docs/"*.md "$DOCS_DIR/" 2>/dev/null || true
+    fi
     
-    # Copy root-level PAI files (CLAUDE.md, etc.)
-    for file in CLAUDE.md; do
+    # Copy root-level PAI runtime files
+    for file in CLAUDE.md RUNTIME_CONSTITUTION.md; do
         if [ -f "${REPO_DIR}/PAI/$file" ]; then
             cp -f "${REPO_DIR}/PAI/$file" "$PAI_DIR/"
         fi
@@ -271,15 +424,20 @@ install_pai_core() {
     mkdir -p "$PAI_DIR/logs"
     
     # Copy metadata files (repo canonical versions)
-    for file in .version.json .preferences.json .techstack.json .observability.json .notifications.json .env .pai-protected.json; do
+    for file in .version.json .preferences.json .techstack.json .observability.json .notifications.json .pai-protected.json; do
         if [ -f "${REPO_DIR}/opencode/config/$file" ]; then
             cp -f "${REPO_DIR}/opencode/config/$file" "$PAI_DIR/"
         fi
     done
+
+    if [ -f "${REPO_DIR}/opencode/config/.env" ] && [ ! -f "$PAI_DIR/.env" ]; then
+        cp -f "${REPO_DIR}/opencode/config/.env" "$PAI_DIR/"
+    fi
     
     # Copy scripts (repo canonical versions take precedence)
     cp -f "${REPO_DIR}/opencode/bin/"*.sh "$PAI_DIR/bin/" 2>/dev/null || true
-    chmod +x "$PAI_DIR/bin/"*.sh 2>/dev/null || true
+    cp -f "${REPO_DIR}/opencode/bin/"*.js "$PAI_DIR/bin/" 2>/dev/null || true
+    chmod +x "$PAI_DIR/bin/"*.sh "$PAI_DIR/bin/"*.js 2>/dev/null || true
 
     success "PAI core installed"
 }
@@ -327,11 +485,14 @@ patch_installed_paths() {
                 "$PAI_DIR/bin/"*) continue ;;
             esac
             sed -i \
+                -e 's|${HOME}/\.claude|${HOME}/.config/opencode|g' \
+                -e 's|$HOME/\.claude|$HOME/.config/opencode|g' \
+                -e 's|~/\.claude|~/.config/opencode|g' \
                 -e 's|\.claude/|.config/opencode/|g' \
                 -e 's|"\.claude"|".config/opencode"|g' \
                 "$file"
             patched=$((patched + 1))
-        done < <(grep -rlI -e '\.claude/' -e '"\.claude"' "$dir" 2>/dev/null)
+        done < <(grep -rlI -e '\.claude' "$dir" 2>/dev/null)
     done
 
     success "Patched legacy paths in $patched files"
@@ -340,18 +501,8 @@ patch_installed_paths() {
 # ─── Generate opencode.jsonc ──────────────────────────────
 generate_config() {
     log "Generating opencode.jsonc..."
-    
-    if [ ! -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" ]; then
-        error "Missing opencode/config/opencode.jsonc.template"
-        exit 1
-    fi
-
-    cp -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" "${OPENCODE_DIR}/opencode.jsonc"
-
-    # OpenCode resolves relative plugin paths against the server CWD, not the
-    # config dir (verified on 1.16: "./plugins/..." silently fails to load
-    # when serving from another directory). Render the absolute path.
-    sed -i "s|\"./plugins/pai-hooks.js\"|\"${PLUGINS_DIR}/pai-hooks.js\"|" "${OPENCODE_DIR}/opencode.jsonc"
+    render_expected_config "${OPENCODE_DIR}/opencode.jsonc"
+    CONFIG_REGENERATED=true
 
     success "Config generated"
 }
@@ -381,13 +532,29 @@ report() {
     echo "📁 Structure:"
     echo "  PAI:      $PAI_DIR"
     echo "  Agents:   $(ls $AGENTS_DIR/*.md 2>/dev/null | wc -l) agents"
-    echo "  Skills:   $(ls $SKILLS_DIR/ 2>/dev/null | wc -l) skills"
+    echo "  Skills:   $(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l) skills"
     echo "  Plugins:  $(ls $PLUGINS_DIR/pai*.js 2>/dev/null | wc -l) plugins"
+    echo ""
+    echo "🧹 Hygiene:"
+    echo "  Config regenerated: $CONFIG_REGENERATED"
+    if [ ${#ARCHIVED_AGENTS[@]} -gt 0 ]; then
+        echo "  Archived agents: ${ARCHIVED_AGENTS[*]}"
+    fi
+    if [ ${#ARCHIVED_COMMANDS[@]} -gt 0 ]; then
+        echo "  Archived commands: ${ARCHIVED_COMMANDS[*]}"
+    fi
+    if [ ${#ARCHIVED_SKILLS[@]} -gt 0 ]; then
+        echo "  Archived skills: ${ARCHIVED_SKILLS[*]}"
+    fi
+    if [ -n "$ARCHIVE_DIR" ]; then
+        echo "  Archive: $ARCHIVE_DIR"
+    fi
     echo ""
     echo "🚀 Next steps:"
     echo "  1. Run: opencode"
     echo "  2. Use /status to verify"
     echo "  3. Use /pai to start Algorithm"
+    echo "  4. Validate drift: bash ${REPO_DIR}/opencode/install.sh --check"
     echo ""
     
     if [ "$UPDATE_MODE" = true ]; then
@@ -412,9 +579,33 @@ validate_repo_content() {
     if [ ! -f "${REPO_DIR}/opencode/plugins/pai-hooks.js" ]; then
         missing+=("opencode/plugins/pai-hooks.js")
     fi
+
+    if [ ! -f "${REPO_DIR}/PAI/RUNTIME_CONSTITUTION.md" ]; then
+        missing+=("PAI/RUNTIME_CONSTITUTION.md")
+    fi
     
     if [ ! -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" ]; then
         missing+=("opencode/config/opencode.jsonc.template")
+    fi
+
+    if [ ! -f "$INSTALL_MANIFEST" ]; then
+        missing+=("opencode/install-manifest.json")
+    fi
+
+    if [ ! -d "${REPO_DIR}/opencode/schemas" ]; then
+        missing+=("opencode/schemas/")
+    fi
+
+    if [ ! -f "${REPO_DIR}/opencode/bin/validate-doc-integrity.js" ]; then
+        missing+=("opencode/bin/validate-doc-integrity.js")
+    fi
+
+    if [ ! -f "${REPO_DIR}/opencode/bin/validate-tools-manifest.js" ]; then
+        missing+=("opencode/bin/validate-tools-manifest.js")
+    fi
+
+    if [ ! -f "${REPO_DIR}/PAI/TOOLS/manifest.json" ]; then
+        missing+=("PAI/TOOLS/manifest.json")
     fi
     
     if [ ${#missing[@]} -gt 0 ]; then
@@ -426,12 +617,163 @@ validate_repo_content() {
     success "Repo content OK"
 }
 
+record_check_failure() {
+    local message="$1"
+    CHECK_FAILURES=$((CHECK_FAILURES + 1))
+    echo -e "  ${RED}✗${RESET} $message"
+}
+
+record_check_pass() {
+    local message="$1"
+    echo -e "  ${GREEN}✓${RESET} $message"
+}
+
+check_manifest_dir() {
+    local label="$1"
+    local key="$2"
+    local dir="$3"
+    local type="$4"
+    local suffix="${5:-}"
+    local missing=()
+    local stale=()
+    local expected
+    local path
+    local name
+
+    while IFS= read -r expected; do
+        [ -n "$expected" ] || continue
+        path="$dir/$expected"
+        if [ ! -e "$path" ]; then
+            missing+=("$expected")
+        fi
+    done < <(manifest_values "$key")
+
+    if [ -d "$dir" ]; then
+        local find_cmd=()
+        if [ -n "$suffix" ]; then
+            find_cmd=(find "$dir" -mindepth 1 -maxdepth 1 -type "$type" -name "$suffix")
+        else
+            find_cmd=(find "$dir" -mindepth 1 -maxdepth 1 -type "$type")
+        fi
+
+        while IFS= read -r path; do
+            name="$(basename "$path")"
+            if ! manifest_has "$key" "$name"; then
+                stale+=("$name")
+            fi
+        done < <("${find_cmd[@]}" 2>/dev/null | sort)
+    else
+        missing+=("<directory-missing>")
+    fi
+
+    if [ ${#missing[@]} -eq 0 ] && [ ${#stale[@]} -eq 0 ]; then
+        record_check_pass "$label matches install manifest"
+    else
+        [ ${#missing[@]} -eq 0 ] || record_check_failure "$label missing: ${missing[*]}"
+        [ ${#stale[@]} -eq 0 ] || record_check_failure "$label stale: ${stale[*]}"
+    fi
+}
+
+check_config_drift() {
+    if [ ! -f "${OPENCODE_DIR}/opencode.jsonc" ]; then
+        record_check_failure "opencode.jsonc missing"
+        return
+    fi
+
+    local expected
+    expected="$(mktemp)"
+    render_expected_config "$expected"
+
+    if cmp -s "$expected" "${OPENCODE_DIR}/opencode.jsonc"; then
+        record_check_pass "opencode.jsonc matches rendered template"
+    else
+        record_check_failure "opencode.jsonc differs from rendered template"
+    fi
+
+    rm -f "$expected"
+}
+
+check_runtime_contracts() {
+    local schema_count
+    schema_count=$(find "$PAI_DIR/schemas" -maxdepth 1 -type f -name '*.schema.json' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$schema_count" -ge 6 ]; then
+        record_check_pass "Observability schemas installed"
+    else
+        record_check_failure "Observability schemas missing or incomplete"
+    fi
+
+    if [ -x "$PAI_DIR/bin/validate-doc-integrity.js" ]; then
+        record_check_pass "DocIntegrity validator installed"
+    else
+        record_check_failure "DocIntegrity validator missing or not executable"
+    fi
+
+    if [ -x "$PAI_DIR/bin/validate-tools-manifest.js" ]; then
+        record_check_pass "Tools manifest validator installed"
+    else
+        record_check_failure "Tools manifest validator missing or not executable"
+    fi
+
+    if [ -f "$PAI_DIR/TOOLS/manifest.json" ]; then
+        record_check_pass "Tools manifest installed"
+    else
+        record_check_failure "Tools manifest missing"
+    fi
+
+    if [ -x "$PAI_DIR/bin/validate-tools-manifest.js" ] && bun "$PAI_DIR/bin/validate-tools-manifest.js" --root "$OPENCODE_DIR" >/dev/null 2>&1; then
+        record_check_pass "Tools manifest matches installed PAI/TOOLS"
+    else
+        record_check_failure "Tools manifest validation failed"
+    fi
+
+    if [ -f "$DOCS_DIR/OBSERVABILITY_CONTRACTS.md" ]; then
+        record_check_pass "OpenCode observability contract docs installed"
+    else
+        record_check_failure "OpenCode observability contract docs missing"
+    fi
+}
+
+run_check_mode() {
+    echo "═══════════════════════════════════════════════════"
+    echo "  PAI for OpenCode — Install Drift Check"
+    echo "═══════════════════════════════════════════════════"
+    echo ""
+
+    require_bun_for_manifest
+    validate_repo_content
+
+    CHECK_FAILURES=0
+
+    check_manifest_dir "Agents" "agents" "$AGENTS_DIR" "f" "*.md"
+    check_manifest_dir "Commands" "commands" "$COMMANDS_DIR" "f" "*.md"
+    check_manifest_dir "Skills" "skills" "$SKILLS_DIR" "d"
+    check_config_drift
+    check_runtime_contracts
+
+    echo ""
+    if [ "$CHECK_FAILURES" -eq 0 ]; then
+        success "Installed runtime matches manifest"
+        return 0
+    fi
+
+    warn "$CHECK_FAILURES drift issue(s) found. Run: bash ${REPO_DIR}/opencode/install.sh --repair"
+    return 1
+}
+
 # ─── Main ─────────────────────────────────────────────────
 main() {
+    if [ "$CHECK_MODE" = true ]; then
+        run_check_mode
+        exit $?
+    fi
+
     echo "═══════════════════════════════════════════════════"
     echo "  PAI v5.0.0 for OpenCode"
     if [ "$UPDATE_MODE" = true ]; then
         echo "  [UPDATE MODE]"
+    fi
+    if [ "$REPAIR_MODE" = true ]; then
+        echo "  [REPAIR MODE]"
     fi
     echo "═══════════════════════════════════════════════════"
     echo ""
@@ -440,6 +782,7 @@ main() {
     validate_repo_content
     create_backup
     create_directories
+    archive_stale_artifacts
     install_plugins
     install_agents
     install_commands

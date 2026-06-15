@@ -8,7 +8,8 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
-import { join, dirname, resolve } from 'path';
+import { execFileSync } from 'child_process';
+import { basename, join, dirname, resolve } from 'path';
 import { homedir } from 'os';
 
 const PAI_DEBUG_UI = process.env.PAI_DEBUG_UI === 'true';
@@ -274,6 +275,7 @@ const BLOCKED_PATTERNS = [
 const CONFIRM_PATTERNS = [
   { pattern: /curl\s+.*\|/, reason: 'Piping curl output requires confirmation' },
   { pattern: /wget\s+.*\|/, reason: 'Piping wget output requires confirmation' },
+  { pattern: /\b(cat|grep|rg|sed|awk|source)\b[^|;&]*(\.env\b|\.npmrc\b|\.pypirc\b|id_rsa\b|id_ed25519\b|id_ecdsa\b|\.aws\/credentials\b)/, reason: 'Shell read of credential-bearing file requires confirmation' },
   { pattern: /eval\s*[\(`"']/, reason: 'eval usage requires confirmation' },
   { pattern: /exec\s*\(/, reason: 'exec usage requires confirmation' },
   { pattern: /spawn\s*\(/, reason: 'spawn usage requires confirmation' },
@@ -316,6 +318,58 @@ const CONFIRM_WRITE_PATHS = [
   'passwd',
   'sudoers',
 ];
+
+const ZERO_READ_PATHS = [
+  '/etc/shadow',
+  '/etc/gshadow',
+  '/etc/sudoers',
+  '/proc/kcore',
+];
+
+const CONFIRM_READ_PATHS = [
+  '.env',
+  '.env.',
+  '.npmrc',
+  '.pypirc',
+  '.netrc',
+  '.htpasswd',
+  'id_rsa',
+  'id_ed25519',
+  'id_ecdsa',
+  'id_dsa',
+  'private_key',
+  'credentials',
+  'credential',
+  'secrets',
+  'secret',
+  'tokens',
+  'token',
+  'PAI_CONFIG.yaml',
+  join(homedir(), '.ssh'),
+  join(homedir(), '.gnupg'),
+  join(homedir(), '.aws'),
+  join(homedir(), '.config', 'gcloud'),
+  join(homedir(), '.azure'),
+  join(homedir(), '.docker', 'config.json'),
+];
+
+const HIGH_CONFIDENCE_SECRET_CONTENT = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /\b(sk_live_[A-Za-z0-9]{16,}|sk-ant-[A-Za-z0-9_-]{16,}|sk-proj-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,})\b/,
+  /\b(?:OPENAI|ANTHROPIC|MOONSHOT|ELEVENLABS|GITHUB|STRIPE|AWS|GOOGLE|SLACK)[A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|ACCESS_KEY_ID|SECRET_ACCESS_KEY)\s*=\s*['"]?[A-Za-z0-9_./+=:-]{16,}/,
+];
+
+function highestPriorityResult(violations) {
+  if (violations.length === 0) return { action: 'allow', violations: [] };
+
+  const hasDeny = violations.some(v => v.action === 'deny');
+  if (hasDeny) return { action: 'deny', violations: violations.filter(v => v.action === 'deny') };
+
+  const hasConfirm = violations.some(v => v.action === 'require_approval');
+  if (hasConfirm) return { action: 'require_approval', violations: violations.filter(v => v.action === 'require_approval') };
+
+  return { action: 'alert', violations };
+}
 
 function stripEnvVarPrefix(command) {
   return command.replace(
@@ -443,6 +497,59 @@ export function inspectWritePath(filePath, action = 'write') {
   if (hasConfirm) return { action: 'require_approval', violations: violations.filter(v => v.action === 'require_approval') };
 
   return { action: 'alert', violations };
+}
+
+export function inspectReadPath(filePath) {
+  if (!filePath || typeof filePath !== 'string') return { action: 'allow', violations: [] };
+
+  const normalized = resolve(expandTilde(filePath));
+  const violations = [];
+
+  for (const p of ZERO_READ_PATHS) {
+    if (matchesPathPattern(normalized, p)) {
+      violations.push({ action: 'deny', reason: `Zero access read path: ${p}`, severity: 'critical' });
+    }
+  }
+
+  for (const p of CONFIRM_READ_PATHS) {
+    if (matchesPathPattern(normalized, p) || normalized.toLowerCase().includes(String(p).toLowerCase())) {
+      violations.push({ action: 'require_approval', reason: `Reading protected file: ${p}`, severity: 'medium' });
+    }
+  }
+
+  return highestPriorityResult(violations);
+}
+
+function isAllowedSecretWriteTarget(filePath) {
+  const normalized = resolve(expandTilde(filePath));
+  const allowedRoots = [
+    join(PAI_DIR, 'USER'),
+    join(PAI_DIR, 'MEMORY', 'SECURITY'),
+    join(PAI_DIR, 'MEMORY', 'OBSERVABILITY'),
+    join(PAI_DIR, 'MEMORY', 'STATE'),
+    join(PAI_DIR, '.env'),
+  ];
+
+  return allowedRoots.some((p) => matchesPathPattern(normalized, p));
+}
+
+export function inspectWriteContent(filePath, content = '') {
+  if (!filePath || typeof content !== 'string' || !content) return { action: 'allow', violations: [] };
+  if (isAllowedSecretWriteTarget(filePath)) return { action: 'allow', violations: [] };
+
+  const violations = [];
+  for (const pattern of HIGH_CONFIDENCE_SECRET_CONTENT) {
+    if (pattern.test(content)) {
+      violations.push({
+        action: 'deny',
+        reason: 'High-confidence secret material cannot be written outside PAI protected zones',
+        severity: 'critical',
+      });
+      break;
+    }
+  }
+
+  return highestPriorityResult(violations);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1264,6 +1371,218 @@ export function syncISAToWorkRegistry(filePath, sessionId = null) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ISC CHECKPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+export function parseCriteriaList(content) {
+  const criteria = [];
+  const lines = String(content || '').split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(/^\s*-\s*\[([ xX~-])\]\s*(?:\[[A-Z]\]\s*)?(ISC-\d+(?:\.\d+)?(?:-[A-Z]-\d+)?)\s*(?::|—|-)\s*(.+?)\s*$/);
+    if (!match) continue;
+
+    const marker = match[1].trim().toLowerCase();
+    criteria.push({
+      id: match[2],
+      description: match[3].trim(),
+      status: marker === 'x' ? 'completed' : marker === '~' || marker === '-' ? 'deferred' : 'open',
+      line: i + 1,
+    });
+  }
+
+  return criteria;
+}
+
+function expandCheckpointPath(value) {
+  let out = String(value || '').trim();
+  if (!out) return out;
+  if (out === '~') out = homedir();
+  if (out.startsWith('~/')) out = join(homedir(), out.slice(2));
+  out = out.replace(/^\$HOME(?=\/|$)/, homedir());
+  return out;
+}
+
+export function loadCheckpointRepos() {
+  const allowlistPath = join(PAI_DIR, 'checkpoint-repos.txt');
+  if (!existsSync(allowlistPath)) return [];
+
+  try {
+    return [...new Set(readFileSync(allowlistPath, 'utf-8')
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#'))
+      .map(expandCheckpointPath))];
+  } catch {
+    return [];
+  }
+}
+
+function checkpointSlugFor(filePath, fm = {}) {
+  const normalized = String(filePath || '').replace(/\\/g, '/');
+  const parts = normalized.split('/');
+  const workIdx = parts.findIndex(part => part.toUpperCase() === 'WORK');
+  if (workIdx >= 0 && parts[workIdx + 1]) return parts[workIdx + 1];
+  return fm.slug || fm.title || basename(dirname(filePath || 'project-isa'));
+}
+
+function checkpointStatePath(filePath, slug) {
+  const normalized = String(filePath || '').replace(/\\/g, '/');
+  if (/\/MEMORY\/WORK\/[^/]+\/(?:ISA|PRD)\.md$/i.test(normalized)) {
+    return join(dirname(filePath), '.checkpoint-state.json');
+  }
+  return join(STATE_DIR, 'checkpoints', `${hashString(String(slug), 12)}.json`);
+}
+
+function loadCheckpointState(path) {
+  const fallback = { committed_iscs: [], last_commit_sha: {}, entries: [] };
+  if (!existsSync(path)) return fallback;
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf-8'));
+    return {
+      committed_iscs: Array.isArray(parsed.committed_iscs) ? parsed.committed_iscs : [],
+      last_commit_sha: parsed.last_commit_sha && typeof parsed.last_commit_sha === 'object' ? parsed.last_commit_sha : {},
+      entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveCheckpointState(path, state) {
+  ensureDir(dirname(path));
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, JSON.stringify(state, null, 2) + '\n', 'utf-8');
+  const { renameSync } = require('fs');
+  renameSync(tmp, path);
+}
+
+function gitCheckpoint(repo, args) {
+  return execFileSync('git', ['-C', repo, ...args], {
+    encoding: 'utf-8',
+    timeout: 5000,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function isCheckpointGitRepo(repo) {
+  try {
+    gitCheckpoint(repo, ['rev-parse', '--git-dir']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasCheckpointChanges(repo) {
+  try {
+    return gitCheckpoint(repo, ['status', '--porcelain']).trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeCheckpointSubject(value) {
+  return String(value || 'checkpoint')
+    .replace(/\s+/g, ' ')
+    .replace(/[`$]/g, '')
+    .trim()
+    .slice(0, 200);
+}
+
+function commitCheckpoint(repo, iscId, slug, description) {
+  gitCheckpoint(repo, ['add', '-A']);
+  gitCheckpoint(repo, ['commit', '-m', `${iscId} (${slug}): ${sanitizeCheckpointSubject(description)}`, '--quiet', '--no-verify', '--no-gpg-sign']);
+  return gitCheckpoint(repo, ['rev-parse', 'HEAD']).trim();
+}
+
+export function recordISCCheckpointsFromISA(filePath, options = {}) {
+  try {
+    if (!isISAArtifactPath(filePath) || !existsSync(filePath)) {
+      return { status: 'skipped', reason: 'not_isa_artifact', checkpoints: [] };
+    }
+
+    const content = readFileSync(filePath, 'utf-8');
+    const fm = parseFrontmatter(content) || {};
+    const slug = checkpointSlugFor(filePath, fm);
+    const stateFile = checkpointStatePath(filePath, slug);
+    const state = loadCheckpointState(stateFile);
+    const already = new Set(state.committed_iscs);
+    const newlyCompleted = parseCriteriaList(content)
+      .filter(criterion => criterion.status === 'completed' && !already.has(criterion.id));
+
+    if (newlyCompleted.length === 0) {
+      return { status: 'noop', reason: 'no_new_completed_isc', slug, checkpoints: [] };
+    }
+
+    const repos = loadCheckpointRepos();
+    if (repos.length === 0) {
+      return {
+        status: 'skipped',
+        reason: 'no_checkpoint_repos_configured',
+        slug,
+        allowlist: join(PAI_DIR, 'checkpoint-repos.txt'),
+        checkpoints: newlyCompleted.map(criterion => criterion.id),
+      };
+    }
+
+    const entries = [];
+    for (const criterion of newlyCompleted) {
+      const repoResults = [];
+      for (const repo of repos) {
+        if (!existsSync(repo)) {
+          repoResults.push({ repo, status: 'missing', sha: null });
+          continue;
+        }
+        if (!isCheckpointGitRepo(repo)) {
+          repoResults.push({ repo, status: 'not_git', sha: null });
+          continue;
+        }
+        if (!hasCheckpointChanges(repo)) {
+          repoResults.push({ repo, status: 'clean', sha: null });
+          continue;
+        }
+        try {
+          const sha = commitCheckpoint(repo, criterion.id, slug, criterion.description);
+          state.last_commit_sha[repo] = sha;
+          repoResults.push({ repo, status: 'committed', sha });
+        } catch (error) {
+          repoResults.push({
+            repo,
+            status: 'failed',
+            sha: null,
+            error: error?.stderr?.toString?.() || error?.message || String(error),
+          });
+        }
+      }
+
+      state.committed_iscs.push(criterion.id);
+      const entry = {
+        id: criterion.id,
+        description: criterion.description,
+        slug,
+        timestamp: getISOTimestamp(),
+        session_id: options.sessionId || null,
+        source: filePath,
+        repos: repoResults,
+      };
+      state.entries.push(entry);
+      entries.push(entry);
+    }
+
+    saveCheckpointState(stateFile, state);
+    return { status: 'ok', slug, stateFile, checkpoints: entries };
+  } catch (error) {
+    return {
+      status: 'failed',
+      reason: error?.message || String(error),
+      checkpoints: [],
+    };
+  }
+}
+
 export function writeFrontmatterField(content, field, value) {
   const fmMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
   if (!fmMatch) return content;
@@ -1359,6 +1678,8 @@ export default {
   logSecurityEvent,
   inspectBashCommand,
   inspectWritePath,
+  inspectReadPath,
+  inspectWriteContent,
   inspectEgress,
   inspectPrompt,
   inspectContent,
@@ -1382,4 +1703,7 @@ export default {
   isISAArtifactPath,
   extractISAState,
   syncISAToWorkRegistry,
+  parseCriteriaList,
+  loadCheckpointRepos,
+  recordISCCheckpointsFromISA,
 };

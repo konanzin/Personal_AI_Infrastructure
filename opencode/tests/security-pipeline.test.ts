@@ -2,6 +2,8 @@ import { describe, test, expect } from "bun:test";
 import {
   inspectBashCommand,
   inspectWritePath,
+  inspectReadPath,
+  inspectWriteContent,
   inspectAgentSpawn,
   inspectSkillInvocation,
   detectPositivePraise,
@@ -76,6 +78,12 @@ describe("Security Pipeline — inspectBashCommand", () => {
       const result = inspectBashCommand('python3 -c "print(1)"');
       expect(result.action).toBe("require_approval");
     });
+
+    test("requires approval for shell reads of credential files", () => {
+      const result = inspectBashCommand("cat .env");
+      expect(result.action).toBe("require_approval");
+      expect(result.violations.some(v => v.reason.includes("credential-bearing"))).toBe(true);
+    });
   });
 
   describe("Safe commands (allow)", () => {
@@ -129,6 +137,40 @@ describe("Security Pipeline — inspectWritePath", () => {
 
   test("allows write to project file", () => {
     const result = inspectWritePath("src/index.ts", "write");
+    expect(result.action).toBe("allow");
+  });
+});
+
+describe("Security Pipeline — inspectReadPath", () => {
+  test("blocks read of /etc/shadow", () => {
+    const result = inspectReadPath("/etc/shadow");
+    expect(result.action).toBe("deny");
+  });
+
+  test("requires approval for .env reads", () => {
+    const result = inspectReadPath(".env");
+    expect(result.action).toBe("require_approval");
+  });
+
+  test("requires approval for SSH private key reads", () => {
+    const result = inspectReadPath("~/.ssh/id_ed25519");
+    expect(result.action).toBe("require_approval");
+  });
+
+  test("allows read of normal source files", () => {
+    const result = inspectReadPath("src/index.ts");
+    expect(result.action).toBe("allow");
+  });
+});
+
+describe("Security Pipeline — inspectWriteContent containment", () => {
+  test("blocks private key material outside protected PAI zones", () => {
+    const result = inspectWriteContent("public/leak.txt", "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----");
+    expect(result.action).toBe("deny");
+  });
+
+  test("allows ordinary content outside protected PAI zones", () => {
+    const result = inspectWriteContent("docs/example.md", "This is normal documentation.");
     expect(result.action).toBe("allow");
   });
 });

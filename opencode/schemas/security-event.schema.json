@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pai.security-event.v1",
+  "title": "PAI Security Event",
+  "type": "object",
+  "required": ["timestamp", "eventType", "inspector"],
+  "properties": {
+    "timestamp": { "type": "string" },
+    "sessionId": { "type": "string" },
+    "eventType": { "type": "string", "minLength": 1 },
+    "inspector": { "type": "string", "minLength": 1 },
+    "tool": { "type": "string" },
+    "target": { "type": "string" },
+    "reason": { "type": "string" },
+    "actionTaken": { "type": "string" },
+    "has404": { "type": "boolean" },
+    "hasError": { "type": "boolean" },
+    "contentLength": { "type": "number", "minimum": 0 },
+    "injectionDetected": { "type": "boolean" },
+    "repetitionRatio": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}
