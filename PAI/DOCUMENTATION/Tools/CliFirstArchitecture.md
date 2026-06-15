@@ -590,7 +590,7 @@ AI should orchestrate deterministic tools, not replace them with ad-hoc promptin
 
 ## Related Documentation
 
-- **Architecture**: `~/.config/opencode/PAI/PAI/DOCUMENTATION/PAISystemArchitecture.md`
+- **Architecture**: `~/.config/opencode/PAI/DOCUMENTATION/PAISystemArchitecture.md`
 
 ---
 

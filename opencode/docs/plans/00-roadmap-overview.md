@@ -2,6 +2,11 @@
 
 This directory holds implementation-ready plan files for closing the highest-value gaps in the PAI → OpenCode port.
 
+Note: the current code-verified operational parity plan set lives under
+`operational-parity/`. The older files in this directory predate the full
+Claude Code original vs OpenCode port parity audit and cover only a subset of
+the runtime.
+
 ## Constraints for this phase
 
 - No Pulse dashboard work

@@ -118,54 +118,53 @@ USER tier    ->  Personal customizations, private policies, overrides
 
 When PAI needs configuration, it follows a cascading lookup: check USER location first, fall back to SYSTEM location, then use defaults. USER always wins.
 
-Configuration files (`settings.json`, `CLAUDE.md`, `PAI_SYSTEM_PROMPT.md`) are directly edited. The Shadow Release system (`ShadowRelease.ts`) produces a sanitized public copy via **containment**: clone the live tree, delete sensitive zones (USER, MEMORY, private underscore-prefixed skills), overlay fixed public templates, scaffold empty USER/MEMORY, and run five security gates. PAI repo ships with zero personal data.
+Configuration files (`opencode.jsonc`, `CLAUDE.md`, `RUNTIME_CONSTITUTION.md`) are directly edited or generated from tracked templates. The Shadow Release system (`ShadowRelease.ts`) produces a sanitized public copy via **containment**: clone the live tree, delete sensitive zones (USER, MEMORY, private underscore-prefixed skills), overlay fixed public templates, scaffold empty USER/MEMORY, and run five security gates. PAI repo ships with zero personal data.
 
 ---
 
 ## Instruction Hierarchy -- The Model's Input Chain
 
-PAI injects instructions into Claude Code sessions through a 4-layer hierarchy. Each layer has different authority, persistence, and purpose.
+PAI injects instructions into OpenCode sessions through a 4-layer hierarchy. Each layer has different authority, persistence, and purpose.
 
 ```
-Layer 1: SYSTEM PROMPT (highest authority, survives compaction)
-  File: PAI/PAI_SYSTEM_PROMPT.md (via --append-system-prompt-file)
-  Contains: Constitutional rules -- identity, mode architecture, format mandate,
-  verification requirement, hard prohibitions, permission boundaries, security protocol.
+Layer 1: RUNTIME CONSTITUTION (highest PAI authority)
+  File: PAI/RUNTIME_CONSTITUTION.md (loaded by the OpenCode PAI plugin)
+  Contains: Constitutional rules -- identity, source grounding,
+  verification requirement, permission boundaries, security protocol.
 
-Layer 2: CLAUDE.MD (user context, loaded natively, survives compaction)
+Layer 2: CLAUDE.MD (operational context)
   File: ~/.config/opencode/PAI/CLAUDE.md (directly edited)
   Contains: Operational procedures -- format templates, Algorithm file path,
-  operational rules, context routing table. ~139 lines.
+  operational rules, context routing table.
 
-Layer 3: @IMPORTED FILES (loaded with CLAUDE.md, survive compaction)
+Layer 3: IDENTITY AND STATIC CONTEXT (loaded by plugin/config)
   Files: PRINCIPAL_IDENTITY, DA_IDENTITY, PROJECTS, PRINCIPAL_TELOS,
   PAI_ARCHITECTURE_SUMMARY
   Contains: Rich identity context, project routing, goals, system architecture map.
 
 Layer 4: DYNAMIC CONTEXT (session-specific, ephemeral, does NOT survive compaction)
-  Injected by: LoadContext.hook.ts (SessionStart)
+  Injected by: pai-hooks.js system transform and runtime event hooks
   Contains: Relationship context, learning readback, active work summary.
 ```
 
 ### Design Principles
 
-1. **System prompt = constitution.** Behavioral invariants. Stable, cacheable.
+1. **Runtime constitution = constitution.** Behavioral invariants. Loaded by the OpenCode PAI plugin.
 2. **CLAUDE.md = operating manual.** How to do the work. Procedures, templates, references.
 3. **@Imports = rich context.** Who you are, what you know, system architecture map.
 4. **Dynamic context = session state.** What happened recently. Rebuilt each session.
-5. **PostCompact = belt and suspenders.** RestoreContext.hook.ts re-injects critical files after compaction.
-6. **System prompt is primary-agent only.** Subagents get their agent definition body, not core PAI rules.
+5. **Compaction context = belt and suspenders.** The OpenCode compaction hook preserves critical PAI context.
+6. **Primary-agent context is richer.** Subagents get their agent definition body plus whatever runtime context OpenCode provides.
 
 ### Key File Paths
 
 | File | Purpose |
 |------|---------|
-| `PAI/PAI_SYSTEM_PROMPT.md` | Constitutional rules (system prompt layer) |
+| `PAI/RUNTIME_CONSTITUTION.md` | Constitutional rules loaded by the OpenCode PAI plugin |
 | `~/.config/opencode/PAI/CLAUDE.md` | Operational procedures (directly edited) |
-| `~/.config/opencode/PAI/settings.json` | Runtime settings (directly edited) |
-| `PAI/TOOLS/pai.ts` | Launcher -- wires `--append-system-prompt-file` |
-| `hooks/LoadContext.hook.ts` | Injects startup files + dynamic context |
-| `hooks/RestoreContext.hook.ts` | Re-injects critical files after compaction |
+| `~/.config/opencode/opencode.jsonc` | OpenCode runtime settings generated from repo template |
+| `opencode/plugins/pai-hooks.js` | Injects constitution, operational context, classifier state, and dynamic context |
+| `experimental.session.compacting` | Preserves critical PAI context during compaction |
 
 ---
 
@@ -240,7 +239,7 @@ Agents default to inheriting the parent model (often Opus). Use the model parame
 
 **Direct editing of configuration files with shadow release for public sanitization.**
 
-Configuration files (`settings.json`, `CLAUDE.md`, `PAI_SYSTEM_PROMPT.md`) are directly edited. `PAI_CONFIG.yaml` remains as a credentials store for private skills. The Shadow Release system (`ShadowRelease.ts`) produces public staging via **containment**: rsync clone with hard exclusions → delete sensitive zones (USER, MEMORY, skills/_*) → overlay fixed public templates → scaffold → run five gates (zone deletion, identity grep, CF ID grep, trufflehog, .env strays).
+Configuration files (`opencode.jsonc`, `CLAUDE.md`, `RUNTIME_CONSTITUTION.md`) are directly edited or generated from tracked templates. `PAI_CONFIG.yaml` remains as a credentials store for private skills. The Shadow Release system (`ShadowRelease.ts`) produces public staging via **containment**: rsync clone with hard exclusions → delete sensitive zones (USER, MEMORY, skills/_*) → overlay fixed public templates → scaffold → run five gates (zone deletion, identity grep, CF ID grep, trufflehog, .env strays).
 
 - **Status:** Active (containment-based since v5; retired filter-walker/reverse-templating)
 - **Location:** `skills/_PAI/TOOLS/ShadowRelease.ts`, `skills/_PAI/TEMPLATES/` (settings.public.json, CLAUDE.public.md, USER/)
@@ -450,7 +449,7 @@ System file inventory by pipeline. When you modify a file, trace its pipeline to
 | **Observability** | `hooks/ToolActivityTracker.hook.ts`, `hooks/ToolFailureTracker.hook.ts`, `hooks/lib/observability-transport.ts` → `MEMORY/OBSERVABILITY/*.jsonl` |
 | **Pulse** | `Pulse/pulse.ts` (port 31337), `Pulse/modules/{observability,hooks,wiki,imessage,telegram,user-index,da}.ts`, `Pulse/PULSE.toml`, `Pulse/Observability/src/`, `Pulse/Assistant/module.ts` |
 | **Skills** | `skills/*/SKILL.md`, `skills/*/Workflows/*.md`, `skills/*/Tools/*.ts`, `USER/SKILLCUSTOMIZATIONS/` |
-| **Config** | `settings.json`, `CLAUDE.md`, `PAI_SYSTEM_PROMPT.md` (directly edited) → release tooling clones the live tree, deletes private zones, overlays public templates + USER scaffold into staging, runs gates |
+| **Config** | `opencode.jsonc`, `CLAUDE.md`, `RUNTIME_CONSTITUTION.md` → release tooling clones the live tree, deletes private zones, overlays public templates + USER scaffold into staging, runs gates |
 | **Notifications** | `Pulse/pulse.ts` voice handler → ElevenLabs API → `MEMORY/VOICE/voice-events.jsonl` |
 | **Doc Integrity** | `hooks/DocIntegrity.hook.ts` (Stop) → `hooks/handlers/DocCrossRefIntegrity.ts` + `hooks/handlers/RebuildArchSummary.ts` → `Tools/ArchitectureSummaryGenerator.ts` |
 

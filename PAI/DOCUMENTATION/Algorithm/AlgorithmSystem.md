@@ -119,7 +119,7 @@ Apply to every criterion before finalizing:
 
 ## Mode-Selection Floor (v6.0.0)
 
-`EscalationGate.hook.ts` runs at **UserPromptSubmit** and writes a `MODE_FLOOR` entry into the session context. It closes the v5.0.0 BPE under-cut where the model could under-classify a deeply complex question as exploratory and bypass the Algorithm entirely.
+In the OpenCode port, the PAI plugin classifies each top-level prompt in `chat.message`, persists the mode/tier in session state, and injects it through `experimental.chat.system.transform`. The original Claude Code `EscalationGate.hook.ts` was the historical UserPromptSubmit implementation.
 
 **Five trigger families** force ALGORITHM (the floor floors *up*, never down):
 
@@ -171,7 +171,7 @@ The Algorithm's THINK and LEARN phases integrate with the Knowledge Archive (ent
 | Type | Destination |
 |------|-------------|
 | **knowledge** | `MEMORY/KNOWLEDGE/{People|Companies|Ideas|Research}/` — durable, lookup-by-name |
-| **rule** | A rule the system should always follow — proposed for `PAI_SYSTEM_PROMPT.md` or a SKILL.md |
+| **rule** | A rule the system should always follow — proposed for `PAI/RUNTIME_CONSTITUTION.md` or a SKILL.md |
 | **gotcha** | A trap to avoid next time — appended to the relevant SKILL.md `Gotchas` section |
 | **state** | Operational state (e.g., "X is now deployed at Y") — appended to the relevant project doc |
 | **business** | Business-domain learning — `PAI/USER/BUSINESS/` |
@@ -276,7 +276,7 @@ The Verification Doctrine is the bridge between "ran the code" and "trusted the 
 | `PAI/ALGORITHM/optimize-loop.md` | Optimize mode overlay (metric/eval optimization) |
 | `PAI/DOCUMENTATION/IsaFormat.md` | ISA format specification |
 | `skills/ISA/SKILL.md` | ISA skill — canonical template + six workflows |
-| `hooks/PromptProcessing.hook.ts` | UserPromptSubmit hook that decides MODE/TIER and writes the Mode-Selection Floor |
+| OpenCode `pai-hooks.js` classifier | Decides MODE/TIER and writes the session classification used by runtime context |
 | `hooks/lib/isa-utils.ts` | Phase-tracking and ISA merge utilities |
 
 ---
@@ -288,7 +288,7 @@ The Verification Doctrine is the bridge between "ran the code" and "trusted the 
 | **v6.3.0** (current) | **Closed enumeration of thinking capabilities** — IterativeDepth, ApertureOscillation, FeedbackMemoryConsult, Advisor, ReReadCheck, FirstPrinciples, SystemsThinking, RootCauseAnalysis, Council, RedTeam, Science, BeCreative, Ideate, BitterPillEngineering, Evals, WorldThreatModel, Fabric patterns, ContextSearch, ISA. Phantom thinking-capability names (anything off-list) are CRITICAL FAILURE. **Capability-Name Audit Gate** fires at OBSERVE→THINK boundary — every selected name must appear verbatim in the closed list. New thinking capabilities require editing `capabilities.md` and bumping the Algorithm minor version |
 | v6.2.0 | Twelve-section ISA in fixed order; three-guardrail taxonomy (Principles / Constraints / Anti-criteria) with Out of Scope as anti-vision; HARD tier-completeness gate at every tier; **ISA Skill** introduced at `~/.config/opencode/PAI/skills/ISA/` with six workflows (Scaffold, Interview, CheckCompleteness, Reconcile, Seed, Append); ID-stability rule formalized (no re-numbering, splits become ISC-N.M, drops become tombstones); ephemeral feature files (Ralph Loop / Maestro) with deterministic reconcile |
 | v6.1.0 | Thinking-floor hardening — thinking capability minimums become HARD at every tier; cannot be relaxed via "show your math"; delegation floor remains soft |
-| v6.0.0 | Frame shift — ISA elevated to universal primitive with five identities; two ISA homes (project / ad-hoc); Mode-Selection Floor introduced via `EscalationGate.hook.ts` (UserPromptSubmit) closing the v5.0.0 BPE under-cut |
+| v6.0.0 | Frame shift — ISA elevated to universal primitive with five identities; two ISA homes (project / ad-hoc); Mode-Selection Floor introduced in the original Claude Code runtime, now represented by the OpenCode plugin classifier |
 | v5.x | BPE compaction (single-pool ISC numbering, prose-prefix doctrinal kinds) and capability count-floor restoration to v4.1.0-era numbers |
 | v3.26.0 | Doctrine tightening: Deliverable Manifest (PLAN), Inline Verification mandate (EXECUTE), Reproduce-First blocking gate (OBSERVE) |
 | v3.25.0 | Capability expansion: SystemsThinking and RootCauseAnalysis skills added to the thinking lattice |

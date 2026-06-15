@@ -1,5 +1,31 @@
 # PAI Tools - CLI Utilities Reference
 
+> **legacy/reference material** — This catalog includes many original Claude Code tools that do not ship in the current OpenCode port. Active OpenCode agents and skills must verify `PAI/TOOLS/*.ts` exists or declare an explicit unavailable/deferred fallback before use.
+
+## Active OpenCode Tool Contract
+
+The active source of truth is `~/.config/opencode/PAI/TOOLS/manifest.json`.
+
+| Tool | Status | Current OpenCode behavior |
+|------|--------|---------------------------|
+| `Inference.ts` | implemented | Provider-neutral command adapter. Returns structured `unavailable` unless `PAI_INFERENCE_CMD` or `OPENCODE_INFERENCE_CMD` is set. |
+| `ForgeProgress.ts` | implemented | Codex CLI wrapper for Forge. Returns structured `unavailable` when `codex` cannot be resolved. |
+| `AnvilProgress.ts` | implemented | Moonshot/Kimi wrapper. Returns structured `unavailable` when `MOONSHOT_API_KEY` is absent. |
+| `CrossVendorAudit.ts` | implemented | Read-only Codex audit wrapper for Cato. Returns `skipped` when Codex is unavailable. |
+| `Arthur.ts` | implemented | Deterministic credential-policy narrator. Never emits raw credentials. |
+| `MemoryRetriever.ts` | implemented | Read-only BM25-lite retrieval over `MEMORY/KNOWLEDGE`. |
+| `KnowledgeGraph.ts` | implemented | Read-only graph traversal over `MEMORY/KNOWLEDGE`. |
+| `Checkpoint.ts` | implemented | OpenCode-native ISC checkpoint CLI. Allowlist-only commits; rollback is preview-only. |
+| `SessionHarvester.ts` | implemented | Mines session JSONL into learning files or review-only knowledge candidates. Supports dry-run. |
+| `KnowledgeHarvester.ts` | implemented | Maintains Knowledge Archive status, validation, indexes, and conservative review-queue/work/research harvesting. |
+| `RemoveBg.ts`, `MigrateScan.ts`, `MigrateApprove.ts` | optional | Skill-specific helpers. Verify file existence before use. |
+
+Validation gates:
+
+```bash
+bun ~/.config/opencode/PAI/bin/validate-tools-manifest.js --root ~/.config/opencode
+```
+
 This file documents single-purpose CLI utilities that have been consolidated from individual skills. These are pure command-line tools that wrap APIs or external commands.
 
 **Philosophy:** Simple utilities don't need separate skills. Document them here, execute them directly.
@@ -162,23 +188,23 @@ bun ~/.config/opencode/PAI/PAI/TOOLS/GetTranscript.ts "https://www.youtube.com/w
 
 ## MemoryRetriever.ts - Compressed Knowledge Retrieval
 
-**Location:** `~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts`
+**Location:** `~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts`
 
-BM25-lite search across the Knowledge Archive with optional LLM compression. Finds relevant notes by keyword matching, tag co-occurrence, and content frequency, then compresses results into a dense context-efficient summary.
+BM25-lite search across the Knowledge Archive. Finds relevant notes by keyword matching, tag co-occurrence, related links, and content frequency, then returns compact excerpts. This OpenCode port does not require LLM compression.
 
 **Usage:**
 ```bash
 # Search and return compressed results (default: top 3)
-bun ~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts "memory architecture"
+bun ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "memory architecture"
 
 # Return top 5 results
-bun ~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts "security policy" --top 5
+bun ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "security policy" --top 5
 
 # Skip LLM compression, return raw excerpts
-bun ~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts "karpathy" --raw
+bun ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "karpathy" --raw
 
 # Custom token budget for output
-bun ~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts "threat model" --budget 800
+bun ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "threat model" --budget 800
 ```
 
 **Scoring:**
@@ -199,29 +225,29 @@ bun ~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts "threat model" --budget 
 
 ## KnowledgeGraph.ts - Associative Knowledge Navigation
 
-**Location:** `~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts`
+**Location:** `~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts`
 
 Builds an in-memory graph from Knowledge Archive frontmatter (tags, wikilinks, related fields) and enables BFS traversal for associative recall. No persistent storage — computed from existing markdown files at query time.
 
 **Usage:**
 ```bash
 # BFS traversal from a note (default: 2 hops)
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts traverse karpathy
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts traverse karpathy
 
 # Traverse with custom depth
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts traverse mempalace --hops 3
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts traverse mempalace --hops 3
 
 # Show directly connected notes
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts related mempalace
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts related mempalace
 
 # Graph summary: nodes, edges, clusters
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts stats
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts stats
 
 # Top 10 most-connected notes
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts hubs
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts stats
 
 # Find all notes with a specific tag
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts find architecture
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts find architecture
 ```
 
 **Edge Types:**
@@ -711,26 +737,34 @@ bun AlgorithmPhaseReport.ts meta-adjust --param selectionPressure --from 0.3 --t
 
 ## KnowledgeHarvester.ts - Knowledge Archive Harvester
 
-**Location:** `~/.config/opencode/PAI/PAI/TOOLS/KnowledgeHarvester.ts`
+**Status:** Implemented in the current OpenCode port. Verify the file exists before invoking in stale installs.
+
+**Active location:** `~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts`
 
 Validate and maintain the KNOWLEDGE/ archive (4 entity types: People, Companies, Ideas, Research). Validates against schemas in `_schema.md`, handles MOC regeneration and maintenance. Note: Algorithm LEARN phase writes knowledge directly; harvester reflections are disabled. The harvester's primary role is now validation, maintenance, and index regeneration.
 
 **Usage:**
 ```bash
 # Harvest from all sources
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeHarvester.ts harvest
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts harvest
 
 # Harvest from specific source
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeHarvester.ts harvest --source work
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts harvest --source work
 
 # Preview without writing
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeHarvester.ts harvest --dry-run
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts harvest --dry-run
 
 # Archive health dashboard
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeHarvester.ts status
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts status
+
+# Validate archive notes and links
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts validate
 
 # Regenerate all MOC dashboards
-bun ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeHarvester.ts index
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts index
+
+# Find tag-overlap pairs for semantic review
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts contradictions
 ```
 
 **Sources:**

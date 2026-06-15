@@ -1,5 +1,7 @@
 # PAI Digital Assistant Subsystem
 
+> **legacy/reference material** — This design belongs to the original desktop Pulse daemon. The OpenCode port currently exposes Pulse as an optional notification broker/renderer, not as a required DA subsystem runtime.
+
 **The DA subsystem formalizes how PAI instantiates, manages, and evolves a Digital Assistant. It turns DA_IDENTITY from a flat markdown file into a living schema with interview-based creation, heartbeat-driven proactivity, natural-language scheduling, identity growth, and multi-DA awareness.**
 
 **Version:** 1.0 (Design)

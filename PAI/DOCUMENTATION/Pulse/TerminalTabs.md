@@ -1,5 +1,7 @@
 # Terminal Tab State System
 
+> **legacy/reference material** — This document describes the original terminal-tab UI. The OpenCode port does not require terminal tab color hooks; active observability is JSONL streams plus optional Pulse broker/renderers.
+
 ## Overview
 
 The PAI system uses Kitty terminal tab colors and title suffixes to provide instant visual feedback on session state. At a glance, you can see which tabs are working, completed, waiting for input, or have errors.

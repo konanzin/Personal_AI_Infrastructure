@@ -1,5 +1,7 @@
 # PAI Security Architecture v4.0
 
+> **legacy/reference material** — This architecture describes the original Claude Code hook implementation. The active OpenCode security contract lives in `opencode/plugins/pai-hooks.js`, `opencode/plugins/lib/pai-hooks.lib.js`, and the security/plugin tests.
+
 ## Inspector Pipeline Model
 
 v4.0 replaces the v3.1 "walled defense" model (SecurityValidator, PromptInjectionScanner, TrustedWorkspaceApprover, ExfiltrationScanner) with a composable **Inspector Pipeline**. Each inspector is a standalone module with a priority, a name, and an `inspect()` method that returns allow/deny/require_approval/alert. The pipeline orchestrator runs inspectors in priority order, short-circuits on deny, and merges to the strictest result.

@@ -5,24 +5,24 @@
 This is not a narrow event log or a preferences store. This is PAI's comprehensive knowledge system — the full shared memory between {{PRINCIPAL_NAME}} and {{DA_NAME}}. If we built knowledge together, it belongs here. That includes: work tracking, learnings from failures and successes, research and OSINT investigations, contact dossiers, security events, runtime state, and any other knowledge that would be valuable in future conversations.
 
 **Two storage layers:**
-- **PAI MEMORY** (`~/.config/opencode/PAI/PAI/MEMORY/`) — structured, hook-driven, entity-based
-- **Auto-Memory** (`~/.config/opencode/PAI/projects/<project>/memory/`) — unstructured learnings, research findings, contact profiles, reference material — anything Claude captures during sessions
+- **PAI MEMORY** (`~/.config/opencode/PAI/MEMORY/`) — structured, hook-driven, entity-based
+- **Auto-Memory** (`~/.config/opencode/projects/<project>/memory/`) — legacy/unstructured learnings when present
 
 Both layers are memory. Both are persistent. Both should be used.
 
-**Version:** 7.6 (Retrieval + Navigation + Mining + Temporal, 2026-04-07)
-**Location:** `~/.config/opencode/PAI/PAI/MEMORY/` + `~/.config/opencode/PAI/projects/<project>/memory/`
+**Version:** OpenCode memory-read runtime (2026-06-14)
+**Location:** `~/.config/opencode/PAI/MEMORY/`
 
 ---
 
 ## Architecture
 
-**Claude Code's `projects/` is the source of truth for transcripts. Hooks capture domain-specific events directly. Harvesting tools extract learnings from session transcripts. Auto-memory captures everything else — research, OSINT, contact profiles, reference material.**
+OpenCode plugin state is the source of truth for session/work state. Hooks capture domain-specific events directly. The current port implements Knowledge retrieval, graph navigation, conservative transcript mining, and Knowledge Archive maintenance. Pattern synthesis and embeddings remain deferred.
 
 ```
 User Request
     ↓
-Claude Code projects/ (native transcript storage - 30-day retention)
+OpenCode plugin/runtime state
     ↓
 Hook Events trigger domain-specific captures:
     ├── Algorithm (AI) → WORK/
@@ -33,25 +33,24 @@ Hook Events trigger domain-specific captures:
 Knowledge capture (inline):
     └── Algorithm LEARN phase → KNOWLEDGE/ (writes People/Companies/Ideas/Research with schema)
     ↓
-Harvesting (periodic):
-    ├── SessionHarvester → LEARNING/ (extracts corrections, errors, insights)
-    ├── SessionHarvester --mine → KNOWLEDGE/_harvest-queue/ (mines decisions, preferences, milestones, problems)
-    ├── KnowledgeHarvester → KNOWLEDGE/ (validates schema, maintenance, reflections disabled)
-    └── LearningPatternSynthesis → LEARNING/SYNTHESIS/ (aggregates ratings)
+Harvesting and maintenance:
+    ├── SessionHarvester → learning files or review-only KNOWLEDGE/_harvest-queue candidates
+    ├── KnowledgeHarvester → status, validate, index, and conservative harvest
+    └── LearningPatternSynthesis → deferred
     ↓
 Retrieval & Navigation (on-demand):
-    ├── MemoryRetriever → compressed context from KNOWLEDGE/ (BM25 search + LLM compression)
+    ├── MemoryRetriever → compact context from KNOWLEDGE/ (BM25-lite lexical search, no LLM required)
     └── KnowledgeGraph → associative traversal over KNOWLEDGE/ (tags + wikilinks + related fields)
 ```
 
-**Key insight:** Hooks write directly to specialized directories. There is no intermediate "firehose" layer - Claude Code's `projects/` serves that purpose natively. Retrieval tools read the same markdown files without any intermediate index or database.
+**Key insight:** Hooks write directly to specialized directories. There is no intermediate database or index requirement. Retrieval tools read the same markdown files at query time.
 
 ---
 
 ## Directory Structure
 
 ```
-~/.config/opencode/PAI/PAI/MEMORY/
+~/.config/opencode/PAI/MEMORY/
 ├── KNOWLEDGE/              # Organized, browsable knowledge archive (entity-based, v2.1)
 │   ├── _index.md           # Master MOC dashboard
 │   ├── _schema.md          # Object type definitions (People, Companies, Ideas, Research)
@@ -278,26 +277,25 @@ An append-only JSONL file where hooks emit structured, typed events alongside th
 | Hook | Trigger | Writes To |
 |------|---------|-----------|
 | Algorithm (AI) | During execution | WORK/ISA.md, STATE/current-work-{sessionId}.json |
-| ISASync.hook.ts | PostToolUse (Write/Edit) | STATE/work.json (syncs ISA frontmatter) + CF KV |
-| KVSync.hook.ts | SessionStart, SessionEnd | CF KV `sync:work_state` (ensures dashboard freshness) |
-| WorkCompletionLearning.hook.ts | SessionEnd | LEARNING/ (significant work) |
-| SessionCleanup.hook.ts | SessionEnd | WORK/ISA.md (status→COMPLETED), clears STATE |
-| SatisfactionCapture.hook.ts | UserPromptSubmit | LEARNING/SIGNALS/, LEARNING/, FAILURES/ (1-3) |
-| SecurityPipeline.hook.ts | PreToolUse | SECURITY/ |
-| PreCompact.hook.ts | PreCompact | stdout (handover context) |
+| OpenCode plugin ISA sync | Write/Edit tool completion | STATE/work.json (syncs ISA frontmatter) |
+| OpenCode plugin classifier | User prompt | STATE/current-work-{sessionId}.json, OBSERVABILITY/mode-classifier.jsonl |
+| OpenCode plugin session lifecycle | Session idle/delete | STATE/work.json, OBSERVABILITY/session-events.jsonl |
+| OpenCode plugin security guards | Tool/prompt validation | STATE/security-events.jsonl |
+| MemoryRetriever.ts | On-demand CLI | KNOWLEDGE/ read-only retrieval |
+| KnowledgeGraph.ts | On-demand CLI | KNOWLEDGE/ read-only graph traversal |
 
-> **Note:** All hooks listed above also emit typed events to `STATE/events.jsonl` via `appendEvent()`. See [../Hooks/HookSystem.md § Unified Event System](../Hooks/HookSystem.md) for event types and consumer details.
+> **Note:** Original Claude Code memory hooks are legacy/reference material. The current OpenCode runtime writes memory state through the PAI plugin and the installed read-only memory tools.
 
 ## Harvesting & Retrieval Tools
 
 | Tool | Purpose | Reads From | Writes To |
 |------|---------|------------|-----------|
-| SessionHarvester.ts | Extract learnings from transcripts | projects/ | LEARNING/ |
-| SessionHarvester.ts --mine | Mine conversations for decisions, preferences, milestones, problems | projects/ | KNOWLEDGE/_harvest-queue/ |
-| KnowledgeHarvester.ts | Validate schemas, maintenance, contradictions | KNOWLEDGE/, auto-memory | KNOWLEDGE/ |
-| LearningPatternSynthesis.ts | Aggregate ratings into patterns | LEARNING/SIGNALS/ | LEARNING/SYNTHESIS/ |
+| SessionHarvester.ts | Conservative transcript learning extraction | session JSONL | LEARNING/ |
+| SessionHarvester.ts --mine | Review-queue mining for decisions/preferences/milestones/problems | session JSONL | KNOWLEDGE/_harvest-queue/ |
+| KnowledgeHarvester.ts | Status, validate, index, and conservative harvest | KNOWLEDGE/, WORK/, RESEARCH/, _harvest-queue/ | KNOWLEDGE/ |
+| LearningPatternSynthesis.ts | Deferred, not installed in current OpenCode port | LEARNING/SIGNALS/ | LEARNING/SYNTHESIS/ |
 | FailureCapture.ts | Full context dumps for low ratings | projects/, SIGNALS/ | LEARNING/FAILURES/ |
-| MemoryRetriever.ts | BM25 search + LLM compression for context retrieval | KNOWLEDGE/ | (stdout — read-only) |
+| MemoryRetriever.ts | BM25-lite search + compact excerpts for context retrieval | KNOWLEDGE/ | (stdout — read-only) |
 | KnowledgeGraph.ts | Associative graph navigation over tags/wikilinks | KNOWLEDGE/ | (stdout — read-only) |
 | ActivityParser.ts | Parse recent file changes | projects/ | (analysis only) |
 
@@ -308,7 +306,7 @@ An append-only JSONL file where hooks emit structured, typed events alongside th
 ```
 User Request
     ↓
-Claude Code → projects/{uuid}.jsonl (native transcript)
+OpenCode runtime events and plugin state
     ↓
 Algorithm (AI) → WORK/{timestamp}_{slug}/ISA.md + STATE/current-work-{sessionId}.json
     ↓
@@ -330,8 +328,8 @@ Auto-Dream (server-controlled) → consolidates memory/MEMORY.md
 
 [Periodic harvesting]
     ↓
-SessionHarvester → scans projects/ → writes LEARNING/
-LearningPatternSynthesis → analyzes SIGNALS/ → writes SYNTHESIS/
+SessionHarvester → learning files / review queue
+LearningPatternSynthesis → deferred
 ```
 
 ---
@@ -384,39 +382,44 @@ ls ~/.config/opencode/PAI/PAI/MEMORY/STATE/progress/
 ```
 
 ### Run harvesting tools
+
+Harvesting tools exist in the current OpenCode port, but they are conservative
+maintenance helpers, not autonomous background jobs. Prefer `--dry-run` before
+writing new memory artifacts.
+
 ```bash
 # Harvest learnings from recent sessions
-bun run ~/.config/opencode/PAI/PAI/TOOLS/SessionHarvester.ts --recent 10
+bun run ~/.config/opencode/PAI/TOOLS/SessionHarvester.ts --recent 10
 
 # Mine conversations for decisions, preferences, milestones, problems
-bun run ~/.config/opencode/PAI/PAI/TOOLS/SessionHarvester.ts --mine --recent 10
+bun run ~/.config/opencode/PAI/TOOLS/SessionHarvester.ts --mine --recent 10
 
 # Generate pattern synthesis
-bun run ~/.config/opencode/PAI/PAI/TOOLS/LearningPatternSynthesis.ts --week
+bun run ~/.config/opencode/PAI/TOOLS/LearningPatternSynthesis.ts --week
 ```
 
 ### Retrieve knowledge (compressed context)
 ```bash
 # Search knowledge archive with BM25 ranking
-bun run ~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts "query terms"
+bun run ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "query terms"
 
 # Raw excerpts without LLM compression
-bun run ~/.config/opencode/PAI/PAI/TOOLS/MemoryRetriever.ts "query terms" --raw --top 5
+bun run ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "query terms" --raw --top 5
 ```
 
 ### Navigate knowledge graph
 ```bash
 # Graph stats: nodes, edges, clusters
-bun run ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts stats
+bun run ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts stats
 
 # BFS traversal from a note
-bun run ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts traverse <slug> --hops 2
+bun run ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts traverse <slug> --hops 2
 
 # Directly connected notes
-bun run ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts related <slug>
+bun run ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts related <slug>
 
 # Find notes by tag
-bun run ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts find <tag>
+bun run ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts find <tag>
 ```
 
 ---
@@ -424,7 +427,7 @@ bun run ~/.config/opencode/PAI/PAI/TOOLS/KnowledgeGraph.ts find <tag>
 ## Migration History
 
 **2026-04-07:** Memory System v7.6 - Retrieval + Navigation + Mining + Temporal
-- Added `MemoryRetriever.ts` — BM25-lite search across KNOWLEDGE/ with optional LLM compression via Inference.ts fast. Returns compressed context within configurable token budget.
+- Added `MemoryRetriever.ts` — BM25-lite search across KNOWLEDGE/ without required LLM compression. Returns compact context within configurable output budget.
 - Added `KnowledgeGraph.ts` — In-memory graph over KNOWLEDGE/ frontmatter tags, wikilinks, and related fields. BFS traversal, stats, hubs, related notes, tag search. Computed at query time, zero persistent storage.
 - Added `--mine` flag to `SessionHarvester.ts` — Regex-based classification of conversation segments into decisions, preferences, milestones, problems. Candidates written to `KNOWLEDGE/_harvest-queue/` for review, never directly to KNOWLEDGE/.
 - Added `valid_from`/`valid_until` optional frontmatter fields to all 4 entity types in `_schema.md` — Temporal fact validity tracking. Contradiction detector now skips note pairs with non-overlapping validity windows.

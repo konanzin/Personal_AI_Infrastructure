@@ -1,5 +1,7 @@
 # PAI Containment Policy
 
+> **legacy/reference material** — This policy describes the original shadow-release/hook containment system. The current OpenCode repo still uses installer hygiene and validation gates; `ContainmentGuard.hook.ts` and `_PAI/TOOLS/ShadowRelease.ts` are not active shipped surfaces unless reintroduced with explicit files and tests.
+
 **Status:** Authoritative. Contributors and future Kai sessions read this before adding a new file.
 **Enforcement:** `hooks/ContainmentGuard.hook.ts` (prospective, PreToolUse). `skills/_PAI/TOOLS/ShadowRelease.ts` G1-G5 gates (retrospective, pre-release).
 **Zone inventory (authoritative):** `hooks/lib/containment-zones.ts` — the runtime source of truth both enforcers import.

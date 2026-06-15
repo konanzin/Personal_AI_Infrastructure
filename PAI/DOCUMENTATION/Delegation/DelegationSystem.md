@@ -5,6 +5,8 @@ created: 2025-12-17
 extracted_from: SKILL.md lines 535-627
 ---
 
+> **legacy/reference material** — This reference was extracted from the original delegation docs. The active OpenCode subagent contract is the installed `opencode/agents/*.md` set and plugin guard behavior.
+
 # Delegation & Parallelization Reference
 
 **Quick reference in SKILL.md** → For full details, see this file

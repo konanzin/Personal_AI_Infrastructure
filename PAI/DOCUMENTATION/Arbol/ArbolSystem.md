@@ -1,5 +1,7 @@
 > **PAI 5.0.0** --- This system is under active development. APIs, configuration formats, and features may change without notice.
 
+> **legacy/reference material** — Arbol is not part of the active OpenCode runtime port yet. Paths and deployment commands below are historical design/reference material until revalidated against installed files.
+
 # Arbol System
 
 **Cloudflare Workers Execution Platform**

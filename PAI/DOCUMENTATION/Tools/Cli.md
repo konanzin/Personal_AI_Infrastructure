@@ -1,5 +1,7 @@
 > **PAI 5.0.0** — This system is under active development. APIs, configuration formats, and features may change without notice.
 
+> **legacy/reference material** — This file documents the original CLI surface. The current OpenCode port only treats a CLI as active when the corresponding file exists under `PAI/TOOLS` or `opencode/bin`.
+
 # PAI Command-Line Tools
 
 PAI provides two CLI tools for running infrastructure from the terminal:

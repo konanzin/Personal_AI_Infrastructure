@@ -1,6 +1,6 @@
 # Notifications Stream — Contract v1
 
-`MEMORY/OBSERVABILITY/notifications.jsonl` is the **producer side** of the Pulse-mobile design (see `PULSE_MOBILE_PLAN.md`). The pai-hooks plugin appends one JSON object per line for events worth a human's attention. Renderers (mobile app, desktop notifier, future broker) consume it; the producer never routes, rate-limits, deduplicates across consumers, or calls an LLM.
+`MEMORY/OBSERVABILITY/notifications.jsonl` is the **producer side** of the OpenCode Pulse design. The pai-hooks plugin appends one JSON object per line for events worth a human's attention. Renderers consume it directly or through the optional Pulse Broker; the producer never routes, rate-limits, deduplicates across consumers, or calls an LLM.
 
 This schema is a **stable contract**: additive changes only; breaking changes bump `v`.
 
@@ -63,4 +63,4 @@ Consumer rules of thumb:
 - Emission never throws into the main flow (failures are swallowed).
 - In-memory dedupe/streak state resets on plugin reload — worst case is one duplicate or one missed `tool_failing`, never a corrupted stream.
 - `🎯 COMPLETED:` is kept as a visible final response convention, but streamed assistant text is not parsed as a voice trigger.
-- Legacy `POST /notify` remains accepted for inherited agent startup/progress messages. Speaking payloads must include `language`; `voice_enabled:false` payloads are treated as dashboard-only.
+- Legacy `POST /notify` remains accepted by the optional broker for inherited startup/progress messages. Speaking payloads must include `language`; `voice_enabled:false` payloads are treated as dashboard-only. If the broker is not running, producers should skip legacy progress messages rather than treating that as a PAI failure.

@@ -9,7 +9,7 @@ PAI (Personal AI Infrastructure) is scaffolding for AI — architectural framewo
 AI assistance dependable, maintainable, and effective. Built around a universal algorithm for
 accomplishing any task: Current State to Ideal State via verifiable iteration (ISC).
 
-**Current versions:** PAI 5.0.0 | Algorithm v6.3.0 | Memory v7.6
+**Current versions:** PAI 5.0.0 | Algorithm v6.3.1 | Memory v7.6
 
 ## Subsystem Reference
 
@@ -17,7 +17,7 @@ accomplishing any task: Current State to Ideal State via verifiable iteration (I
 |-----------|----------|
 | Life OS thesis | PAI/DOCUMENTATION/LifeOs/LifeOsThesis.md |
 | Life OS schema | PAI/DOCUMENTATION/LifeOs/LifeOsSchema.md |
-| System prompt | PAI/PAI_SYSTEM_PROMPT.md |
+| Runtime constitution | PAI/RUNTIME_CONSTITUTION.md |
 | System architecture | PAI/DOCUMENTATION/PAISystemArchitecture.md |
 | Architecture summary | PAI/DOCUMENTATION/ARCHITECTURE_SUMMARY.md |
 | Algorithm | PAI/DOCUMENTATION/Algorithm/AlgorithmSystem.md |
@@ -66,7 +66,7 @@ accomplishing any task: Current State to Ideal State via verifiable iteration (I
 
 ## Instruction Hierarchy
 
-1. **System Prompt** — PAI_SYSTEM_PROMPT.md, constitutional, survives compaction
+1. **Runtime Constitution** — RUNTIME_CONSTITUTION.md, constitutional, injected by the OpenCode PAI plugin
 2. **CLAUDE.md** — operational procedures, format templates, context routing
 3. **@Imported files** — PRINCIPAL_IDENTITY, DA_IDENTITY, PROJECTS, PRINCIPAL_TELOS, this file
 4. **Dynamic context** — LoadContext hook output, ephemeral
@@ -87,19 +87,19 @@ System file inventory by pipeline. When you modify a file, trace its pipeline to
 | Pipeline | Key Files |
 |----------|-----------|
 | **Security** | `hooks/SecurityPipeline.hook.ts`, `hooks/security/pipeline.ts`, `hooks/security/inspectors/{Pattern,Egress,Rules,Prompt,Injection}Inspector.ts`, `USER/SECURITY/PATTERNS.yaml` |
-| **Algorithm** | `Algorithm/LATEST` → `Algorithm/v{VERSION}.md` (currently v6.3.0), `Algorithm/capabilities.md`, `Algorithm/mode-detection.md`, `hooks/ISASync.hook.ts` → `MEMORY/WORK/{slug}/ISA.md`, `skills/ISA/` (canonical Scaffold/Append/Reconcile workflows) |
+| **Algorithm** | `Algorithm/LATEST` → `Algorithm/v{VERSION}.md` (currently v6.3.1), `Algorithm/capabilities.md`, `Algorithm/mode-detection.md`, OpenCode ISA sync → `MEMORY/WORK/{slug}/ISA.md`, `skills/ISA/` (canonical Scaffold/Append/Reconcile workflows) |
 | **Memory** | `hooks/WorkCompletionLearning.hook.ts`, `hooks/SatisfactionCapture.hook.ts`, `hooks/RelationshipMemory.hook.ts`, `Tools/KnowledgeHarvester.ts` → `MEMORY/KNOWLEDGE/`, `MEMORY/LEARNING/`; `Tools/SessionHarvester.ts --mine` → `KNOWLEDGE/_harvest-queue/`; `Tools/MemoryRetriever.ts` (BM25 retrieval), `Tools/KnowledgeGraph.ts` (graph navigation) — read-only |
 | **Hooks** | `hooks/*.hook.ts`, `hooks/handlers/*.ts`, `hooks/lib/*.ts`, `settings.json` |
-| **Observability** | `hooks/ToolActivityTracker.hook.ts`, `hooks/ToolFailureTracker.hook.ts`, `hooks/lib/observability-transport.ts` → `MEMORY/OBSERVABILITY/*.jsonl` |
+| **Observability** | OpenCode plugin streams → `MEMORY/STATE/tool-activity.jsonl` and `MEMORY/OBSERVABILITY/{mode-classifier,session-events,tool-failures,subagent-trace,notifications}.jsonl` |
 | **Pulse** | `Pulse/pulse.ts` (port 31337), `Pulse/modules/{observability,hooks,wiki,imessage,telegram,user-index,da}.ts`, `Pulse/PULSE.toml`, `Pulse/Observability/src/`, `Pulse/Assistant/module.ts` |
 | **Skills** | `skills/*/SKILL.md`, `skills/*/Workflows/*.md`, `skills/*/Tools/*.ts`, `USER/SKILLCUSTOMIZATIONS/` |
-| **Config** | `settings.json`, `CLAUDE.md`, `PAI_SYSTEM_PROMPT.md` (directly edited) → release tooling clones the live tree, deletes private zones, overlays public templates + USER scaffold into staging, runs gates |
+| **Config** | `opencode.jsonc`, `CLAUDE.md`, `RUNTIME_CONSTITUTION.md` → release tooling clones the live tree, deletes private zones, overlays public templates + USER scaffold into staging, runs gates |
 | **Notifications** | `Pulse/pulse.ts` voice handler → ElevenLabs API → `MEMORY/VOICE/voice-events.jsonl` |
 | **Doc Integrity** | `hooks/DocIntegrity.hook.ts` (Stop) → `hooks/handlers/DocCrossRefIntegrity.ts` + `hooks/handlers/RebuildArchSummary.ts` → `Tools/ArchitectureSummaryGenerator.ts` |
 
 ## Cross-References
 
 - Full architecture: `PAI/DOCUMENTATION/PAISystemArchitecture.md`
-- Algorithm spec: `PAI/ALGORITHM/v6.3.0.md`
+- Algorithm spec: `PAI/ALGORITHM/v6.3.1.md`
 - ISA format: `PAI/DOCUMENTATION/IsaFormat.md`
 - Config system: `PAI/DOCUMENTATION/Config/ConfigSystem.md`

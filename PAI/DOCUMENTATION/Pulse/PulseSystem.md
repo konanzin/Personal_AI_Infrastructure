@@ -1,5 +1,18 @@
 # The Pulse System
 
+> **OpenCode port status:** this document is legacy/reference material for the
+> original desktop Pulse daemon. The active OpenCode runtime does **not** ship
+> the Next.js dashboard, macOS MenuBar app, ElevenLabs VoiceServer,
+> Telegram/iMessage modules, cron heartbeat daemon, or Pulse AI jobs described
+> below.
+>
+> Active OpenCode scope is intentionally smaller: `pai_notify` writes final
+> speech events into `MEMORY/OBSERVABILITY/notifications.jsonl`, and
+> `PAI/broker/pulse-broker.ts` can optionally fan that stream out to mobile or
+> desktop renderers over SSE. A running `localhost:31337` broker is optional and
+> is not an installation success criterion. See `PAI/PULSE/README.md`,
+> `PAI/PULSE/PULSE.toml`, and `opencode/docs/NOTIFICATIONS_STREAM.md`.
+
 **Pulse is the Life Dashboard.** It is the visible surface of the PAI Life Operating System — the place where you (and your DA) see and interact with everything the OS is doing. PAI is the OS; Pulse is how you watch it run.
 
 Every Pulse module is a sub-surface of the Dashboard: real-time observability, voice notifications, chat surfaces (iMessage/Telegram), scheduled work, background worker state, DA heartbeat, and — as the dashboard grows — live views of current state vs ideal state, goal progress, workflows, and day-in-the-life preview. A Life OS with no dashboard would still be a Life OS; Pulse is what keeps it visible.
@@ -182,7 +195,7 @@ Script jobs are the default and should be preferred. Most checks follow a patter
 
 ### Claude Jobs (`type = "claude"`)
 
-Spawn `claude` headless via the `PAI/TOOLS/Inference.ts` flag pattern (`--print --model X --tools '' --output-format text --setting-sources '' --system-prompt ''`) with `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` deleted from the subprocess env so OAuth/keychain billing applies. The prompt is piped via stdin. Output format is plain text. The process has a 5-minute timeout. **NEVER use `claude --bare`** — the `--bare` flag forces `ANTHROPIC_API_KEY` auth and bypasses OAuth/keychain (per the constitutional rule in `PAI_SYSTEM_PROMPT.md` "Operational Rules" — a real billing incident drove this rule).
+Legacy desktop Pulse jobs spawned a provider-specific headless CLI through `PAI/TOOLS/Inference.ts`. In the OpenCode port, use an installed OpenCode-native adapter or report the reasoning job as unavailable. Billing-specific subprocess rules are historical and are not part of the active runtime constitution.
 
 Cost: Token-dependent. A Haiku job costs fractions of a cent. A Sonnet job processing a morning brief costs roughly $0.01-0.03.
 

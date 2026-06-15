@@ -1,8 +1,10 @@
 # PAI Security System v4.0 — Inspector Pipeline
 
+> **legacy/reference material** — This document describes the original Claude Code hook-based security pipeline. The active OpenCode port enforces security inside `opencode/plugins/pai-hooks.js` and `opencode/plugins/lib/pai-hooks.lib.js`, with coverage verified by `opencode/tests/security-pipeline.test.ts` and `opencode/tests/plugin-integration.test.ts`.
+
 Defense-in-depth via a composable inspector pipeline. Inspired by Block Goose's ToolInspector architecture.
 
-> Constitutional security rules (external content = READ-ONLY, STOP and REPORT) are in the system prompt (`PAI/PAI_SYSTEM_PROMPT.md`). This file documents the security ARCHITECTURE.
+> Constitutional security rules (external content = READ-ONLY, STOP and REPORT) are in `PAI/RUNTIME_CONSTITUTION.md`. This file documents the security ARCHITECTURE.
 
 ---
 
@@ -185,7 +187,7 @@ Do NOT use `kill` to restart Pulse — launchd auto-restarts it with stale code.
 | Command block/alert patterns | `patterns.yaml` → `bash.blocked/alert` | Immediate |
 | File path protections | `patterns.yaml` → `paths.*` | Immediate |
 | Natural language rules | `SECURITY_RULES.md` | Immediate (cached per session) |
-| AI behavioral rules | `PAI_SYSTEM_PROMPT.md` | Next session |
+| AI behavioral rules | `RUNTIME_CONSTITUTION.md` | Next session/plugin reload |
 | Hook wiring | `settings.json` → `hooks` | Immediate |
 
 ---

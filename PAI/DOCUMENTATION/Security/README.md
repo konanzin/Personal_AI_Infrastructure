@@ -1,6 +1,34 @@
 # PAI Security System v4.0
 
-## What Actually Works
+> **legacy/reference material** — This directory documents the original Claude Code security system. The current OpenCode port enforces security in the PAI plugin and validates it with the OpenCode test suite.
+
+## Active OpenCode Security Contract
+
+Active files:
+
+- `~/.config/opencode/plugins/pai-hooks.js`
+- `~/.config/opencode/plugins/lib/pai-hooks.lib.js`
+- `opencode/tests/security-pipeline.test.ts`
+- `opencode/tests/plugin-integration.test.ts`
+
+Current OpenCode enforcement:
+
+1. `chat.message` pre-sanitizes blocked user prompts before model processing.
+2. `tool.execute.before` blocks catastrophic bash commands and pipe-to-shell execution.
+3. `tool.execute.before` blocks zero-access writes and sensitive read paths such as `/etc/shadow`.
+4. `tool.execute.before` requires approval/logging for credential-bearing reads such as `.env`, `.npmrc`, cloud credentials, and SSH private keys.
+5. Bash reads of credential files, such as `cat .env`, require approval.
+6. High-confidence secret material, such as private keys or real API-key assignments, is blocked from being written outside protected PAI zones.
+7. `permission.asked`/`permission.ask` mirrors the same rule-based decisions for bash/read/write permission prompts and emits `permission_needed` notifications when user approval is required.
+8. `tool.execute.after` logs tool failures and scans fetched/web content for prompt-injection signals; this scan is advisory because content is already in context.
+
+Not implemented in the OpenCode port:
+
+- LLM-based SmartApprover.
+- Editable Observatory security dashboard.
+- Full external `patterns.yaml` policy loader.
+
+## Original Claude Code System
 
 1. **SecurityPipeline hook** (PreToolUse) — InspectorPipeline with PatternInspector(100), EgressInspector(90), RulesInspector(50). Hard-blocks catastrophic bash commands and credential access via `exit(2)`. The only component that can prevent a tool call from executing.
 2. **ContentScanner hook** (PostToolUse) — InjectionInspector scans WebFetch/WebSearch output for prompt injection patterns. Injects warnings, logs detections. Cannot block (PostToolUse limitation).

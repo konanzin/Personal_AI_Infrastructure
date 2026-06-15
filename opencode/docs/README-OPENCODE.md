@@ -36,6 +36,7 @@ PAI for OpenCode installs PAI into OpenCode's native extension points instead of
 - Agents: `opencode/agents/*.md`
 - Commands: `opencode/commands/*.md` plus command entries in config
 - Validator: `opencode/bin/validate-pai-installation.sh`
+- Tools manifest: `PAI/TOOLS/manifest.json`, validated by `opencode/bin/validate-tools-manifest.js`
 
 ## Default PAI Behavior
 
@@ -73,15 +74,15 @@ The LLM classifier uses `opencode run --model <model>` internally and includes L
 
 `pai-hooks.js` adapts PAI hook behavior to OpenCode events.
 
-**Runtime reality (v2.12.0, verified against `@opencode-ai/plugin` 1.16 types):** `chat.message`, `tool.execute.*`, custom `tool` definitions, and the `experimental.*` hooks are real plugin hooks; **session lifecycle and message updates are bus events** delivered through the generic `event` hook, and the permission hook is `permission.ask`. The named handlers below remain the canonical implementations — a runtime adapter at the end of the plugin routes the bus events into them (message content is reconstructed from `message.part.updated`, since real payloads carry text in parts, not `message.content`). Final voice is intentionally **not** parsed from streamed text: agents call the native `pai_notify` tool with `message` and `language`.
+**Runtime reality (v2.13.0, verified against `@opencode-ai/plugin` 1.16 types):** `chat.message`, `tool.execute.*`, custom `tool` definitions, and the `experimental.*` hooks are real plugin hooks; **session lifecycle and message updates are bus events** delivered through the generic `event` hook, and the permission hook is `permission.ask`. The named handlers below remain the canonical implementations — a runtime adapter at the end of the plugin routes the bus events into them (message content is reconstructed from `message.part.updated`, since real payloads carry text in parts, not `message.content`). Final voice is intentionally **not** parsed from streamed text: agents call the native `pai_notify` tool with `message` and `language`.
 
 - `session.created`: initialize PAI session state and summarize context availability
 - `chat.message`: **classify mode/tier explicitly** AND **pre-sanitize blocked prompts before they reach the model** (replaces denied content with security warning)
 - `experimental.chat.system.transform`: **inject full PAI runtime context, identity/TELOS excerpts, and mode-classification rules into every system prompt**
 - `experimental.session.compacting`: **preserve PAI context and recent work across context window resets**
-- `permission.asked`: block dangerous commands at the permission level with explicit notification
-- `tool.execute.before`: inspect risky commands, writes, and egress; **AgentGuard** (agent spawn validation); **SkillGuard** (skill invocation validation)
-- `tool.execute.after`: log tool activity and scan fetched content
+- `permission.asked`: rule-based SmartApprover surface for risky bash/read/write requests; denies zero-access reads and emits `permission_needed` notifications for approval-worthy operations
+- `tool.execute.before`: inspect risky commands, sensitive reads, writes, egress, and high-confidence secret containment leaks; **AgentGuard** (agent spawn validation); **SkillGuard** (skill invocation validation)
+- `tool.execute.after`: log tool activity, scan fetched content, sync ISA state, and record allowlist-only ISC checkpoints
 - `message.updated`: capture ratings/praise and run post-message prompt checks
 - `session.idle`: update idle timestamp only
 - `session.deleted`: run cleanup, archive, and work-learning behavior where metadata exists
@@ -103,6 +104,22 @@ The plugin now maintains stronger parity between ISA frontmatter and `work.json`
 
 This is a **backend-only state sync** with no dashboard, visual, or voice dependency. It works headlessly on VPS and is deployment-agnostic.
 
+### CheckpointPerISC (v2.13.0)
+
+The port implements per-ISC durability inside the OpenCode plugin instead of a separate Claude Code hook:
+
+- Trigger: `tool.execute.after` on write/edit/multiedit of `ISA.md` or legacy `PRD.md`
+- Criteria parser: completed `ISC-*` lines are detected from the ISA body
+- Opt-in: only repos listed in `PAI/checkpoint-repos.txt` are committed
+- Idempotency: `MEMORY/WORK/{slug}/.checkpoint-state.json`
+- Rollback: `PAI/TOOLS/Checkpoint.ts rollback <slug> <isc-id>` prints preview commands only
+
+No repo outside the allowlist is committed, and no destructive rollback command is executed automatically.
+
+### Runtime Tools
+
+`PAI/TOOLS/manifest.json` is the active tools contract. The current core tool surface includes provider wrappers (`Inference`, `ForgeProgress`, `AnvilProgress`, `CrossVendorAudit`, `Arthur`), memory tools (`MemoryRetriever`, `KnowledgeGraph`, `SessionHarvester`, `KnowledgeHarvester`), and checkpoint inspection (`Checkpoint`). Optional skill-specific helpers remain optional and must be checked before use.
+
 ### Observability Streams (v2.9.1)
 
 All observability is **file-first, JSONL-only, backend-first** — designed for headless/VPS deployment and future mobile/backend consumers. No dashboards, no visual UI, no voice.
@@ -119,13 +136,15 @@ All observability is **file-first, JSONL-only, backend-first** — designed for 
 | Subagent Traces | `subagent-trace.jsonl` | Agent/skill execution traces: spawned/invoked events with success/duration |
 | **Notifications (contract v1)** | `notifications.jsonl` | Human-relevant events with a deterministic speakable `speak` field — the producer side of the presence layer. Stable contract: `NOTIFICATIONS_STREAM.md` |
 
-**Pulse Broker** (`PAI/broker/pulse-broker.ts`, optional runtime, port 31337) tails `notifications.jsonl` and fans events out over SSE to identified renderers (desktop renderer with Kokoro TTS, mobile app) with per-subscriber routing decisions; `POST /notify` accepts the upstream Pulse payload so inherited agent curls join the same stream. See INSTALL.md and `PULSE_MOBILE_PLAN.md`.
+**Pulse Broker** (`PAI/broker/pulse-broker.ts`, optional runtime, port 31337) tails `notifications.jsonl` and fans events out over SSE to identified renderers (desktop renderer with Kokoro TTS, mobile app) with per-subscriber routing decisions. `POST /notify` exists only as legacy compatibility for inherited startup/progress messages; speaking payloads require `language`. See `NOTIFICATIONS_STREAM.md` and `PAI/PULSE/README.md`.
 
 **Schema conventions:**
 - Every event has `timestamp` (ISO), `event` (type string), `session_id`
 - Payloads are domain-specific and minimal
 - `prompt_hash` is a truncated FNV-1a hash for correlation without content exposure
 - No PII or full prompt text in observability streams (only truncated previews in classifier)
+- Stable JSON Schema files ship in `opencode/schemas/` and install to `~/.config/opencode/PAI/schemas/`
+- Consumer rules and stream/schema mapping are documented in `OBSERVABILITY_CONTRACTS.md`
 
 **Existing streams (pre-v2.9.1):**
 - `MEMORY/STATE/tool-activity.jsonl` — all tool usage (success and failure)
@@ -173,12 +192,12 @@ PAI_AGENTGUARD_DENY_CONFIDENCE=true      # Enable deny on high-confidence agent 
 
 Three-tier validation:
 
-**Structural** (81 checks) — file existence, config validity, agent/skill/plugin presence:
+**Structural** (109 checks) — file existence, config validity, agent/skill/plugin presence, observability schemas, tools manifest, and doc integrity:
 ```bash
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-**Behavioral** (70 checks) — grep-based + lightweight functional probes:
+**Behavioral** (100 checks) — grep-based + lightweight functional probes:
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```
@@ -188,4 +207,4 @@ bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 bash ~/.config/opencode/PAI/bin/test-e2e-runtime.sh
 ```
 
-Current score: **162/162 passing** (81 structural + 70 behavioral + 11 E2E). Parity estimate: **~90-95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded.
+Current installed score: **226/226 passing** (109 structural + 106 behavioral + 11 E2E). Repository test suite: **200/200 passing**. Parity estimate: **~95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded.

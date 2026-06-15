@@ -1,5 +1,7 @@
 # Prompt Injection Defense
 
+> **legacy/reference material** — This generic reference predates the OpenCode plugin port. Active prompt blocking is implemented in the OpenCode PAI plugin.
+
 **Defense protocol for all PAI agents**
 
 ---

@@ -1,5 +1,7 @@
 # PAI Threat Model
 
+> **legacy/reference material** — This threat model predates the OpenCode plugin port. It remains useful as background, but active enforcement details must be checked against `opencode/plugins/pai-hooks.js` and its tests.
+
 **10 attack chains against PAI infrastructure. Honest about residual risk.**
 
 Risk scores: **L** (low), **M** (medium), **H** (high), **C** (critical) — based on likelihood x impact.

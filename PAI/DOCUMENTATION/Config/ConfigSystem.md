@@ -6,20 +6,20 @@ PAI uses directly-edited configuration files. There is no template rendering or 
 
 | File | Purpose | Git Status |
 |------|---------|------------|
-| `settings.json` | Claude Code runtime config — hooks, permissions, identity, env, notifications, tips | Tracked |
+| `opencode.jsonc` | OpenCode runtime config — plugin, agents, permissions, instructions | Tracked |
 | `CLAUDE.md` | Operational instructions loaded at session start | Tracked |
-| `PAI/PAI_SYSTEM_PROMPT.md` | Constitutional rules (system prompt layer) | Tracked |
+| `PAI/RUNTIME_CONSTITUTION.md` | Constitutional rules loaded by the OpenCode PAI plugin | Tracked |
 | `PAI/USER/Config/PAI_CONFIG.yaml` | Credentials store for private skills (HOMEBRIDGE, etc.) | Gitignored |
 
 ## How It Works
 
-**Edit directly.** When you need to change hooks, identity, permissions, or any runtime behavior, edit `settings.json` directly. When you need to change operational rules or context routing, edit `CLAUDE.md`. When you need to change constitutional rules, edit `PAI/PAI_SYSTEM_PROMPT.md`.
+**Edit directly.** When you need to change plugin wiring, agents, permissions, or runtime behavior, edit `opencode/config/opencode.jsonc.template` and reinstall/regenerate. When you need to change operational rules or context routing, edit `CLAUDE.md`. When you need to change constitutional rules, edit `PAI/RUNTIME_CONSTITUTION.md`.
 
-Changes to `settings.json` and `CLAUDE.md` take effect at the next session start. Changes to `PAI_SYSTEM_PROMPT.md` (loaded via `--append-system-prompt-file`) also take effect next session.
+Changes to `opencode.jsonc`, `CLAUDE.md`, and `RUNTIME_CONSTITUTION.md` take effect after the OpenCode runtime/plugin reloads.
 
 ## Public Releases
 
-The Shadow Release system (`skills/_PAI/TOOLS/ShadowRelease.ts`) handles sanitization for public releases via **containment**, not filter-based reverse-templating. Pipeline: rsync clone with hard cache exclusions → delete sensitive zones (USER, MEMORY, private underscore-prefixed skills) → overlay fixed public templates from `skills/_PAI/TEMPLATES/` → scaffold empty USER/MEMORY → run five security gates (zone deletion check, identity regex grep, Cloudflare ID grep, trufflehog scan, `.env` stray check) → write `.shadow-state.json` report.
+The original Shadow Release system (`skills/_PAI/TOOLS/ShadowRelease.ts`) is deferred in the current OpenCode port. Current release hygiene is enforced by the installer, install manifest, promise-integrity validator, doc-integrity validator, and explicit preservation of `PAI/USER`, `PAI/MEMORY`, and `.env`.
 
 See the _PAI skill workflows:
 

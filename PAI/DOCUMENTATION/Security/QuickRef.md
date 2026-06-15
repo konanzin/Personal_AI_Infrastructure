@@ -1,5 +1,7 @@
 # PAI Security Quick Reference v4.0
 
+> **legacy/reference material** — This quick reference is for the original Claude Code security runtime. For the OpenCode port, use plugin security tests and `opencode/plugins/lib/pai-hooks.lib.js` as the active contract.
+
 ## Architecture
 ```
 PreToolUse → SecurityPipeline → [PatternInspector(100) → EgressInspector(90)]

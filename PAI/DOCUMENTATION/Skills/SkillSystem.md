@@ -251,16 +251,16 @@ science_cycle_time: meso
 
 [Brief description of what the skill does]
 
-## Voice Notification
+## Optional Legacy Pulse Progress Notification
 
-**When executing a workflow, do BOTH:**
+When the optional Pulse broker is running, a workflow may emit a best-effort progress message. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the SKILLNAME skill to ACTION"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -268,7 +268,7 @@ science_cycle_time: meso
    Running the **WorkflowName** workflow in the **SkillName** skill to ACTION...
    ```
 
-**Full documentation:** `~/.config/opencode/PAI/PAI/DOCUMENTATION/Notifications/NotificationSystem.md`
+**Full documentation:** `~/.config/opencode/PAI/DOCUMENTATION/Notifications/NotificationSystem.md`
 
 ## Workflow Routing
 
@@ -536,7 +536,7 @@ Or manually:
 2. Update YAML frontmatter to single-line description
 3. Add `## Workflow Routing` table
 4. Add `## Examples` section
-5. Move backups to `~/.config/opencode/PAI/PAI/MEMORY/Backups/`
+5. Move backups to `~/.config/opencode/PAI/MEMORY/Backups/`
 6. Verify against checklist
 
 ### How to Test Effectiveness
@@ -619,16 +619,16 @@ description: Complete blog workflow. USE WHEN user mentions doing anything with 
 
 Complete blog workflow.
 
-## Voice Notification
+## Optional Legacy Pulse Progress Notification
 
-**When executing a workflow, do BOTH:**
+When the optional Pulse broker is running, a workflow may emit a best-effort progress message. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running WORKFLOWNAME in Blogging"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -636,7 +636,7 @@ Complete blog workflow.
    Running the **WorkflowName** workflow in the **Blogging** skill to ACTION...
    ```
 
-**Full documentation:** `~/.config/opencode/PAI/PAI/DOCUMENTATION/Notifications/NotificationSystem.md`
+**Full documentation:** `~/.config/opencode/PAI/DOCUMENTATION/Notifications/NotificationSystem.md`
 
 ## Core Paths
 
@@ -955,7 +955,7 @@ bun Generate.ts \
 4. **Value flags**: `--flag <value>` for choices
 5. **Composable**: Flags should combine logically
 
-**See:** `~/.config/opencode/PAI/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md` (Configuration Flags section) for full documentation
+**See:** `~/.config/opencode/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md` (Configuration Flags section) for full documentation
 
 ### Tool Structure
 

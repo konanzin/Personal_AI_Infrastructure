@@ -1,5 +1,7 @@
 # Command Injection & Shell Safety
 
+> **legacy/reference material** — This generic reference predates the OpenCode plugin port. Use it as background only; active command blocking is implemented in `opencode/plugins/lib/pai-hooks.lib.js`.
+
 **Defense protocol for all PAI code**
 
 ---

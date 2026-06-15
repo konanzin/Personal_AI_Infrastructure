@@ -1,5 +1,7 @@
 # Security Hooks — What Actually Runs
 
+> **legacy/reference material** — The `.hook.ts` entries below are original Claude Code surfaces. The current OpenCode port runs security through plugin hooks such as `tool.execute.before`, `permission.asked`, and `chat.message`.
+
 ## SecurityPipeline (ACTIVE — ENFORCES)
 
 - **Type:** Command hook (subprocess, not HTTP)
