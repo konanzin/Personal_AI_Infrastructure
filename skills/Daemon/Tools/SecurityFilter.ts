@@ -16,7 +16,7 @@ import { readFileSync, existsSync } from "fs";
 
 // ─── Blocked Patterns (baseline — intentionally empty) ───
 // Private blocked names are loaded at runtime from
-// ~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Daemon/SecurityOverrides.md
+// ~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Daemon/SecurityOverrides.md
 // so no principal-specific identities ship in the public skill.
 const BLOCKED_NAMES_BASELINE: string[] = [];
 
@@ -298,7 +298,7 @@ Options:
 
     const testCases = [
       { input: "my and B's minds into digital format", expectRedactions: true, desc: "Partner alias" },
-      { input: "File at /Users/example/.claude/PAI/hooks/test.ts", expectRedactions: true, desc: "Private path" },
+      { input: "File at /Users/example/.config/opencode/PAI/hooks/test.ts", expectRedactions: true, desc: "Private path" },
       { input: "Token: sk-abc123def456ghi789jkl012mno345", expectRedactions: true, desc: "API key" },
       { input: "Building open source tools for everyone", expectRedactions: false, desc: "Clean text" },
       { input: "localhost:31337 pulse server", expectRedactions: true, desc: "Internal endpoint" },

@@ -7,7 +7,7 @@ effort: medium
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/BitterPillEngineering/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/BitterPillEngineering/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
@@ -17,10 +17,10 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
 
 1. **Send voice notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the BitterPillEngineering skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -141,5 +141,5 @@ For every rule, instruction, or preference found, evaluate:
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"BitterPillEngineering","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"BitterPillEngineering","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```

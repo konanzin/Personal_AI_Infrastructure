@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the FindAphorism workflow in the Aphorisms skill to find quotes", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **FindAphorism** in **Aphorisms**...
@@ -22,7 +22,7 @@ Running **FindAphorism** in **Aphorisms**...
 - Working on newsletter and needs opening/closing wisdom quote
 
 **Prerequisites:**
-- Aphorism database exists at `~/.claude/skills/aphorisms/Database/aphorisms.md`
+- Aphorism database exists at `~/.config/opencode/skills/aphorisms/Database/aphorisms.md`
 - Newsletter content or URL provided by user
 - Clear understanding of newsletter theme (if not provided, extract from content)
 
@@ -98,7 +98,7 @@ Use deep thinking for deep thematic analysis. Identify:
 
 **Load database:**
 ```bash
-Read ~/.claude/skills/aphorisms/Database/aphorisms.md
+Read ~/.config/opencode/skills/aphorisms/Database/aphorisms.md
 ```
 
 **Review relevant sections:**

@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Essay workflow in the Art skill to create header images", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **Essay** in **Art**...
@@ -18,6 +18,8 @@ Running **Essay** in **Art**...
 Uses architectural sketching STYLE (gestural lines, hatching, charcoal) to depict whatever the content is actually ABOUT — NOT defaulting to buildings.
 
 ---
+
+**Capability guard:** before calling `RemoveBg.ts`, verify `test -f ~/.config/opencode/PAI/TOOLS/RemoveBg.ts`; if missing, use local `rembg` directly when available or report background removal unavailable and continue only when the workflow can still meet the user's output requirement.
 
 ## 🚨🚨🚨 ALL STEPS ARE MANDATORY — NO EXCEPTIONS 🚨🚨🚨
 
@@ -143,7 +145,7 @@ Or use the slash command:
 **Read the aesthetic file and select the appropriate emotional vocabulary.**
 
 ```bash
-Read ~/.claude/skills/Art/SKILL.md
+Read ~/.config/opencode/skills/Art/SKILL.md
 ```
 
 **Match the contVent to one of these emotional registers:**
@@ -540,7 +542,7 @@ The strict pipeline:
 
 ```bash
 # 1. GENERATE → ALWAYS to ~/Downloads/
-bun run ~/.claude/skills/Art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/Art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "[YOUR PROMPT]" \
   --size 2K \
@@ -572,7 +574,7 @@ cd ~/LocalProjects/Website && git add cms/public/images/[name].*
 Based on user's request and the mapping tables above, construct the CLI command:
 
 ```bash
-bun run ~/.claude/skills/Art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/Art/Tools/Generate.ts \
   --model [SELECTED_MODEL from table] \
   --prompt "[PROMPT from Step 5]" \
   --size [SELECTED_SIZE] \
@@ -594,7 +596,7 @@ The `--thumbnail` flag generates TWO versions:
 ```bash
 # Example: Generates both my-header.png AND my-header-thumb.png in ~/Downloads/
 # 🚨 --output MUST point to ~/Downloads/ — NEVER directly into cms/public/images/
-bun run ~/.claude/skills/Art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/Art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "[YOUR PROMPT]" \
   --size 2K \
@@ -640,10 +642,10 @@ For non-blog images that only need transparency, or to remove backgrounds after 
 
 ```bash
 # Use the Images Skill for background removal
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts /path/to/output.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts /path/to/output.png
 
 # Or batch process multiple images
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts image1.png image2.png image3.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts image1.png image2.png image3.png
 ```
 
 
@@ -696,7 +698,7 @@ open /path/to/output.png
 ```bash
 # Stage A — FillFrame.ts: detect subject bbox, crop to it, refill the canvas so subject dominates.
 # Eliminates wallpaper-margin failures.
-bun ~/.claude/skills/Art/Tools/FillFrame.ts \
+bun ~/.config/opencode/skills/Art/Tools/FillFrame.ts \
   ~/Downloads/[name].png \
   ~/Downloads/[name]-filled.png \
   --target-size 1024 \
@@ -711,7 +713,7 @@ magick ~/Downloads/[name]-filled.png -bordercolor none -border 8%x8% \
   ~/Downloads/[name]-padded.png
 
 # Verify final visible margin band (should be 7–12% on each edge)
-bun ~/.claude/skills/Art/Tools/FillFrame.ts \
+bun ~/.config/opencode/skills/Art/Tools/FillFrame.ts \
   ~/Downloads/[name]-padded.png \
   ~/Downloads/[name]-padded.png \
   --report-only \
@@ -1045,7 +1047,7 @@ The cap exists because compute spent on 16+ failed generations is compute that s
 ```
 1. UNDERSTAND → Deeply read and comprehend the content
 2. CSE-24 → Run Create Story Explanation (24 items) to extract narrative arc
-3. EMOTION → Match to register in ~/.claude/PAI/aesthetic.md
+3. EMOTION → Match to register in ~/.config/opencode/PAI/aesthetic.md
 4. COMPOSITION → Design what to DRAW (content-relevant, NOT defaulting to architecture)
 5. PROMPT → Build using charcoal sketch TECHNIQUE template
 6. GENERATE → Execute with nano-banana-pro + --thumbnail flag

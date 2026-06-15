@@ -7,10 +7,10 @@ Inspired by Anthropic's skill-creator methodology: the only way to know if a ski
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the TestSkill workflow in the CreateSkill skill to test skill effectiveness", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **TestSkill** workflow in the **CreateSkill** skill to test skill effectiveness...
@@ -22,7 +22,7 @@ Running the **TestSkill** workflow in the **CreateSkill** skill to test skill ef
 Read the target skill's SKILL.md:
 
 ```
-~/.claude/skills/[path]/SKILL.md
+~/.config/opencode/skills/[path]/SKILL.md
 ```
 
 Note the skill's:

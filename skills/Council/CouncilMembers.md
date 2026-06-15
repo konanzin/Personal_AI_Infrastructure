@@ -32,7 +32,7 @@ Before composing agents, determine what perspectives would create the most produ
 ### Step 2: Compose Each Agent via ComposeAgent
 
 ```bash
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "technical,analytical,systematic" \
   --task "Debate: Should we use WebSockets or SSE?" \
   --output json

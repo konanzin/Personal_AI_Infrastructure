@@ -39,7 +39,7 @@ Iteration 3+: Continue until coverage gates pass
 
 All artifacts persist at:
 ```
-~/.claude/PAI/MEMORY/RESEARCH/{YYYY-MM}/{YYYY-MM-DD}_{topic-slug}/
+~/.config/opencode/PAI/MEMORY/RESEARCH/{YYYY-MM}/{YYYY-MM-DD}_{topic-slug}/
 ```
 
 
@@ -340,7 +340,7 @@ IF either gate FAILS:
 
 ## Domain Template Packs
 
-Templates live at `~/.claude/skills/Research/Templates/{DomainName}.md`
+Templates live at `~/.config/opencode/skills/Research/Templates/{DomainName}.md`
 
 Each template pack defines:
 1. **Entity categories** for this domain (what types of things to discover)

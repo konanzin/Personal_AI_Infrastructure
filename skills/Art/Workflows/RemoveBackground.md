@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the RemoveBackground workflow in the Art skill to remove image backgrounds", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **RemoveBackground** in **Art**...
@@ -30,6 +30,8 @@ Remove backgrounds from existing images to create transparent PNGs. Useful for:
 Local `rembg` (Python, ONNX-based, runs offline). No external API, no rate limits, no API keys.
 
 **Default binary path:** `~/.local/bin/rembg` (override with `REMBG_BIN` env var).
+
+**OpenCode port guard:** `RemoveBg.ts` is optional; before calling it, verify `test -f ~/.config/opencode/PAI/TOOLS/RemoveBg.ts`; if missing, call `rembg` directly or report background removal unavailable.
 
 **Install if missing:**
 ```bash
@@ -56,13 +58,13 @@ Use the PAI `RemoveBg.ts` wrapper, which calls local `rembg` and handles the `.j
 
 ```bash
 # Single file (overwrites; renames .jpg→.png)
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts input-image.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts input-image.png
 
 # Single file with explicit output path
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts input-image.jpg output-image.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts input-image.jpg output-image.png
 
 # Batch (overwrites each in place)
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts img1.png img2.png img3.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts img1.png img2.png img3.png
 ```
 
 If you need to call `rembg` directly:
@@ -104,13 +106,13 @@ cp output-image.png /destination/path/transparent-image.png
 ### Example 1: Remove background from a diagram
 
 ```bash
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts ~/Downloads/TheAlgorithm.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts ~/Downloads/TheAlgorithm.png
 ```
 
 ### Example 2: Remove background and save with new name
 
 ```bash
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts \
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts \
   ~/LocalProjects/Website/cms/public/images/logo-with-bg.png \
   ~/LocalProjects/Website/cms/public/images/logo-transparent.png
 ```
@@ -119,7 +121,7 @@ bun ~/.claude/PAI/TOOLS/RemoveBg.ts \
 
 ```bash
 cd ~/Downloads
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts diagram-*.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts diagram-*.png
 ```
 
 ---

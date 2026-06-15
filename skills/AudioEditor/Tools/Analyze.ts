@@ -12,7 +12,7 @@
  */
 
 import { existsSync } from "fs";
-import { inference } from "../../../PAI/TOOLS/Inference.ts";
+import { inference } from "../../Lib/OpenCodeInference.ts";
 
 interface Chunk {
   text: string;

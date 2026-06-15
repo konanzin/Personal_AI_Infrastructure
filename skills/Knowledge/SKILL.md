@@ -8,9 +8,11 @@ context: fork
 
 # Knowledge Skill
 
-Manage the PAI Knowledge Archive at `~/.claude/PAI/MEMORY/KNOWLEDGE/`.
+Manage the PAI Knowledge Archive at `~/.config/opencode/PAI/MEMORY/KNOWLEDGE/`.
 
-**Archive schema:** `~/.claude/PAI/MEMORY/KNOWLEDGE/_schema.md`
+**Archive schema:** `~/.config/opencode/PAI/MEMORY/KNOWLEDGE/_schema.md`
+
+**OpenCode port capability guard:** `MemoryRetriever.ts`, `KnowledgeGraph.ts`, `KnowledgeHarvester.ts`, and `SessionHarvester.ts` are part of the current runtime. Before calling any tool, verify the file exists under `~/.config/opencode/PAI/TOOLS`. If a tool is missing in a stale install, report that subcommand as unavailable and use the lexical `rg`/manual-read fallback where possible rather than inventing harvest or mining output.
 
 ## Command Routing
 
@@ -35,17 +37,17 @@ If `$ARGUMENTS` doesn't match a subcommand, treat it as a search query.
 
 ## status (default, no args)
 
-Run the harvester status command and display results:
+Run the graph stats command and display results:
 
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeHarvester.ts status
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts stats
 ```
 
 Also show:
 - Quick summary of domains with note counts
 - Any orphan wikilinks
 - Any stale seedlings
-- Time since last harvest
+- Whether harvest tooling is installed
 
 Present in NATIVE mode.
 
@@ -57,17 +59,17 @@ Search the Knowledge Archive for notes matching `$ARGUMENTS`.
 
 **Step 1 — Lexical search:**
 ```bash
-rg -i "$ARGUMENTS" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md -l
+rg -i "$ARGUMENTS" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md -l
 ```
 
 **Step 2 — Frontmatter search (tags and titles):**
 ```bash
-rg -i "title:.*$ARGUMENTS|tags:.*$ARGUMENTS" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md -l
+rg -i "title:.*$ARGUMENTS|tags:.*$ARGUMENTS" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md -l
 ```
 
 **Step 3 — Wikilink search:**
 ```bash
-rg "\[\[.*$ARGUMENTS.*\]\]" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md -l
+rg "\[\[.*$ARGUMENTS.*\]\]" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md -l
 ```
 
 Deduplicate results across all three. For each match, read the first 5 lines of frontmatter to show title, domain, status, tags.
@@ -94,7 +96,7 @@ Create a new note manually in the specified entity type.
 7. Verify every slug in `related:` exists in the archive before saving
 8. Regenerate the type's MOC:
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeHarvester.ts index
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts index
 ```
 
 **Topic is a tag, not a type.** A security insight is an Idea with a `security` tag. A security company is a Company with a `security` tag. The entity type determines the schema; the tag determines the topic.
@@ -133,13 +135,13 @@ related:
 **How to find related notes before writing:**
 ```bash
 # By topic/keyword
-rg -l "TOPIC" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md
+rg -l "TOPIC" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md
 
 # By tag overlap
-rg "^tags:.*TAG" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md -l
+rg "^tags:.*TAG" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md -l
 
 # For People/Companies — grep by name
-rg -l "Person Name" ~/.claude/PAI/MEMORY/KNOWLEDGE/
+rg -l "Person Name" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/
 ```
 
 **Enforcement:**
@@ -155,7 +157,7 @@ rg -l "Person Name" ~/.claude/PAI/MEMORY/KNOWLEDGE/
 Run the KnowledgeHarvester to pull new knowledge from all PAI sources:
 
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeHarvester.ts harvest
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts harvest
 ```
 
 Display results. If nothing was harvested, explain that sources are already up to date.
@@ -170,7 +172,7 @@ The weekly gardening workflow. Surface seedling notes that are ready for enrichm
 
 **Step 1 — Find seedlings:**
 ```bash
-rg "^status: seedling" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md -l
+rg "^status: seedling" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md -l
 ```
 
 **Step 2 — For each seedling:**
@@ -220,10 +222,10 @@ Search for existing notes that relate to this new content:
 
 ```bash
 # Search by extracted tags
-rg -i "TAG1|TAG2|TAG3" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md -l --glob '!_*'
+rg -i "TAG1|TAG2|TAG3" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md -l --glob '!_*'
 
 # Search by key entities/concepts mentioned
-rg -i "ENTITY1|ENTITY2" ~/.claude/PAI/MEMORY/KNOWLEDGE/ --type md -l --glob '!_*'
+rg -i "ENTITY1|ENTITY2" ~/.config/opencode/PAI/MEMORY/KNOWLEDGE/ --type md -l --glob '!_*'
 ```
 
 For each related note found (up to 10):
@@ -267,7 +269,7 @@ Append to `KNOWLEDGE/_log.md`:
 
 Regenerate MOCs:
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeHarvester.ts index
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts index
 ```
 
 Present in NATIVE mode.
@@ -282,7 +284,7 @@ Find and review conflicting claims across Knowledge notes.
 
 Run the KnowledgeHarvester contradiction finder:
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeHarvester.ts contradictions
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeHarvester.ts contradictions
 ```
 
 This outputs pairs of notes with high tag overlap (2+ shared tags), ranked by overlap count.
@@ -335,21 +337,21 @@ Navigate the Knowledge Archive as a graph.
 
 **No argument — stats overview:**
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeGraph.ts stats
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts stats
 ```
 
 Show node count, edge count, top clusters, most connected hubs, and isolated nodes.
 
 **With slug — traverse from a note:**
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeGraph.ts traverse <slug> --hops 2
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts traverse <slug> --hops 2
 ```
 
 Show all notes connected within 2 hops via tags, wikilinks, and typed relationships. Useful for exploring how knowledge connects across domains.
 
 **Related notes only:**
 ```bash
-bun ~/.claude/PAI/TOOLS/KnowledgeGraph.ts related <slug>
+bun ~/.config/opencode/PAI/TOOLS/KnowledgeGraph.ts related <slug>
 ```
 
 Present in NATIVE mode.
@@ -361,14 +363,14 @@ Present in NATIVE mode.
 Compressed context retrieval over the Knowledge Archive using BM25-lite scoring.
 
 ```bash
-bun ~/.claude/PAI/TOOLS/MemoryRetriever.ts "<query>" --top 5
+bun ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "<query>" --top 5
 ```
 
 Returns the top matching notes with compressed summaries, ranked by title match, tag overlap, and content frequency. Useful for loading relevant knowledge context without reading full files.
 
 For raw excerpts without LLM compression:
 ```bash
-bun ~/.claude/PAI/TOOLS/MemoryRetriever.ts "<query>" --raw
+bun ~/.config/opencode/PAI/TOOLS/MemoryRetriever.ts "<query>" --raw
 ```
 
 Present in NATIVE mode.
@@ -380,14 +382,14 @@ Present in NATIVE mode.
 Mine recent conversations for memory candidates (decisions, preferences, milestones, problems).
 
 ```bash
-bun ~/.claude/PAI/TOOLS/SessionHarvester.ts --mine --recent 10
+bun ~/.config/opencode/PAI/TOOLS/SessionHarvester.ts --mine --recent 10
 ```
 
 Candidates are written to `KNOWLEDGE/_harvest-queue/` for review — never directly to KNOWLEDGE/. Use `/knowledge harvest` to process the queue.
 
 For dry run (preview only):
 ```bash
-bun ~/.claude/PAI/TOOLS/SessionHarvester.ts --mine --recent 10 --dry-run
+bun ~/.config/opencode/PAI/TOOLS/SessionHarvester.ts --mine --recent 10 --dry-run
 ```
 
 Present in NATIVE mode.

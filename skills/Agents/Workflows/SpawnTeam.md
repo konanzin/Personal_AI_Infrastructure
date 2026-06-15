@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the SpawnTeam workflow in the Agents skill to launch the TEAM_NAME team", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **SpawnTeam** in **Agents** to launch the **TEAM_NAME** team...
@@ -51,10 +51,10 @@ Parse {PRINCIPAL.NAME}'s request:
 
 ### Step 2: Load Team Config
 
-Read the team's YAML config from `~/.claude/skills/Agents/Data/Teams/{team}.yaml`:
+Read the team's YAML config from `~/.config/opencode/skills/Agents/Data/Teams/{team}.yaml`:
 
 ```bash
-cat ~/.claude/skills/Agents/Data/Teams/engineering.yaml
+cat ~/.config/opencode/skills/Agents/Data/Teams/engineering.yaml
 ```
 
 Extract:
@@ -67,7 +67,7 @@ Extract:
 Check if the team has accumulated expertise:
 
 ```bash
-cat ~/.claude/PAI/MEMORY/TEAMS/{team}/expertise.md
+cat ~/.config/opencode/PAI/MEMORY/TEAMS/{team}/expertise.md
 ```
 
 If it exists, include relevant past context in each member's prompt. This is what makes teams better over time.
@@ -78,7 +78,7 @@ For each team member (or requested subset), run ComposeAgent:
 
 ```bash
 # Example for Engineering team's QA Lead
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "technical,skeptical,thorough" \
   --task "QA review of auth module refactor" \
   --output json
@@ -169,7 +169,7 @@ echo "## Session: YYYY-MM-DD - {task summary}
 - Key decision: {what was decided}
 - Tension resolved: {which tension, how}
 - Pattern noted: {reusable insight}
-" >> ~/.claude/PAI/MEMORY/TEAMS/{team}/expertise.md
+" >> ~/.config/opencode/PAI/MEMORY/TEAMS/{team}/expertise.md
 ```
 
 ## Subset Selection
@@ -212,7 +212,7 @@ Override with: "Use opus for the engineering team on this" or "haiku is fine for
 
 **Execution:**
 1. Load `engineering.yaml` — 4 members
-2. Load expertise from `~/.claude/`
+2. Load expertise from `~/.config/opencode/`
 3. Compose each: Senior Engineer (technical,pragmatic,systematic), QA Lead (technical,skeptical,thorough), Performance Engineer (technical,analytical,systematic), DevOps (technical,cautious,consultative)
 4. Enhance prompts with role context + task
 5. Launch 4 agents in parallel on sonnet
@@ -283,7 +283,7 @@ Task({ ... }) // Member 3
 
 ## References
 
-- Team configs: `~/.claude/skills/Agents/Data/Teams/*.yaml`
-- Team expertise: `~/.claude/PAI/MEMORY/TEAMS/*/expertise.md`
-- ComposeAgent: `~/.claude/skills/Agents/Tools/ComposeAgent.ts`
-- Traits: `~/.claude/skills/Agents/Data/Traits.yaml`
+- Team configs: `~/.config/opencode/skills/Agents/Data/Teams/*.yaml`
+- Team expertise: `~/.config/opencode/PAI/MEMORY/TEAMS/*/expertise.md`
+- ComposeAgent: `~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts`
+- Traits: `~/.config/opencode/skills/Agents/Data/Traits.yaml`

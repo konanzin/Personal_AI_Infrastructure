@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the ResearchThinker workflow in the Aphorisms skill to research quotes", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **ResearchThinker** in **Aphorisms**...
@@ -22,7 +22,7 @@ Running **ResearchThinker** in **Aphorisms**...
 - Building out thinker sections in database
 
 **Prerequisites:**
-- Aphorism database exists at `~/.claude/skills/aphorisms/Database/aphorisms.md`
+- Aphorism database exists at `~/.config/opencode/skills/aphorisms/Database/aphorisms.md`
 - Clear understanding of which thinker to research
 - Optional: specific theme/topic to focus research on
 
@@ -260,7 +260,7 @@ research_skill.parallel_research(
 
 **Read current database:**
 ```bash
-Read ~/.claude/skills/aphorisms/Database/aphorisms.md
+Read ~/.config/opencode/skills/aphorisms/Database/aphorisms.md
 ```
 
 **Locate thinker's section:**
@@ -270,7 +270,7 @@ Read ~/.claude/skills/aphorisms/Database/aphorisms.md
 **Use Edit to replace placeholder:**
 ```bash
 Edit(
-  file_path=~/.claude/skills/aphorisms/Database/aphorisms.md,
+  file_path=~/.config/opencode/skills/aphorisms/Database/aphorisms.md,
   old_string="### [Thinker Name]\n*Quotes to be added from research*",
   new_string="### [Thinker Name]\n\n[Organized quotes with themes and context]"
 )

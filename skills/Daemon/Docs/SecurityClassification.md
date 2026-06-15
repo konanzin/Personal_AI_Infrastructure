@@ -95,7 +95,7 @@ These strings must never appear in public output. The SecurityFilter enforces th
 
 ### Paths
 - /Users/(your-user)/
-- ~/.claude/
+- ~/.config/opencode/
 - ~/Cloud/
 - ~/LocalProjects/
 

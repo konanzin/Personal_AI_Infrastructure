@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the CreateCustomAgent workflow in the Agents skill to create agents", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **CreateCustomAgent** in **Agents**...
@@ -42,19 +42,19 @@ Extract from {PRINCIPAL.NAME}'s request:
 # Example for 3 custom research agents:
 
 # Agent 1 - Enthusiastic Explorer
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "research,enthusiastic,exploratory" \
   --task "Research quantum computing applications" \
   --output json
 
 # Agent 2 - Skeptical Analyst
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "research,skeptical,systematic" \
   --task "Research quantum computing applications" \
   --output json
 
 # Agent 3 - Thorough Synthesizer
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "research,analytical,synthesizing" \
   --task "Research quantum computing applications" \
   --output json
@@ -118,7 +118,7 @@ Each agent's prompt includes:
 
 **Manual legacy fallback:** If a non-OpenCode runtime lacks `pai_notify`, you can manually voice their result:
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message":"<COMPLETED line content>", "language": "en-US","voice_id":"<agent_voice_id>","title":"<agent_name>","voice_enabled":true}'
 ```
@@ -271,7 +271,7 @@ ComposeAgent automatically maps trait combinations to voices:
 
 ## References
 
-- Trait definitions: `~/.claude/skills/Agents/Data/Traits.yaml`
-- Agent template: `~/.claude/skills/Agents/Templates/DynamicAgent.hbs`
-- ComposeAgent tool: `~/.claude/skills/Agents/Tools/ComposeAgent.ts`
-- Voice mappings: `~/.claude/skills/Agents/AgentPersonalities.md`
+- Trait definitions: `~/.config/opencode/skills/Agents/Data/Traits.yaml`
+- Agent template: `~/.config/opencode/skills/Agents/Templates/DynamicAgent.hbs`
+- ComposeAgent tool: `~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts`
+- Voice mappings: `~/.config/opencode/skills/Agents/AgentPersonalities.md`

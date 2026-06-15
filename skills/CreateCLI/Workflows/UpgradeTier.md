@@ -10,10 +10,10 @@ purpose: Migrate CLI from Tier 1 (manual) to Tier 2 (Commander.js)
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the UpgradeTier workflow in the CreateCLI skill to upgrade CLI tier", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **UpgradeTier** workflow in the **CreateCLI** skill to upgrade CLI tier...
@@ -44,7 +44,7 @@ Convert Tier 1 CLI (llcli-style) to Tier 2 (Commander.js) when complexity demand
 ### 1. Install Commander.js
 
 ```bash
-cd ~/.claude/Bin/[cli-name]/
+cd ~/.config/opencode/Bin/[cli-name]/
 bun add commander
 ```
 

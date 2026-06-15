@@ -10,7 +10,7 @@ Each recipe is a Markdown file with YAML frontmatter:
 ---
 name: Recipe Name
 description: What this recipe does
-tool: agent-browser | BrowserAgent | UIReviewer
+tool: agent-browser | general-purpose | interceptor
 defaults:
   param1: default_value
   param2: default_value
@@ -38,7 +38,7 @@ Parameters are resolved by simple string replacement. Unresolved parameters (no 
 |-------|----------|-------------|
 | `name` | Yes | Human-readable recipe name |
 | `description` | Yes | What the recipe does (one sentence) |
-| `tool` | Yes | Which tool executes: `agent-browser`, `BrowserAgent`, or `UIReviewer` |
+| `tool` | Yes | Which tool executes: `agent-browser`, `general-purpose`, or `interceptor` |
 | `defaults` | No | Default values for template parameters |
 
 ## Tool Selection
@@ -46,8 +46,8 @@ Parameters are resolved by simple string replacement. Unresolved parameters (no 
 | Tool | When to Use |
 |------|------------|
 | `agent-browser` | Deterministic steps, no AI reasoning needed |
-| `BrowserAgent` | Needs AI to decide what to do based on page content |
-| `UIReviewer` | Structured validation with assertions |
+| `general-purpose` | Needs AI to decide what to do based on page content while still using agent-browser |
+| `interceptor` | Needs real Chrome, authenticated UI, or bot-detection resilience |
 
 ## Running Recipes
 

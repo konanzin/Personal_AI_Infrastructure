@@ -3,7 +3,9 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
-const TELOS_DIR = path.join(os.homedir(), '.claude/skills/Telos')
+const TELOS_DIR = process.env.PAI_DIR
+  ? path.join(process.env.PAI_DIR, 'USER', 'TELOS')
+  : path.join(os.homedir(), '.config/opencode/PAI/USER/TELOS')
 
 export async function POST(request: Request) {
   try {

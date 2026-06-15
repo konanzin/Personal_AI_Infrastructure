@@ -129,7 +129,7 @@ bun dev &
 DEV_PID=$!
 sleep 5
 
-bun ~/.claude/skills/Webdesign/Tools/VerifyDesign.ts "http://localhost:$DEV_PORT$INTEGRATION_TARGET" "$OUT/in-context"
+bun ~/.config/opencode/skills/Webdesign/Tools/VerifyDesign.ts "http://localhost:$DEV_PORT$INTEGRATION_TARGET" "$OUT/in-context"
 
 kill $DEV_PID
 ```

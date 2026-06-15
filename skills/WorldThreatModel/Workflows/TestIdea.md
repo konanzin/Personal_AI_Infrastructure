@@ -16,7 +16,7 @@ to assess viability across time horizons.
 
 ## Prerequisites
 
-- World models must exist at `~/.claude/PAI/MEMORY/RESEARCH/WorldModels/`
+- World models must exist at `~/.config/opencode/PAI/MEMORY/RESEARCH/WorldModels/`
 - If models don't exist, prompt user to run UpdateModels workflow first
 
 ## Tier Detection
@@ -31,7 +31,7 @@ Detect from user prompt:
 ### Step 0: Validate Models Exist
 
 ```
-Check ~/.claude/PAI/MEMORY/RESEARCH/WorldModels/ for all 11 model files.
+Check ~/.config/opencode/PAI/MEMORY/RESEARCH/WorldModels/ for all 11 model files.
 If any missing: "World models incomplete. Run 'update world models' first."
 If models older than 30 days: warn user but proceed.
 ```
@@ -39,7 +39,7 @@ If models older than 30 days: warn user but proceed.
 ### Step 1: Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Testing your idea against all eleven world threat models at TIER tier", "language": "en-US", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
 ```
@@ -59,7 +59,7 @@ For **Standard and Deep tiers:** Invoke FirstPrinciples skill to classify assump
 
 ### Step 3: Run Against World Models
 
-Read all 11 model files from `~/.claude/PAI/MEMORY/RESEARCH/WorldModels/`.
+Read all 11 model files from `~/.config/opencode/PAI/MEMORY/RESEARCH/WorldModels/`.
 
 #### Fast Tier (~2 min)
 Single-agent analysis:
@@ -105,7 +105,7 @@ Use the template in `OutputFormat.md` (loaded from skill root). Ensure:
 ### Step 5: Voice Summary
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Analysis complete. SUMMARY_OF_EXECUTIVE_VERDICT", "language": "en-US", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
 ```

@@ -1,27 +1,27 @@
 ---
 name: CreateCLI
-description: "Generate production-ready TypeScript CLIs using a 3-tier template system: Tier 1 llcli-style manual arg parsing (zero deps, Bun + TypeScript, ~300-400 lines — 80% of cases), Tier 2 Commander.js (subcommands, nested options, auto-help — 15%), Tier 3 oclif reference only (enterprise scale — 5%). Every generated CLI includes full implementation, README + QUICKSTART docs, package.json with Bun, tsconfig strict mode, type-safe throughout, JSON output, exit code compliance. Workflows: CreateCli (from scratch), AddCommand (extend existing), UpgradeTier (migrate Tier 1 → 2). Outputs go to ~/.claude/Bin/ or ~/Projects/. Tier 1 (llcli pattern — 327 lines, zero deps) suits API clients, data transformers, simple automation — 2-10 commands, JSON output. Tier 2 (Commander.js) for 10+ commands, nested options, or plugin architecture. Tier 3 (oclif) is documentation-only reference for Heroku/Salesforce scale. Output tree: {name}.ts + package.json + tsconfig.json (strict) + .env.example + README.md + QUICKSTART.md. Quality gates: zero TypeScript errors, exit codes 0/1, --help comprehensive, JSON output pipes to jq/grep. USE WHEN create CLI, build CLI, command-line tool, wrap API, add command, upgrade tier, TypeScript CLI, generate CLI, CLI for API, command-line wrapper. NOT FOR PAI skill scaffolding (use CreateSkill). NOT FOR Python or npm-based tooling."
+description: "Generate production-ready TypeScript CLIs using a 3-tier template system: Tier 1 llcli-style manual arg parsing (zero deps, Bun + TypeScript, ~300-400 lines — 80% of cases), Tier 2 Commander.js (subcommands, nested options, auto-help — 15%), Tier 3 oclif reference only (enterprise scale — 5%). Every generated CLI includes full implementation, README + QUICKSTART docs, package.json with Bun, tsconfig strict mode, type-safe throughout, JSON output, exit code compliance. Workflows: CreateCli (from scratch), AddCommand (extend existing), UpgradeTier (migrate Tier 1 → 2). Outputs go to ~/.config/opencode/Bin/ or ~/Projects/. Tier 1 (llcli pattern — 327 lines, zero deps) suits API clients, data transformers, simple automation — 2-10 commands, JSON output. Tier 2 (Commander.js) for 10+ commands, nested options, or plugin architecture. Tier 3 (oclif) is documentation-only reference for Heroku/Salesforce scale. Output tree: {name}.ts + package.json + tsconfig.json (strict) + .env.example + README.md + QUICKSTART.md. Quality gates: zero TypeScript errors, exit codes 0/1, --help comprehensive, JSON output pipes to jq/grep. USE WHEN create CLI, build CLI, command-line tool, wrap API, add command, upgrade tier, TypeScript CLI, generate CLI, CLI for API, command-line wrapper. NOT FOR PAI skill scaffolding (use CreateSkill). NOT FOR Python or npm-based tooling."
 effort: medium
 ---
 
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/CreateCLI/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/CreateCLI/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
 
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the CreateCLI skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -29,7 +29,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
    Running the **WorkflowName** workflow in the **CreateCLI** skill to ACTION...
    ```
 
-**This is not optional. Execute this curl command immediately upon skill invocation.**
+This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
 
 # CreateCLI
 
@@ -163,7 +163,7 @@ Generated CLIs follow PAI standards:
 ### Repository Placement
 
 Generated CLIs go to:
-- `~/.claude/Bin/[cli-name]/` - Personal CLIs (like llcli)
+- `~/.config/opencode/Bin/[cli-name]/` - Personal CLIs (like llcli)
 - `~/Projects/[project-name]/` - Project-specific CLIs
 - `${PROJECTS_DIR}/PAI/Examples/clis/` - Example CLIs (PUBLIC repo)
 
@@ -205,7 +205,7 @@ Every generated CLI follows:
 
 **Generated Structure:**
 ```
-~/.claude/Bin/ghcli/
+~/.config/opencode/Bin/ghcli/
 ├── ghcli.ts              # 350 lines, complete implementation
 ├── package.json          # Bun + TypeScript
 ├── tsconfig.json         # Strict mode
@@ -231,7 +231,7 @@ ghcli --help
 
 **Generated Structure:**
 ```
-~/.claude/Bin/md2html/
+~/.config/opencode/Bin/md2html/
 ├── md2html.ts
 ├── package.json
 ├── README.md
@@ -254,7 +254,7 @@ md2html extract-frontmatter post.md
 
 **Generated Structure:**
 ```
-~/.claude/Bin/data-cli/
+~/.config/opencode/Bin/data-cli/
 ├── data-cli.ts           # Commander.js with subcommands
 ├── package.json
 ├── README.md
@@ -362,7 +362,7 @@ The `llcli` CLI (Limitless.ai API) proves this pattern works:
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"CreateCLI","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"CreateCLI","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

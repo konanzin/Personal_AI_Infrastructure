@@ -1,6 +1,6 @@
 ---
 name: Browser
-description: "Headless browser automation via agent-browser — Rust CLI daemon with persistent auth profiles for fast, scriptable, parallel browser work. Supports batch commands, network interception, device emulation, per-site profile auth (one-time headed login, headless forever after), and parallel isolated sessions via --session. Workflows: ReviewStories (fan out YAML user stories to parallel UIReviewers), Automate (load/run parameterized recipe templates), Update. Delegates to general-purpose agents with agent-browser instructions for background parallel scraping. Falls back to Interceptor if site has bot detection. USE WHEN headless browser, batch scrape, fast screenshot, dev server test, parallel browser, background automation, extract data, review stories, automate recipe, batch screenshots, scrape multiple pages in parallel. NOT FOR deploy verification or UI confirmation with real Chrome (use Interceptor). NOT FOR simple single-URL fetching (use WebFetch). NOT FOR CAPTCHA or bot-detection bypass (use BrightData or Interceptor)."
+description: "Headless browser automation via agent-browser — Rust CLI daemon with persistent auth profiles for fast, scriptable, parallel browser work. Supports batch commands, network interception, device emulation, per-site profile auth (one-time headed login, headless forever after), and parallel isolated sessions via --session. Workflows: ReviewStories (validate YAML user stories with isolated agent-browser sessions), Automate (load/run parameterized recipe templates), Update. Delegates to general-purpose agents with agent-browser instructions for background parallel scraping. Falls back to Interceptor if site has bot detection. USE WHEN headless browser, batch scrape, fast screenshot, dev server test, parallel browser, background automation, extract data, review stories, automate recipe, batch screenshots, scrape multiple pages in parallel. NOT FOR deploy verification or UI confirmation with real Chrome (use Interceptor). NOT FOR simple single-URL fetching (use WebFetch). NOT FOR CAPTCHA or bot-detection bypass (use BrightData or Interceptor)."
 version: 10.0.0
 effort: medium
 ---
@@ -8,21 +8,21 @@ effort: medium
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Browser/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Browser/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the Browser skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -30,7 +30,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
    Running the **WorkflowName** workflow in the **Browser** skill to ACTION...
    ```
 
-**This is not optional. Execute this curl command immediately upon skill invocation.**
+This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
 
 # Browser v10.0.0 — Browser Automation
 
@@ -157,7 +157,7 @@ Agent 2: agent-browser --session scrape2 open https://site-b.com
 
 **Fallback:** If agent-browser fails or the site has bot detection, use the **Interceptor** skill instead.
 
-**Legacy built-in agents — DEPRECATED, do not invoke.** BrowserAgent and UIReviewer are Claude Code built-ins whose internals cannot be modified; they run browser automation that PAI no longer uses. Route all browser work through the **Interceptor** skill (verification, authenticated flows) or **agent-browser** (headless scraping).
+**Legacy dedicated browser subagents are not part of this OpenCode port.** Route all browser work through the **Interceptor** skill (verification, authenticated flows), **agent-browser** (headless scraping), or general-purpose agents that receive the agent-browser instructions above.
 
 ---
 
@@ -165,7 +165,7 @@ Agent 2: agent-browser --session scrape2 open https://site-b.com
 
 | Trigger Words | Workflow | What It Does |
 |--------------|----------|-------------|
-| "review stories", "run stories", "ui review", "validate stories" | `Workflows/ReviewStories.md` | Fan out YAML stories to parallel UIReviewers |
+| "review stories", "run stories", "ui review", "validate stories" | `Workflows/ReviewStories.md` | Validate YAML stories with parallel agent-browser sessions |
 | "automate", "recipe", "template", or a recipe name | `Workflows/Automate.md` | Load and execute a parameterized recipe template |
 | "update", "check version" | `Workflows/Update.md` | Verify browser tools are current and working |
 
@@ -173,7 +173,7 @@ Agent 2: agent-browser --session scrape2 open https://site-b.com
 
 ## Stories — YAML User Story Validation
 
-Define user stories in YAML and validate them in parallel with UIReviewer agents.
+Define user stories in YAML and validate them in parallel with isolated agent-browser sessions.
 
 **Directory:** `skills/Browser/Stories/`
 
@@ -202,7 +202,7 @@ Reusable Markdown templates with `{PROMPT}` injection.
 
 | Recipe | Description | Tool |
 |--------|-------------|------|
-| `SummarizePage.md` | Extract content summary | BrowserAgent |
+| `SummarizePage.md` | Extract content summary | agent-browser |
 | `ScreenshotCompare.md` | Before/after comparison | agent-browser |
 | `FormFill.md` | Fill form fields | agent-browser |
 
@@ -215,5 +215,5 @@ Run with: `"automate SummarizePage for https://example.com"`
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Browser","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Browser","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```

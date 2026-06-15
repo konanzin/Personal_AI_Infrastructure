@@ -39,7 +39,7 @@ Output: `script.txt` and a parallel `scenes.json` with 4-8 entries describing vi
 For each scene in `scenes.json`, invoke the Art skill in parallel:
 
 ```bash
-bun ~/.claude/skills/Art/Tools/Art.ts generate \
+bun ~/.config/opencode/skills/Art/Tools/Art.ts generate \
   --prompt "<scene description, PAI theme>" \
   --model nano-banana-pro \
   --aspect 9:16 \

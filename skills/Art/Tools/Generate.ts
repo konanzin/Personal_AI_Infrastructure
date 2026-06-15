@@ -9,7 +9,7 @@
  * Usage:
  *   generate --model nano-banana-pro --prompt "..." --size 16:9 --output /tmp/image.png
  *
- * @see ~/.claude/skills/art/README.md
+ * @see ~/.config/opencode/skills/art/README.md
  */
 
 import Replicate from "replicate";
@@ -27,7 +27,7 @@ import { extname, resolve } from "node:path";
  * This ensures API keys are available regardless of how the CLI is invoked
  */
 async function loadEnv(): Promise<void> {
-  const paiDir = process.env.PAI_DIR || resolve(process.env.HOME!, '.claude');
+  const paiDir = process.env.PAI_CONFIG_DIR || process.env.OPENCODE_DIR || resolve(process.env.HOME!, '.config/opencode');
   const envPath = resolve(paiDir, '.env');
   try {
     const envContent = await readFile(envPath, 'utf-8');
@@ -206,7 +206,7 @@ async function detectMimeType(filePath: string): Promise<string> {
 // ============================================================================
 
 // PAI directory for documentation paths
-const PAI_DIR = process.env.PAI_DIR || `${process.env.HOME}/.claude`;
+const PAI_DIR = process.env.PAI_CONFIG_DIR || process.env.OPENCODE_DIR || `${process.env.HOME}/.config/opencode`;
 
 function showHelp(): void {
   console.log(`

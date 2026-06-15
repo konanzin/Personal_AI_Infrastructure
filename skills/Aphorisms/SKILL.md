@@ -1,27 +1,27 @@
 ---
 name: Aphorisms
-description: "Manages a curated aphorism collection with full CRUD — content-based matching, themed search, thinker research, and database maintenance. Organizes quotes by author, theme, context, and newsletter usage history to prevent repetition. Four workflows: FindAphorism (analyze newsletter content, match themes, return 3-5 ranked recommendations with rationale), AddAphorism (parse quote + author, extract themes, validate uniqueness, update theme index), ResearchThinker (deep research on philosopher, add sourced quotes to database), SearchAphorisms (search by theme, keyword, or author). Database at ~/.claude/skills/aphorisms/Database/aphorisms.md — stores full quote text, author attribution, theme tags, context/background, source reference, and usage history per entry. Theme index supports 12+ categories: Work Ethic, Resilience, Learning, Stoicism, Risk, Wisdom, Truth-seeking, Excellence, Curiosity, Freedom, Rationality, Clarity. Supported thinkers: Hitchens, Feynman, Deutsch, Sam Harris, Spinoza, plus any requested author. Newsletter integration: tracks which quotes used in which issues to enforce variety; content theme extraction drives automated matching. USE WHEN: aphorism, quote, saying, find a quote, research thinker, add aphorism, search aphorisms, quote for newsletter, what did X say about, quotes about [topic], quote bank, find matching quote, quote collection, add this quote, check usage history. NOT FOR general creative writing or social media post generation — those go through dedicated writing/social skills."
+description: "Manages a curated aphorism collection with full CRUD — content-based matching, themed search, thinker research, and database maintenance. Organizes quotes by author, theme, context, and newsletter usage history to prevent repetition. Four workflows: FindAphorism (analyze newsletter content, match themes, return 3-5 ranked recommendations with rationale), AddAphorism (parse quote + author, extract themes, validate uniqueness, update theme index), ResearchThinker (deep research on philosopher, add sourced quotes to database), SearchAphorisms (search by theme, keyword, or author). Database at ~/.config/opencode/skills/aphorisms/Database/aphorisms.md — stores full quote text, author attribution, theme tags, context/background, source reference, and usage history per entry. Theme index supports 12+ categories: Work Ethic, Resilience, Learning, Stoicism, Risk, Wisdom, Truth-seeking, Excellence, Curiosity, Freedom, Rationality, Clarity. Supported thinkers: Hitchens, Feynman, Deutsch, Sam Harris, Spinoza, plus any requested author. Newsletter integration: tracks which quotes used in which issues to enforce variety; content theme extraction drives automated matching. USE WHEN: aphorism, quote, saying, find a quote, research thinker, add aphorism, search aphorisms, quote for newsletter, what did X say about, quotes about [topic], quote bank, find matching quote, quote collection, add this quote, check usage history. NOT FOR general creative writing or social media post generation — those go through dedicated writing/social skills."
 effort: low
 ---
 
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Aphorisms/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Aphorisms/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
 
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the Aphorisms skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -29,7 +29,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
    Running the **WorkflowName** workflow in the **Aphorisms** skill to ACTION...
    ```
 
-**This is not optional. Execute this curl command immediately upon skill invocation.**
+This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
 
 ## Workflow Routing
 
@@ -126,7 +126,7 @@ Aphorisms categorized by themes matching user content:
 
 ## Database Structure
 
-**Location:** `~/.claude/skills/aphorisms/Database/aphorisms.md`
+**Location:** `~/.config/opencode/skills/aphorisms/Database/aphorisms.md`
 
 **Current Collections:**
 1. **Initial Collection (Rahil Arora)** - 15 curated quotes covering core themes
@@ -347,7 +347,7 @@ All five thinkers align with TELOS themes of **wisdom, rationality, truth-seekin
 - "Search aphorisms about [theme]" → Theme-based search
 
 **Database Location:**
-`~/.claude/skills/aphorisms/Database/aphorisms.md`
+`~/.config/opencode/skills/aphorisms/Database/aphorisms.md`
 
 **Current Collection Size:**
 - 15 initial quotes (Rahil Arora collection)
@@ -381,7 +381,7 @@ Last Updated: 2025-11-20
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Aphorisms","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Aphorisms","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

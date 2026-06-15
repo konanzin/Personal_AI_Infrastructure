@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the UpdateSkill workflow in the CreateSkill skill to modify existing skill", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **UpdateSkill** workflow in the **CreateSkill** skill to modify existing skill...
@@ -20,7 +20,7 @@ Running the **UpdateSkill** workflow in the **CreateSkill** skill to modify exis
 **REQUIRED FIRST:** Read the canonical structure:
 
 ```
-~/.claude/PAI/SkillSystem.md
+~/.config/opencode/PAI/SkillSystem.md
 ```
 
 ---
@@ -28,7 +28,7 @@ Running the **UpdateSkill** workflow in the **CreateSkill** skill to modify exis
 ## Step 2: Read the Current Skill
 
 ```bash
-~/.claude/skills/[SkillName]/SKILL.md
+~/.config/opencode/skills/[SkillName]/SKILL.md
 ```
 
 Understand the current:
@@ -57,12 +57,12 @@ What needs to change?
 
 2. **Create the workflow file:**
 ```bash
-touch ~/.claude/skills/[SkillName]/Workflows/[WorkflowName].md
+touch ~/.config/opencode/skills/[SkillName]/Workflows/[WorkflowName].md
 ```
 
 Example:
 ```bash
-touch ~/.claude/skills/_DAEMON/Workflows/UpdatePublicRepo.md
+touch ~/.config/opencode/skills/_DAEMON/Workflows/UpdatePublicRepo.md
 ```
 
 3. **Add entry to `## Workflow Routing` section in SKILL.md:**
@@ -88,13 +88,13 @@ description: [What it does]. USE WHEN [updated intent triggers using OR]. [Capab
 
 1. **Create TitleCase tool file:**
 ```bash
-touch ~/.claude/skills/[SkillName]/Tools/ToolName.ts
-touch ~/.claude/skills/[SkillName]/Tools/ToolName.help.md
+touch ~/.config/opencode/skills/[SkillName]/Tools/ToolName.ts
+touch ~/.config/opencode/skills/[SkillName]/Tools/ToolName.help.md
 ```
 
 2. **Ensure Tools/ directory exists:**
 ```bash
-mkdir -p ~/.claude/skills/[SkillName]/Tools
+mkdir -p ~/.config/opencode/skills/[SkillName]/Tools
 ```
 
 ---
@@ -104,8 +104,8 @@ mkdir -p ~/.claude/skills/[SkillName]/Tools
 After making changes, verify naming:
 
 ```bash
-ls ~/.claude/skills/[SkillName]/Workflows/
-ls ~/.claude/skills/[SkillName]/Tools/
+ls ~/.config/opencode/skills/[SkillName]/Workflows/
+ls ~/.config/opencode/skills/[SkillName]/Tools/
 ```
 
 All files must use TitleCase:

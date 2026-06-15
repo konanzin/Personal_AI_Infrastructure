@@ -1,6 +1,6 @@
 ---
 name: Evals
-description: "Comprehensive AI agent evaluation framework with three grader types (code-based: deterministic/fast; model-based: nuanced/LLM rubric; human: gold standard) and pass@k / pass^k scoring. Evaluates agent transcripts, tool-call sequences, and multi-turn conversations — not just single outputs. Supports capability evals (~70% pass target) and regression evals (~99% pass target). Workflows: RunEval, CompareModels, ComparePrompts, CreateJudge, CreateUseCase, RunScenario, CreateScenario, ViewResults. Integrates with THE ALGORITHM ISC rows for automated verification. Domain patterns pre-configured for coding, conversational, research, and computer-use agent types in Data/DomainPatterns.yaml. Tools: AlgorithmBridge.ts (ISC integration), FailureToTask.ts (failures → tasks), SuiteManager.ts (create/graduate/saturation-check), ScenarioRunner.ts (multi-turn simulated-user), TranscriptCapture.ts, PAIAgentAdapter.ts (wraps Inference.ts), ScenarioToTranscript.ts. Code-based graders: string_match, regex_match, binary_tests, static_analysis, state_check, tool_calls. Model-based graders: llm_rubric, natural_language_assert, pairwise_comparison. USE WHEN eval, evaluate, benchmark, regression test, run eval, compare models, compare prompts, create judge, test agent, quality check, pass@k, grader, agent transcript, scenario simulation, capability test, before/after comparison, suite saturation, failure to task, graduate suite. NOT FOR general research or web investigation (use Research) or scientific method framing (use Science)."
+description: "Comprehensive AI agent evaluation framework with three grader types (code-based: deterministic/fast; model-based: nuanced/LLM rubric; human: gold standard) and pass@k / pass^k scoring. Evaluates agent transcripts, tool-call sequences, and multi-turn conversations — not just single outputs. Supports capability evals (~70% pass target) and regression evals (~99% pass target). Workflows: RunEval, CompareModels, ComparePrompts, CreateJudge, CreateUseCase, RunScenario, CreateScenario, ViewResults. Integrates with THE ALGORITHM ISC rows for automated verification. Domain patterns pre-configured for coding, conversational, research, and computer-use agent types in Data/DomainPatterns.yaml. Tools: AlgorithmBridge.ts (ISC integration), FailureToTask.ts (failures → tasks), SuiteManager.ts (create/graduate/saturation-check), ScenarioRunner.ts (multi-turn simulated-user), TranscriptCapture.ts, PAIAgentAdapter.ts (wraps OpenCodeInference adapter), ScenarioToTranscript.ts. Code-based graders: string_match, regex_match, binary_tests, static_analysis, state_check, tool_calls. Model-based graders: llm_rubric, natural_language_assert, pairwise_comparison. USE WHEN eval, evaluate, benchmark, regression test, run eval, compare models, compare prompts, create judge, test agent, quality check, pass@k, grader, agent transcript, scenario simulation, capability test, before/after comparison, suite saturation, failure to task, graduate suite. NOT FOR general research or web investigation (use Research) or scientific method framing (use Science)."
 effort: high
 context: fork
 ---
@@ -8,21 +8,21 @@ context: fork
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Evals/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Evals/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
 
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the Evals skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -30,7 +30,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
    Running the **WorkflowName** workflow in the **Evals** skill to ACTION...
    ```
 
-**This is not optional. Execute this curl command immediately upon skill invocation.**
+This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
 
 # Evals - AI Agent Evaluation Framework
 
@@ -224,7 +224,7 @@ task:
 | `Tools/FailureToTask.ts` | Convert failures to test tasks |
 | `Tools/AlgorithmBridge.ts` | ALGORITHM integration |
 | `Tools/ScenarioRunner.ts` | Multi-turn scenario runner (langwatch/scenario) |
-| `Tools/PAIAgentAdapter.ts` | Wraps PAI Inference.ts as scenario AgentAdapter |
+| `Tools/PAIAgentAdapter.ts` | Wraps the OpenCodeInference adapter as scenario AgentAdapter |
 | `Tools/ScenarioToTranscript.ts` | Scenario result → Evals Transcript/Trial/GraderResult |
 | `Scenarios/` | Authored multi-turn scenarios (`.scenario.ts`) |
 | `Data/DomainPatterns.yaml` | Domain-specific grader configs |
@@ -282,7 +282,7 @@ User: "run evals on the Research skill after the update"
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Evals","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Evals","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

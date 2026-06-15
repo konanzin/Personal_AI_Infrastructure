@@ -13,7 +13,7 @@ Run the Algorithm in `mode: loop` — multiple full Algorithm cycles on the same
 
 ```
 /loop --target "path/to/target" --iterations 5
-/loop --target "~/.claude/skills/Art/Workflows/TechnicalDiagrams.md" --goal "make diagrams more consistent"
+/loop --target "~/.config/opencode/skills/Art/Workflows/TechnicalDiagrams.md" --goal "make diagrams more consistent"
 /loop --resume       # Resume a previous loop
 /loop --status       # Show iteration history
 ```
@@ -59,7 +59,7 @@ Default /loop behavior is unchanged — autoresearch is opt-in only. Intended fo
 ## Examples
 
 ```
-/loop --target "~/.claude/skills/Research" --goal "improve output quality" --iterations 5
+/loop --target "~/.config/opencode/skills/Research" --goal "improve output quality" --iterations 5
 /loop --target "prompts/summarize.md" --goal "more concise, less filler"
 ```
 

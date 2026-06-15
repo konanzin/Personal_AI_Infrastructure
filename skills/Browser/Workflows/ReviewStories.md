@@ -3,17 +3,17 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the ReviewStories workflow in the Browser skill to validate user stories", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **ReviewStories** in **Browser**...
 
 ---
 
-Fan out YAML user stories to parallel UIReviewer agents and aggregate results.
+Fan out YAML user stories to parallel agent-browser validation workers and aggregate results.
 
 ## When to Use
 
@@ -47,18 +47,20 @@ Glob: skills/Browser/Stories/*.yaml
 
 For each `.yaml` file:
 - Extract `name`, `url`, and `stories[]` array
-- Each story in the array becomes one UIReviewer dispatch
+- Each story in the array becomes one validation dispatch
 
-### 3. Fan Out to Parallel UIReviewers
+### 3. Fan Out to Parallel Validation Workers
 
-For each individual story, spawn one UIReviewer agent via the Task tool. **All Task calls go in a single message** for true parallelism.
+For each individual story, spawn one `Agent(subagent_type="general-purpose")` worker with the browser instructions below. **All Agent calls go in a single message** for true parallelism.
 
-**Maximum 8 UIReviewers per invocation.** If more than 8 stories, batch into groups of 8.
+**Maximum 8 workers per invocation.** If more than 8 stories, batch into groups of 8.
 
-**Prompt template per UIReviewer:**
+**Prompt template per worker:**
 
 ```
 You are validating a user story. Execute it and report results.
+Use agent-browser for browser operations. Use a unique --session name for this story.
+If agent-browser fails because of bot detection or a real Chrome requirement, stop and report INTERCEPTOR_REQUIRED.
 
 Story file: {file_name}
 Base URL: {url}
@@ -76,7 +78,7 @@ Execute this story. Follow your 5-phase workflow. Return the JSON report AND the
 
 ### 4. Collect Results
 
-After all UIReviewers complete, parse each agent's output for the `RESULT:` sentinel line:
+After all workers complete, parse each output for the `RESULT:` sentinel line:
 
 ```
 RESULT: PASS | Steps: N/M | Assertions: X/Y | Duration: Zs
@@ -99,11 +101,11 @@ Produce a summary table:
 **Summary: 2/3 PASS | 1/3 FAIL**
 ```
 
-Include screenshot paths from each UIReviewer's report for failed stories.
+Include screenshot paths from each worker report for failed stories.
 
 ## Design Decisions
 
-- **Task parallelism, not TeamCreate.** UIReviewers are stateless parallel workers. Multiple `Task(subagent_type="UIReviewer")` calls in one message achieve true parallelism without swarm coordination overhead.
+- **Agent parallelism, not TeamCreate.** Story validators are stateless parallel workers. Multiple `Agent(subagent_type="general-purpose")` calls in one message achieve true parallelism without swarm coordination overhead.
 - **Stories as YAML text in prompt.** Avoids the agent needing to read the story file — reduces agent tool calls and speeds execution.
 - **RESULT sentinel parsing.** Simple string parsing on the last line — no fragile JSON extraction from freeform agent output.
 - **8-agent limit.** Matches PAI's parallel agent guidance and avoids resource contention.
@@ -111,5 +113,5 @@ Include screenshot paths from each UIReviewer's report for failed stories.
 ## Error Handling
 
 - If a YAML file fails to parse → report the parse error, skip that file
-- If a UIReviewer times out → mark that story as TIMEOUT in the summary
+- If a worker times out → mark that story as TIMEOUT in the summary
 - If no RESULT sentinel found → mark as UNKNOWN and include raw agent output for debugging

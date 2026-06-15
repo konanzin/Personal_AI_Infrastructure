@@ -5,18 +5,20 @@ description: "Intakes existing content from external sources, classifies each ch
 
 # Migrate — external-content intake and classification
 
-## 🚨 MANDATORY: Voice Notification
+## Optional Legacy Pulse Progress Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Starting the migration. Scanning source and classifying chunks.", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 ## What this skill does
 
 Migrates content into the PAI structure from external sources. Unlike `/interview` (which asks the user questions to fill gaps), `/migrate` **already has the content** — it just needs to classify each chunk and route it to the right PAI destination.
+
+**OpenCode port capability guard:** `MigrateScan.ts` and `MigrateApprove.ts` are optional helpers; before calling either, verify the file exists under `~/.config/opencode/PAI/TOOLS`; if missing, stop and report migration automation unavailable, then offer a manual one-chunk-at-a-time classification fallback with explicit user approval before any write.
 
 ### Sources supported in V1
 
@@ -57,9 +59,9 @@ Collect the source path. If content is pasted, write it to a temp file first.
 Run the scanner:
 
 ```bash
-bun ~/.claude/PAI/TOOLS/MigrateScan.ts --source <path>
+bun ~/.config/opencode/PAI/TOOLS/MigrateScan.ts --source <path>
 # or
-echo "$CONTENT" | bun ~/.claude/PAI/TOOLS/MigrateScan.ts --stdin
+echo "$CONTENT" | bun ~/.config/opencode/PAI/TOOLS/MigrateScan.ts --stdin
 ```
 
 Scanner output includes:
@@ -96,19 +98,19 @@ Based on the user's preference:
 
 **Fast path** (he says "approve all trusted"):
 ```bash
-bun ~/.claude/PAI/TOOLS/MigrateApprove.ts --approve-all
+bun ~/.config/opencode/PAI/TOOLS/MigrateApprove.ts --approve-all
 ```
 Commits everything non-UNCLEAR. Then walk through UNCLEAR chunks conversationally.
 
 **Category path** (he says "approve goals and wisdom, skip knowledge"):
 ```bash
-bun ~/.claude/PAI/TOOLS/MigrateApprove.ts --approve-target TELOS/GOALS.md
-bun ~/.claude/PAI/TOOLS/MigrateApprove.ts --approve-target TELOS/WISDOM.md
+bun ~/.config/opencode/PAI/TOOLS/MigrateApprove.ts --approve-target TELOS/GOALS.md
+bun ~/.config/opencode/PAI/TOOLS/MigrateApprove.ts --approve-target TELOS/WISDOM.md
 ```
 
 **Walk-through path** (he wants careful review):
 ```bash
-bun ~/.claude/PAI/TOOLS/MigrateApprove.ts --review
+bun ~/.config/opencode/PAI/TOOLS/MigrateApprove.ts --review
 ```
 Show each pending chunk. For each:
 - Show preview + proposed target + confidence + alternatives

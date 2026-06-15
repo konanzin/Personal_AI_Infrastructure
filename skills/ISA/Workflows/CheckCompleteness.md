@@ -60,10 +60,10 @@ isc_quality:
 ### Step 1 — Voice notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the CheckCompleteness workflow in the ISA skill", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 ### Step 2 — Read the ISA

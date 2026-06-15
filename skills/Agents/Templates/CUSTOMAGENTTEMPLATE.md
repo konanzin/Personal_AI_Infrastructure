@@ -5,8 +5,8 @@
 
 ## Template Usage
 
-- **Built-in agents** (`~/.claude/agents/*.md`): Use this format for the persona section
-- **Custom agents** (`~/.claude/custom-agents/*.md`): Use this format for the entire file
+- **Built-in agents** (`~/.config/opencode/agents/*.md`): Use this format for the persona section
+- **Custom agents** (`~/.config/opencode/custom-agents/*.md`): Use this format for the entire file
 - **Dynamic agents** (ComposeAgent ephemeral): Generated prompts follow this structure
 
 ---
@@ -134,7 +134,7 @@ How the voice embodies the character.]
 
 1. Send voice notification:
 \`\`\`bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message":"[Agent name] activated, loading context", "language": "en-US","voice_id":"{voiceId}","title":"{persona.name}","voice_settings":{"stability":{voice.stability},"similarity_boost":{voice.similarity_boost},"style":{voice.style},"speed":{voice.speed},"use_speaker_boost":{voice.use_speaker_boost}},"volume":{voice.volume}}'
 \`\`\`
@@ -185,7 +185,7 @@ SUMMARY, ANALYSIS, ACTIONS, RESULTS, STATUS, CAPTURE, NEXT, STORY EXPLANATION, C
 
 | Aspect | Built-in (`agents/*.md`) | Custom (`custom-agents/*.md`) |
 |--------|-------------------------|-------------------------------|
-| Location | `~/.claude/agents/` | `~/.claude/custom-agents/` |
+| Location | `~/.config/opencode/agents/` | `~/.config/opencode/custom-agents/` |
 | `custom_agent` field | Omitted | `true` |
 | `created` field | Omitted | ISO date |
 | `traits` field | Omitted | ComposeAgent trait keys |

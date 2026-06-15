@@ -21,18 +21,18 @@ Search prior work for: **$ARGUMENTS**
 Run all four searches simultaneously in a single response:
 
 **1A. Session Registry**
-Read `~/.claude/PAI/MEMORY/STATE/work.json`. Match entries where `task`, slug (object key), or `sessionName` contains "$ARGUMENTS" (case-insensitive). Extract: task, phase, progress, effort. Limit to **5 most recent** matches.
+Read `~/.config/opencode/PAI/MEMORY/STATE/work.json`. Match entries where `task`, slug (object key), or `sessionName` contains "$ARGUMENTS" (case-insensitive). Extract: task, phase, progress, effort. Limit to **5 most recent** matches.
 
 **1B. Session Names**
-Read `~/.claude/PAI/MEMORY/STATE/session-names.json`. Match entries where name contains "$ARGUMENTS" (case-insensitive). Extract: sessionId, name. Limit to **5 most recent**.
+Read `~/.config/opencode/PAI/MEMORY/STATE/session-names.json`. Match entries where name contains "$ARGUMENTS" (case-insensitive). Extract: sessionId, name. Limit to **5 most recent**.
 
 **1C. Work Directory Names**
 ```bash
-fd -t d -i "$ARGUMENTS" ~/.claude/PAI/MEMORY/WORK/ --max-depth 1 | tail -10
+fd -t d -i "$ARGUMENTS" ~/.config/opencode/PAI/MEMORY/WORK/ --max-depth 1 | tail -10
 ```
 
 **1D. ISA Title Grep**
-Use Grep to search for "$ARGUMENTS" across `~/.claude/PAI/MEMORY/WORK/` with glob `**/ISA.md`. Use `files_with_matches` mode. Limit to **5 results**.
+Use Grep to search for "$ARGUMENTS" across `~/.config/opencode/PAI/MEMORY/WORK/` with glob `**/ISA.md`. Use `files_with_matches` mode. Limit to **5 results**.
 
 ---
 
@@ -44,7 +44,7 @@ Only if Phase 1 returned fewer than 3 total matches, run in parallel:
 
 **2A. PAI Git History**
 ```bash
-git -C ~/.claude log --oneline --all --grep="$ARGUMENTS" -i -10
+git -C ~/.config/opencode log --oneline --all --grep="$ARGUMENTS" -i -10
 ```
 
 **2B. Current Project Git History**
@@ -72,7 +72,7 @@ Compact single list. Omit sections with no results. **Keep total output under 40
 
 📂 ISA SUMMARIES (max 3):
   - [dir name]: [first heading from ISA]
-    Path: ~/.claude/PAI/MEMORY/WORK/[dir]/ISA.md
+    Path: ~/.config/opencode/PAI/MEMORY/WORK/[dir]/ISA.md
 
 🔗 COMMITS (if Phase 2 ran):
   - [hash] [message] ([repo])
@@ -117,7 +117,7 @@ User: "pick up where we left off on the feed system"
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"ContextSearch","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"ContextSearch","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

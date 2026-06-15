@@ -39,7 +39,7 @@ Running **UpdateData** in **USMetrics**...
 Execute the update script:
 
 ```bash
-bun ~/.claude/skills/USMetrics/Tools/UpdateSubstrateMetrics.ts
+bun ~/.config/opencode/skills/USMetrics/Tools/UpdateSubstrateMetrics.ts
 ```
 
 This tool:

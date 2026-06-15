@@ -3,10 +3,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the FindSources workflow in the PAIUpgrade skill to discover sources", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **FindSources** workflow in the **PAIUpgrade** skill to discover sources...
@@ -158,7 +158,7 @@ For each potential source, score:
 ## How to Add Sources
 
 ### For YouTube Channels:
-Edit `~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/youtube-channels.json`
+Edit `~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/youtube-channels.json`
 
 ### For Other Sources:
 Currently, non-YouTube sources are monitored via the base `sources.json`.
@@ -173,7 +173,7 @@ If user approves recommendations:
 
 ```bash
 # Read current user config
-cat ~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/youtube-channels.json
+cat ~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/youtube-channels.json
 
 # Add new channels (merge with existing)
 # Update the channels array with new entries

@@ -10,10 +10,10 @@ purpose: Add new command to existing CLI
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the AddCommand workflow in the CreateCLI skill to add CLI command", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **AddCommand** workflow in the **CreateCLI** skill to add CLI command...
@@ -40,7 +40,7 @@ Add one or more commands to an existing CLI without breaking existing functional
 
 ```bash
 # Find CLI location
-ls -la ~/.claude/Bin/[cli-name]/
+ls -la ~/.config/opencode/Bin/[cli-name]/
 # or
 ls -la ~/Projects/[project]/
 ```

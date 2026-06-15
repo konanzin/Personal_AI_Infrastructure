@@ -73,7 +73,7 @@ PAI uses a **hybrid agent system** that combines:
 **Trigger words:** "custom agents", "custom", "specialized agents with different expertise"
 
 **What happens:**
-1. Run `bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts` for EACH agent
+1. Run `bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts` for EACH agent
 2. Use DIFFERENT trait combinations to get unique voices AND colors
 3. Each agent gets a personality-matched ElevenLabs voice and unique color
 4. Launch with `subagent_type: "general-purpose"` - NEVER use static types
@@ -147,15 +147,15 @@ Task(prompt="You are Dr. Nova...", subagent_type="general-purpose")
 - **Approach**: thorough, rapid, systematic, exploratory, comparative, synthesizing, adversarial, consultative
 
 **Internal Infrastructure** (for {DA_IDENTITY.NAME}'s use):
-- Trait definitions: `~/.claude/skills/Agents/Data/Traits.yaml`
-- Agent template: `~/.claude/skills/Agents/Templates/DynamicAgent.hbs`
-- Composition tool: `~/.claude/skills/Agents/Tools/ComposeAgent.ts`
+- Trait definitions: `~/.config/opencode/skills/Agents/Data/Traits.yaml`
+- Agent template: `~/.config/opencode/skills/Agents/Templates/DynamicAgent.hbs`
+- Composition tool: `~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts`
 
 ---
 
 ## Named Agent Architecture
 
-- **Location**: Individual agent files in `~/.claude/agents/*.md`
+- **Location**: Individual agent files in `~/.config/opencode/agents/*.md`
 - **Voice Config**: Each agent file contains voice settings in YAML frontmatter (`voiceId`, `voice:` block)
 - **Character Identity**: Each agent file contains persona frontmatter and full character backstory in body
 - **Template**: See `skills/Agents/Templates/CUSTOMAGENTTEMPLATE.md` for canonical identity schema
@@ -671,7 +671,7 @@ Voice server automatically loads this configuration at startup. To update person
 1. Edit JSON configuration above
 2. Update character descriptions and backstories as personalities evolve
 3. Restart voice server to apply changes
-4. Test with: `curl -s -X POST http://localhost:31337/notify -H "Content-Type: application/json" -d '{"message":"Test", "language": "en-US","voice_id":"VOICE_ID"}'`
+4. Test with: `(curl -s --max-time 2 -X POST http://localhost:31337/notify -H "Content-Type: application/json" -d '{"message":"Test", "language": "en-US","voice_id":"VOICE_ID"}'`
 
 ## Version History
 

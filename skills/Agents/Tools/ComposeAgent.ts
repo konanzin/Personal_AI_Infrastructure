@@ -7,8 +7,8 @@
  * Merges base traits (ships with PAI) with user customizations.
  *
  * Configuration files:
- *   Base:  ~/.claude/skills/Agents/Data/Traits.yaml
- *   User:  ~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml
+ *   Base:  ~/.config/opencode/skills/Agents/Data/Traits.yaml
+ *   User:  ~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml
  *
  * Usage:
  *   # Infer traits from task description
@@ -34,10 +34,10 @@ import Handlebars from "handlebars";
 
 // Paths
 const HOME = process.env.HOME || "~";
-const BASE_TRAITS_PATH = `${HOME}/.claude/skills/Agents/Data/Traits.yaml`;
-const USER_TRAITS_PATH = `${HOME}/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml`;
-const TEMPLATE_PATH = `${HOME}/.claude/skills/Agents/Templates/DynamicAgent.hbs`;
-const CUSTOM_AGENTS_DIR = `${HOME}/.claude/custom-agents`;
+const BASE_TRAITS_PATH = `/.config/opencode/skills/Agents/Data/Traits.yaml`;
+const USER_TRAITS_PATH = `/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml`;
+const TEMPLATE_PATH = `/.config/opencode/skills/Agents/Templates/DynamicAgent.hbs`;
+const CUSTOM_AGENTS_DIR = `/.config/opencode/custom-agents`;
 
 // Types
 interface ProsodySettings {
@@ -498,10 +498,10 @@ function slugify(name: string): string {
 }
 
 /**
- * Save a composed agent to ~/.claude/custom-agents/{slug}.md
+ * Save a composed agent to ~/.config/opencode/custom-agents/{slug}.md
  *
  * Produces a CLAUDE CODE COMPATIBLE agent file that can be:
- * 1. Copied to ~/.claude/agents/ and used as a built-in agent
+ * 1. Copied to ~/.config/opencode/agents/ and used as a built-in agent
  * 2. Loaded via --load for re-composition with a new task
  *
  * The body is a complete system prompt matching built-in agent format.
@@ -589,7 +589,7 @@ ${body}
 /**
  * Build a Claude Code compatible agent body (system prompt).
  *
- * Matches the structural format of built-in agents in ~/.claude/agents/*.md:
+ * Matches the structural format of built-in agents in ~/.config/opencode/agents/*.md:
  * - Character heading with name and archetype
  * - Domain expertise, personality, approach sections
  * - Startup sequence, voice notifications, output format
@@ -652,7 +652,7 @@ ${approachBlock}
 
 1. **Send voice notification that you're loading:**
 \`\`\`bash
-curl -X POST http://localhost:31337/notify \\
+curl --max-time 2 -X POST http://localhost:31337/notify \\
   -H "Content-Type: application/json" \\
   -d '{"message":"${agent.name} loading and ready to work", "language": "en-US","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
 \`\`\`
@@ -721,13 +721,13 @@ ${identityList}
 To re-compose this agent with a specific task:
 
 \`\`\`bash
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --load "${slug}"
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts --load "${slug}"
 \`\`\`
 
 Or reconstruct from traits:
 
 \`\`\`bash
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "${agent.traits.join(",")}"
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts --traits "${agent.traits.join(",")}"
 \`\`\`
 
 ---
@@ -877,16 +877,16 @@ OPTIONS:
   -o, --output <fmt>   Output format: prompt (default), json, yaml, summary
   --timing <tier>      Timing scope: fast, standard (default), deep
   -l, --list           List all available traits
-  -s, --save           Save composed agent to ~/.claude/custom-agents/
+  -s, --save           Save composed agent to ~/.config/opencode/custom-agents/
   --list-saved         List all saved custom agents
   --load <name>        Load a saved custom agent's prompt
   --delete <name>      Delete a saved custom agent
   -h, --help           Show this help
 
 CONFIGURATION:
-  Base traits:    ~/.claude/skills/Agents/Data/Traits.yaml
-  User traits:    ~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml
-  Custom agents:  ~/.claude/custom-agents/
+  Base traits:    ~/.config/opencode/skills/Agents/Data/Traits.yaml
+  User traits:    ~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml
+  Custom agents:  ~/.config/opencode/custom-agents/
 
   User traits are merged over base (user takes priority).
   Add your custom voices, personalities, and prosody settings in the user file.

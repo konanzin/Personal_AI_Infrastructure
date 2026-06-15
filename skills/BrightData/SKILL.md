@@ -7,21 +7,21 @@ effort: medium
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/BrightData/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/BrightData/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
 
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the BrightData skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -29,7 +29,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
    Running the **WorkflowName** workflow in the **BrightData** skill to ACTION...
    ```
 
-**This is not optional. Execute this curl command immediately upon skill invocation.**
+This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
 
 ## Workflow Routing
 
@@ -198,8 +198,8 @@ Skill Response:
 ---
 
 **Related Documentation:**
-- `~/.claude/PAI/DOCUMENTATION/Skills/SkillSystem.md` - Canonical structure guide
-- `~/.claude/` - Overall PAI philosophy
+- `~/.config/opencode/PAI/DOCUMENTATION/Skills/SkillSystem.md` - Canonical structure guide
+- `~/.config/opencode/` - Overall PAI philosophy
 
 **Last Updated:** 2026-02-22
 
@@ -208,14 +208,14 @@ Skill Response:
 - **4-tier escalation: WebFetch → curl → agent-browser → Bright Data proxy.** Always start at Tier 1 and escalate only when blocked. Playwright is banned across PAI.
 - **Bright Data proxy has usage costs.** Don't use Tier 4 for sites accessible via Tier 1-3.
 - **CAPTCHA-solving introduces latency.** Allow extra time for Tier 4 responses.
-- **Credentials in `~/.claude/.env`** — BRIGHTDATA_API_KEY.
+- **Credentials in `~/.config/opencode/.env`** — BRIGHTDATA_API_KEY.
 
 ## Execution Log
 
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"BrightData","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"BrightData","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

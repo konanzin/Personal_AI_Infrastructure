@@ -176,7 +176,7 @@ prompt: |
   - **Design**: Architect, Designer
   - **Analysis**: FirstPrinciples, RedTeam, Council
   - **Content**: Art, Parser, Fabric
-  - **Verification**: QATester, Browser, Evals
+  - **Verification**: Interceptor, Browser, Evals
   
   **Match capabilities to ISC criteria** — each criterion should map to a capability that can satisfy it.
   

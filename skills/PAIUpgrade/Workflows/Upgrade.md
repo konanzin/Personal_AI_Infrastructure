@@ -3,10 +3,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Upgrade workflow in the PAIUpgrade skill to check for upgrades", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **Upgrade** workflow in the **PAIUpgrade** skill to check for upgrades...
@@ -39,27 +39,27 @@ Thread 0 output gates synthesis. No recommendation may be emitted without a Prio
 Spawn 5 parallel agents (`subagent_type=Explore`) to inventory current PAI state. Each returns an inventory with file:line evidence.
 
 **Agent 0a — Algorithm & Capabilities**
-Read: `~/.claude/PAI/ALGORITHM/LATEST` + the file it points to, `~/.claude/PAI/ALGORITHM/capabilities.md`, `mode-detection.md`, `~/.claude/PAI/DOCUMENTATION/Algorithm/AlgorithmSystem.md`.
+Read: `~/.config/opencode/PAI/ALGORITHM/LATEST` + the file it points to, `~/.config/opencode/PAI/ALGORITHM/capabilities.md`, `mode-detection.md`, `~/.config/opencode/PAI/DOCUMENTATION/Algorithm/AlgorithmSystem.md`.
 Extract: phase definitions and gates, verification doctrine (advisor rules, live-probe, conflict resolution), preflight gates, capabilities table, mode-detection triggers, browser-first / env-probe / feedback-memory-lookup / parallelization rules.
 Return: state inventory with file:line evidence, ≤500 words.
 
 **Agent 0b — Security Patterns & Inspectors**
-Read: `~/.claude/PAI/USER/SECURITY/PATTERNS.yaml`, `~/.claude/hooks/SecurityPipeline.hook.ts`, `~/.claude/hooks/security/pipeline.ts`, `~/.claude/hooks/security/inspectors/*.ts`.
+Read: `~/.config/opencode/PAI/USER/SECURITY/PATTERNS.yaml`, `~/.config/opencode/hooks/SecurityPipeline.hook.ts`, `~/.config/opencode/hooks/security/pipeline.ts`, `~/.config/opencode/hooks/security/inspectors/*.ts`.
 Extract: every pattern category (name + regex summary + action), inspector coverage (Pattern, Egress, Rules, Prompt, Injection), Bash bypass coverage (backslash-escaped flags, /dev/tcp/, /dev/udp/, env-var-prefixed commands, /proc/, git filter-branch, ptrace), deny/ask/allow precedence.
 Return: inventory with file:line evidence; flag what's present AND what's missing.
 
 **Agent 0c — Hooks & Settings**
-Read: `~/.claude/settings.json` (hooks, env, permissions, pai sections); list `~/.claude/hooks/*.hook.ts`.
+Read: `~/.config/opencode/settings.json` (hooks, env, permissions, pai sections); list `~/.config/opencode/hooks/*.hook.ts`.
 Extract: hook inventory by event (SessionStart, PreToolUse, PostToolUse, Stop, PreCompact, etc.), orphaned hooks (on disk but unwired), empty event arrays, notable env/permission/pai values.
 Return: inventory with file:line evidence; flag wiring gaps.
 
 **Agent 0d — Recent Decisions & Feedback Memory**
-Scan: top 20 most-recent `~/.claude/PAI/MEMORY/WORK/` dirs (skim ISAs), `MEMORY/KNOWLEDGE/`, `MEMORY/LEARNING/`, `~/.claude/projects/-$(whoami)--claude/memory/feedback_*.md`, `project_*.md`.
+Scan: top 20 most-recent `~/.config/opencode/PAI/MEMORY/WORK/` dirs (skim ISAs), `MEMORY/KNOWLEDGE/`, `MEMORY/LEARNING/`, `~/.config/opencode/projects/-$(whoami)--claude/memory/feedback_*.md`, `project_*.md`.
 Extract: recent decisions affecting upgrades (rejected/deferred/completed), relevant feedback entries, KNOWLEDGE entries that explicitly evaluated proposals.
 Return: inventory with paths; flag anything that would DENY a future recommendation.
 
 **Agent 0e — Skill Surface**
-Scan: `~/.claude/skills/*/SKILL.md` (description fields), `~/.claude/skills/_PAI/TOOLS/*.ts`, `~/.claude/skills/CreateSkill/Tools/*.ts` (validators).
+Scan: `~/.config/opencode/skills/*/SKILL.md` (description fields), `~/.config/opencode/skills/_PAI/TOOLS/*.ts`, `~/.config/opencode/skills/CreateSkill/Tools/*.ts` (validators).
 Extract: skill counts/categories, existence of Monitor/Advisor/PreCompact wrappers, CreateSkill description-length cap, ToolActivityTracker capture scope (diffs? stdout? git state?).
 Return: inventory with file:line evidence.
 
@@ -69,11 +69,11 @@ Return: inventory with file:line evidence.
 
 Spawn 4 parallel agents (`subagent_type=general-purpose`):
 
-**Agent 1 — TELOS:** read `~/.claude/PAI/USER/TELOS/*.md`. Extract current high-priority goals, active focus areas, key challenges, project themes.
+**Agent 1 — TELOS:** read `~/.config/opencode/PAI/USER/TELOS/*.md`. Extract current high-priority goals, active focus areas, key challenges, project themes.
 
-**Agent 2 — Recent Work:** read `~/.claude/PAI/MEMORY/STATE/work.json` and recent `MEMORY/WORK/` dirs (last 7 days). Extract active projects, recurring patterns, open tasks, recent accomplishments.
+**Agent 2 — Recent Work:** read `~/.config/opencode/PAI/MEMORY/STATE/work.json` and recent `MEMORY/WORK/` dirs (last 7 days). Extract active projects, recurring patterns, open tasks, recent accomplishments.
 
-**Agent 3 — PAI State:** list `~/.claude/skills/`, `~/.claude/hooks/`, read `~/.claude/settings.json`. Extract installed skills, active hooks, configuration highlights, obvious gaps or opportunities.
+**Agent 3 — PAI State:** list `~/.config/opencode/skills/`, `~/.config/opencode/hooks/`, read `~/.config/opencode/settings.json`. Extract installed skills, active hooks, configuration highlights, obvious gaps or opportunities.
 
 **Agent 4 — Tech Stack:** from PROJECTS.md and recent work, identify primary languages, frameworks, deployment targets, key integrations.
 
@@ -86,17 +86,18 @@ Run: `bun ${CLAUDE_SKILL_DIR}/Tools/Anthropic.ts`.
 For each finding (release notes, GitHub commits, doc updates), extract specific techniques: exact syntax/API/configuration, quoted documentation showing usage, which PAI component this improves, before/after code where applicable. Skip findings with no concrete technique. Do NOT return vague "new release available" entries.
 
 **Agent 2 — YouTube Channels**
-1. Load channel config: `bun ~/.claude/PAI/TOOLS/LoadSkillConfig.ts ../youtube-channels.json`.
+Before calling `LoadSkillConfig.ts` or `GetTranscript.ts`, verify the helper exists under `~/.config/opencode/PAI/TOOLS`; if missing, load JSON with built-in file reads and use `yt-dlp` captions/transcript options when available, otherwise mark transcript extraction unavailable for that video.
+1. Load channel config: `bun ~/.config/opencode/PAI/TOOLS/LoadSkillConfig.ts ../youtube-channels.json`.
 2. For each channel: `yt-dlp --flat-playlist --dump-json 'https://www.youtube.com/@channelhandle/videos' 2>/dev/null | head -5`.
 3. Compare against `../State/youtube-videos.json`.
-4. For new videos: `bun ~/.claude/PAI/TOOLS/GetTranscript.ts '<video-url>'`.
+4. For new videos: `bun ~/.config/opencode/PAI/TOOLS/GetTranscript.ts '<video-url>'`.
 5. From each transcript, extract specific techniques: code patterns, configurations, command examples, with timestamps and exact quotes. Skip videos with no extractable techniques.
 
 **Agent 3 — Custom Sources**
-Check `~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/` for additional source definitions beyond YouTube and GitHub trending. If sources exist, check them for updates. Return findings, or empty list with note "No custom sources configured".
+Check `~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/` for additional source definitions beyond YouTube and GitHub trending. If sources exist, check them for updates. Return findings, or empty list with note "No custom sources configured".
 
 **Agent 4 — GitHub Trending**
-1. Load `github_trending` config from `~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/user-sources.json`. If `enabled: false` or missing, return `{ github_trending: false, note: "disabled or not configured" }`.
+1. Load `github_trending` config from `~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/user-sources.json`. If `enabled: false` or missing, return `{ github_trending: false, note: "disabled or not configured" }`.
 2. `LOOKBACK_DATE = today - lookback_days` (default 14).
 3. For each `query` in `github_trending.queries`:
    ```bash
@@ -110,19 +111,19 @@ Check `~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/` for additional source
 
 Return within 90s; reduce per_page to 3 if slow.
 
-### Step 2a: Claude Code Freshness Check (parallel with Thread 2)
+### Step 2a: OpenCode Runtime Freshness Check (parallel with Thread 2)
 
-Spawn `Agent(subagent_type="claude-code-guide", run_in_background: true)`:
+Spawn `Agent(subagent_type="general-purpose", run_in_background: true)`:
 
-Verify PAI's Claude Code references against the latest API surface. Check: hook event types, slash commands, agent/subagent types, settings.json fields, MCP integration, Agent SDK, Claude API. For each area, return current features, recent additions, deprecated items, and PAI staleness risk (LOW/MEDIUM/HIGH). Focus on changes affecting hooks, skills, or Algorithm. Return within 90s.
+Verify PAI's OpenCode references against the installed runtime, local `opencode.jsonc`, `plugins/pai-hooks.js`, active agents/commands, and official upstream docs when available. Check: hook event types, command registration, agent/subagent types, settings fields, MCP integration, Agent SDK, and model API assumptions. For each area, return current features, recent additions, deprecated items, and PAI staleness risk (LOW/MEDIUM/HIGH). Focus on changes affecting hooks, skills, or Algorithm. Return within 90s.
 
-Output feeds Step 5 (Filter and Score) as source type `Claude Code Guide` and is cross-referenced against current PAI files for staleness.
+Output feeds Step 5 (Filter and Score) as source type `OpenCode Runtime Check` and is cross-referenced against current PAI files for staleness.
 
 ### Step 2b: Launch Thread 3 — Internal Reflection Mining
 
 Spawn 1 parallel agent (`subagent_type=general-purpose`):
 
-Read `~/.claude/PAI/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl`. Full methodology: `Workflows/MineReflections.md`. Quick summary:
+Read `~/.config/opencode/PAI/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl`. Full methodology: `Workflows/MineReflections.md`. Quick summary:
 1. Parse each line as JSON.
 2. Prioritize entries with `implied_sentiment <= 5`, `within_budget: false`, or `criteria_failed > 0`.
 3. Cluster Q2 answers (algorithm improvements) by similarity.
@@ -227,12 +228,12 @@ If none pass: "No registry updates needed this cycle."
 
 ### Step 10: Memory Redistribution & Cleanup
 
-Scan `~/.claude/projects/-$(whoami)--claude/memory/MEMORY.md` and each referenced memory file. Triage:
+Scan `~/.config/opencode/projects/-$(whoami)--claude/memory/MEMORY.md` and each referenced memory file. Triage:
 
 | Condition | Action |
 |-----------|--------|
 | Redundant with system prompt or CLAUDE.md operational notes | Delete file, remove from MEMORY.md |
-| Behavioral rule not yet in system prompt | Migrate to PAI_SYSTEM_PROMPT.md (constitutional) or CLAUDE.md (operational), then delete |
+| Behavioral rule not yet in runtime constitution | Migrate to `PAI/RUNTIME_CONSTITUTION.md` (constitutional) or `CLAUDE.md` (operational), then delete |
 | Stale/resolved (problem fixed, project completed, info outdated) | Delete file, remove from MEMORY.md |
 | Wrong paths or outdated references | Verify against filesystem; fix or delete |
 | Valid project/user/reference, still current | Keep — update if needed |

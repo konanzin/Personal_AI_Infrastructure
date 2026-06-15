@@ -8,7 +8,7 @@ context: fork
 ## Customization
 
 Before executing, check for user customizations at:
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Ideate/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Ideate/`
 
 # Ideate — The Cognitive Progress Engine
 
@@ -132,7 +132,7 @@ Loop Controller decides actual cycle count adaptively, not a fixed count.
 
 ## State Persistence
 
-Each run persists to `~/.claude/PAI/MEMORY/WORK/{slug}/ideate/`:
+Each run persists to `~/.config/opencode/PAI/MEMORY/WORK/{slug}/ideate/`:
 
 ```
 ideate/
@@ -262,5 +262,5 @@ When the PAI Algorithm sets `mode: ideate` (via `PAI/ALGORITHM/ideate-loop.md`),
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Ideate","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Ideate","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```

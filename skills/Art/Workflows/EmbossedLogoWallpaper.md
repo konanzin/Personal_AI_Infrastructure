@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the EmbossedLogoWallpaper workflow in the Art skill to create wallpapers", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **EmbossedLogoWallpaper** in **Art**...
@@ -144,7 +144,7 @@ open ~/Projects/Wallpaper/blue-purple-circuits.png
 ### Step 4: Generate
 
 ```bash
-bun run ~/.claude/skills/Art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/Art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "[CONSTRUCTED_PROMPT]" \
   --size 4K \

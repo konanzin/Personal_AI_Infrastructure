@@ -27,15 +27,26 @@ When answering questions:
 - If information isn't in the TELOS data, say so clearly
 - Keep responses concise but informative`
 
-    // Use Inference tool instead of direct API
+    // Use a configured OpenCode inference command instead of a missing legacy helper.
     const inferenceResult = await new Promise<{ success: boolean; output?: string; error?: string }>((resolve) => {
-      const homeDir = process.env.HOME || ''
-      const proc = spawn('bun', ['run', `${homeDir}/.claude/PAI/TOOLS/Inference.ts`, '--level', 'fast', systemPrompt, message], {
-        stdio: ['ignore', 'pipe', 'pipe'],
+      const command = process.env.PAI_INFERENCE_CMD || process.env.OPENCODE_INFERENCE_CMD
+      if (!command) {
+        resolve({
+          success: false,
+          error: 'OpenCode inference adapter unavailable: set PAI_INFERENCE_CMD or OPENCODE_INFERENCE_CMD',
+        })
+        return
+      }
+
+      const proc = spawn('bash', ['-lc', command], {
+        stdio: ['pipe', 'pipe', 'pipe'],
       })
 
       let stdout = ''
       let stderr = ''
+
+      proc.stdin.write(JSON.stringify({ systemPrompt, userPrompt: message, level: 'fast', timeout: 60000 }))
+      proc.stdin.end()
 
       proc.stdout.on('data', (data) => { stdout += data.toString() })
       proc.stderr.on('data', (data) => { stderr += data.toString() })

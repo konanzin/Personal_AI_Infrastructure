@@ -387,12 +387,12 @@ mcp__Apify__apify-slash-rag-web-browser({
 
 ## 📁 Working Files → History Pattern
 
-**Working Directory:** `~/.claude/PAI/MEMORY/WORK/{current_work}/`
+**Working Directory:** `~/.config/opencode/PAI/MEMORY/WORK/{current_work}/`
 
 **Getting Current Work Directory:**
-1. Read `~/.claude/`
+1. Read `~/.config/opencode/`
 2. Extract the `work_dir` value
-3. Use `~/.claude/PAI/MEMORY/WORK/{work_dir}/` for temporary artifacts
+3. Use `~/.config/opencode/PAI/MEMORY/WORK/{work_dir}/` for temporary artifacts
 
 **Process:**
 
@@ -406,7 +406,7 @@ mcp__Apify__apify-slash-rag-web-browser({
 
 2. **History (Permanent Archive):**
 
-   - Move to `~/.claude/History/research/YYYY-MM-DD_[description]/` when complete
+   - Move to `~/.config/opencode/History/research/YYYY-MM-DD_[description]/` when complete
    - Include: `README.md`, final extracted content, metadata
    - Archive for future reference and reuse
 
@@ -420,7 +420,7 @@ mcp__Apify__apify-slash-rag-web-browser({
 
 **Working files (in current work item directory):**
 ```
-~/.claude/PAI/MEMORY/WORK/20260111-172408_retrieve-react19-docs/
+~/.config/opencode/PAI/MEMORY/WORK/20260111-172408_retrieve-react19-docs/
 ├── raw-content/
 │   ├── page1.md (Layer 2 output)
 │   ├── page2.md (Layer 2 output)
@@ -434,7 +434,7 @@ mcp__Apify__apify-slash-rag-web-browser({
 
 **History (permanent archive):**
 ```
-~/.claude/History/research/2025-10-26_react19-documentation/
+~/.config/opencode/History/research/2025-10-26_react19-documentation/
 ├── README.md (retrieval documentation)
 ├── content.md (final extracted content)
 ├── metadata.json (sources, layers used, timestamps)

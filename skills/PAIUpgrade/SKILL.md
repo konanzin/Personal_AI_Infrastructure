@@ -7,20 +7,20 @@ effort: high
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification:**
+1. **Send optional progress notification:**
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the PAIUpgrade skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 2. **Output text notification:**
    ```
@@ -94,7 +94,7 @@ Section order: Discoveries → Recommendations → Technique Details → Interna
 - `State/github-trending.json` — GitHub trending state (seen repos)
 - `State/twitter-bookmarks-seen.json` — Previously processed bookmark URLs
 
-**User Customizations** (`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/`):
+**User Customizations** (`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/PAIUpgrade/`):
 - `EXTEND.yaml` — Extension manifest
 - `youtube-channels.json` — User's personal YouTube channels
 - `user-sources.json` — Additional source definitions (e.g., `github_trending` block)
@@ -114,7 +114,7 @@ Section order: Discoveries → Recommendations → Technique Details → Interna
 5. **TELOS-Connected** — reference user's goals and challenges when explaining relevance.
 6. **Skip Boldly** — if content has no extractable technique, skip it entirely.
 7. **Implementation-Ready** — provide actual code changes, not vague recommendations.
-8. **Claude Code Freshness via claude-code-guide** — when discoveries involve Claude Code internals (hooks, settings, slash commands, MCP, agent types, keybindings, Agent SDK, Claude API), spawn `Agent(subagent_type="claude-code-guide")` to verify PAI's current references match the latest API surface.
+8. **OpenCode Runtime Freshness** — when discoveries involve hooks, settings, commands, MCP, agent types, keybindings, Agent SDK, or model APIs, verify against the installed OpenCode runtime, the PAI plugin/config, and official upstream docs before proposing a change.
 
 ## Anti-Patterns (What NOT to Output)
 
@@ -127,8 +127,8 @@ These output patterns are **FAILURES**:
 | "Consider looking into MCP updates" | Recommendation without extraction | "MCP now supports [specific feature]: [docs quote]" |
 | "This could be useful for your workflows" | Vague relevance | "This improves your Browser skill because [specific gap it fills]" |
 | "Several videos covered AI agents" | Count without content | "[N] videos skipped — no extractable techniques" |
-| "This helps because it improves things" | Vague benefit | "How It Helps PAI: SecurityValidator currently only blocks commands. additionalContext enables reasoning context before tool execution, making decisions more nuanced." |
-| "A new hook feature" | No description of what it IS | "What It Is: PreToolUse hooks can return additionalContext that gets injected into the model's context before execution, enabling reasoning-based decisions rather than binary blocks." |
+| "This helps because it improves things" | Vague benefit | "How It Helps PAI: the OpenCode permission adapter currently blocks or allows commands; adding richer denial reasons would make security decisions easier to audit." |
+| "A new hook feature" | No description of what it IS | "What It Is: OpenCode `tool.execute.before` and `permission.ask` events can inspect tool calls before execution and return structured allow/deny behavior." |
 | "Top 3 Actions" or flat recommendation list | No priority tiers | Recommendations section with 🔴/🟠/🟡/🟢 tiers, each with PAI Relevance column |
 | Recommendations at the bottom | Actionable items buried after technique dump | 🔥 Recommendations section appears SECOND, technique details third |
 | **Recommending something already implemented** | Wastes user trust | Move to Skipped with file:line evidence |
@@ -156,7 +156,7 @@ These output patterns are **FAILURES**:
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"PAIUpgrade","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"PAIUpgrade","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

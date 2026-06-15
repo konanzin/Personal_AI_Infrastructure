@@ -7,21 +7,21 @@ effort: medium
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/CreateSkill/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/CreateSkill/`
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
 
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the CreateSkill skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -29,7 +29,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
    Running the **WorkflowName** workflow in the **CreateSkill** skill to ACTION...
    ```
 
-**This is not optional. Execute this curl command immediately upon skill invocation.**
+This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
 
 # CreateSkill
 
@@ -37,9 +37,9 @@ Complete skill development lifecycle: **structure** (create, validate, canonical
 
 ## Authoritative Source
 
-**Before creating ANY skill, READ:** `~/.claude/PAI/DOCUMENTATION/Skills/SkillSystem.md`
+**Before creating ANY skill, READ:** `~/.config/opencode/PAI/DOCUMENTATION/Skills/SkillSystem.md`
 
-**Canonical example to follow:** any well-formed public skill in `~/.claude/skills/` (e.g. `Research/SKILL.md`, `Daemon/SKILL.md`, `CreateSkill/SKILL.md` itself).
+**Canonical example to follow:** any well-formed public skill in `~/.config/opencode/skills/` (e.g. `Research/SKILL.md`, `Daemon/SKILL.md`, `CreateSkill/SKILL.md` itself).
 
 ## Naming Convention — Public vs Private
 
@@ -50,7 +50,7 @@ Complete skill development lifecycle: **structure** (create, validate, canonical
 | **Public** | `TitleCase` | `Blogging`, `Daemon`, `CreateSkill` | Templated, safe, generic, ready for public release |
 | **Private** | `_ALLCAPS` (underscore prefix, all uppercase) | `<your-release-skill>`, `_INBOX`, `_BROADCAST`, `_DOTFILES` | Anything personal, sensitive, identity-bound, customer-bound, or environment-specific |
 
-**The leading underscore is the public-release boundary.** Release tooling skips `_*` skills entirely — they never leave `~/.claude`. Public skills (no underscore) are mirrored into the PAI public release and MUST contain only generic, templated content.
+**The leading underscore is the public-release boundary.** Release tooling skips `_*` skills entirely — they never leave `~/.config/opencode`. Public skills (no underscore) are mirrored into the PAI public release and MUST contain only generic, templated content.
 
 **Sub-file naming (both public and private skills):**
 
@@ -67,7 +67,7 @@ Complete skill development lifecycle: **structure** (create, validate, canonical
 
 ### Choosing public vs private — the decision rule
 
-Ask: **"Could this skill be dropped, as-is, into a stranger's `~/.claude/skills/` and just work?"**
+Ask: **"Could this skill be dropped, as-is, into a stranger's `~/.config/opencode/skills/` and just work?"**
 
 - **Yes** → public skill (`TitleCase`). Body must be generic; user-specific config layers in via `PAI/USER/SKILLCUSTOMIZATIONS/<SkillName>/`.
 - **No, because it references my identity, my contacts, my business, my customer, my paid API, my private infra, my domain, my private repo, my partner, or my financial/health/security data** → private skill (`_ALLCAPS`).
@@ -117,19 +117,19 @@ When you find yourself wanting to write any of the following into a skill body, 
 | A specific business process tied to your company | `_ALLCAPS` |
 | A specific financial, health, security, or legal context | `_ALLCAPS` |
 | A specific incident or one-off war story | `_ALLCAPS` |
-| Anything that would be wrong, embarrassing, or unsafe in someone else's `~/.claude/` | `_ALLCAPS` |
+| Anything that would be wrong, embarrassing, or unsafe in someone else's `~/.config/opencode/` | `_ALLCAPS` |
 
 If none of the above apply and the skill is fully generic — it can be `TitleCase` (public).
 
 ### Where Personal Layering Goes for Public Skills
 
-A public skill can be made user-specific at runtime via `~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/<SkillName>/PREFERENCES.md`. The skill body stays generic; the user's customization file overlays per-instance context. Use this when a skill is fundamentally generic but benefits from per-user tweaks (preferred voice, default formats, personal taste).
+A public skill can be made user-specific at runtime via `~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/<SkillName>/PREFERENCES.md`. The skill body stays generic; the user's customization file overlays per-instance context. Use this when a skill is fundamentally generic but benefits from per-user tweaks (preferred voice, default formats, personal taste).
 
 **Do not use SKILLCUSTOMIZATIONS to smuggle private content into a public skill.** If the skill *requires* private context to function (real customer name, real API account, real internal infra), it is a private skill — name it `_ALLCAPS` and stop.
 
 ### Allowed in Public Skills
 
-- Generic `~/` paths (`~/.claude/skills/`, `~/Projects/<tool>/`) — resolve per-user
+- Generic `~/` paths (`~/.config/opencode/skills/`, `~/Projects/<tool>/`) — resolve per-user
 - Public repo URLs for tools the skill depends on
 - Public API endpoints that are conventions, not secrets (e.g., `localhost:31337/notify`)
 - Example values clearly marked as placeholders (`<url>`, `<SESSION_ID>`, `test@example.com`)
@@ -139,7 +139,7 @@ A public skill can be made user-specific at runtime via `~/.claude/PAI/USER/SKIL
 
 Before shipping or modifying any `TitleCase` skill, run:
 ```bash
-rg -i "<your-name>|<your-org>|<your-product>|<your-domain>|/Users/[a-z]+/" ~/.claude/skills/<SkillName>/
+rg -i "<your-name>|<your-org>|<your-product>|<your-domain>|/Users/[a-z]+/" ~/.config/opencode/skills/<SkillName>/
 ```
 
 Zero matches = ready for public release. Any match = either scrub it, move it to SKILLCUSTOMIZATIONS, or rename the skill to `_ALLCAPS` and stop pretending it's public. **`_ALLCAPS` skills are exempt from this grep — they are private by design.**
@@ -194,7 +194,7 @@ skills/SkillName/Tools/Utils/Helper.ts           # THREE levels - NO
 
 **If you need to organize many workflows, use clear filenames instead of subdirectories:**
 
-**See:** `~/.claude/PAI/DOCUMENTATION/Skills/SkillSystem.md` (Flat Folder Structure section)
+**See:** `~/.config/opencode/PAI/DOCUMENTATION/Skills/SkillSystem.md` (Flat Folder Structure section)
 
 ---
 
@@ -307,7 +307,7 @@ Brief description.
 - **Efficiency:** Workflows load only what they actually need
 - **Maintainability:** Easier to update individual sections
 
-**See:** `~/.claude/PAI/DOCUMENTATION/Skills/SkillSystem.md` (Dynamic Loading Pattern section)
+**See:** `~/.config/opencode/PAI/DOCUMENTATION/Skills/SkillSystem.md` (Dynamic Loading Pattern section)
 
 ---
 
@@ -472,7 +472,7 @@ User: "The research skill output is too verbose — improve it"
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"CreateSkill","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"CreateSkill","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the SearchAphorisms workflow in the Aphorisms skill to search quotes", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **SearchAphorisms** in **Aphorisms**...
@@ -23,7 +23,7 @@ Running **SearchAphorisms** in **Aphorisms**...
 - Discovering what's available in database
 
 **Prerequisites:**
-- Aphorism database exists at `~/.claude/skills/aphorisms/Database/aphorisms.md`
+- Aphorism database exists at `~/.config/opencode/skills/aphorisms/Database/aphorisms.md`
 - Search query or theme provided
 - Database Read for comprehensive search
 
@@ -80,7 +80,7 @@ User: "Short quotes about action"
 ### Step 2: Read Database
 
 ```bash
-Read ~/.claude/skills/aphorisms/Database/aphorisms.md
+Read ~/.config/opencode/skills/aphorisms/Database/aphorisms.md
 ```
 
 **Load full context:**

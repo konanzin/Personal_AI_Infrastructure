@@ -3,13 +3,13 @@
 #
 # This file provides MINIMAL working examples for the Agents skill.
 # For full customization, add your own Traits.yaml to:
-#   ~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml
+#   ~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml
 #
 # The ComposeAgent tool merges: base + user (user takes priority)
 #
 # Usage:
-#   bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --task "Review security"
-#   bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "security,skeptical,thorough"
+#   bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts --task "Review security"
+#   bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts --traits "security,skeptical,thorough"
 
 # ==============================================================================
 # EXPERTISE AREAS - Domain knowledge and specialization

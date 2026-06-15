@@ -3,10 +3,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Automate workflow in the Browser skill to execute a recipe template", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **Automate** in **Browser**...
@@ -69,8 +69,8 @@ From recipe frontmatter `tool` field:
 | Tool Value | Execution Method |
 |-----------|-----------------|
 | `agent-browser` | Execute steps as sequential `agent-browser` Bash commands |
-| `BrowserAgent` | Spawn `Task(subagent_type="BrowserAgent", prompt=resolved_template)` |
-| `UIReviewer` | Spawn `Task(subagent_type="UIReviewer", prompt=resolved_template)` |
+| `general-purpose` | Spawn `Agent(subagent_type="general-purpose", prompt=resolved_template plus agent-browser rules)` |
+| `interceptor` | Route the resolved template through the Interceptor skill when bot detection or real Chrome is required |
 
 Default: `agent-browser` if `tool` field is missing.
 
@@ -79,7 +79,8 @@ Default: `agent-browser` if `tool` field is missing.
 Run the resolved template through the selected tool:
 
 - **agent-browser:** Parse the numbered steps into CLI commands and execute sequentially
-- **BrowserAgent/UIReviewer:** Pass the full resolved template as the agent prompt
+- **general-purpose:** Pass the full resolved template as the agent prompt and require agent-browser commands for browser operations
+- **interceptor:** Follow the Interceptor skill workflow with the resolved template as the task brief
 
 ### 6. Return Results
 
@@ -92,7 +93,7 @@ Report the execution results:
 - **Glob-based discovery.** No recipe index to maintain — just drop a `.md` file in `Recipes/`.
 - **Simple string replacement.** `{param}` → value. No Handlebars, no Jinja, no templating library. Keeps recipes readable and maintainable.
 - **Tool selection from frontmatter.** The recipe author decides the right tool at authoring time, not at runtime.
-- **Unresolved params left in place.** BrowserAgent/UIReviewer agents can handle `{param}` in their prompt and ask or infer the value. This is graceful degradation, not an error.
+- **Unresolved params left in place.** The executing worker can ask for missing values or infer obvious ones. This is graceful degradation, not an error.
 
 ## Error Handling
 

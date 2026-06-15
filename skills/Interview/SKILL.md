@@ -5,15 +5,15 @@ description: "Runs a phased conversational interview across all PAI context file
 
 # Interview — phased conversational context review + fill
 
-## 🚨 MANDATORY: Voice Notification
+## Optional Legacy Pulse Progress Notification
 
 Before running the workflow, send:
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Starting the interview. Scanning phases first.", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 ## What this skill does
@@ -44,7 +44,7 @@ The scanner marks each target's mode based on completeness. The DA respects that
 Run the scanner to see phase breakdown and current state:
 
 ```bash
-bun ~/.claude/PAI/TOOLS/InterviewScan.ts
+bun ~/.config/opencode/PAI/TOOLS/InterviewScan.ts
 ```
 
 The scanner orders items phase-first (Phase 1 always before Phase 2). Present the per-phase summary to the principal:
@@ -61,7 +61,7 @@ For each file:
 
 1. Get the per-file detail:
    ```bash
-   bun ~/.claude/PAI/TOOLS/InterviewScan.ts --file <NAME>
+   bun ~/.config/opencode/PAI/TOOLS/InterviewScan.ts --file <NAME>
    ```
 2. Check the mode:
    - `REVIEW mode` (≥80% complete) → read the file contents to the principal first, then ask review questions
@@ -83,10 +83,10 @@ For each file:
 5. If the principal wants a change, the DA writes it via Edit tool — precise old_string/new_string, preserve surrounding structure.
 6. Voice-confirm only on actual changes:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Updated <FILE> — captured the refinement.", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 7. Ask: "Anything else for <FILE>, or move on?"
 
@@ -111,7 +111,7 @@ Same pattern Phase 2 → Phase 3 → Phase 4.
 After foundational changes, regenerate the startup summary so future sessions pick up the updates:
 
 ```bash
-bun ~/.claude/PAI/TOOLS/TelosRenderer.ts 2>/dev/null || true
+bun ~/.config/opencode/PAI/TOOLS/TelosRenderer.ts 2>/dev/null || true
 ```
 
 ## Rules

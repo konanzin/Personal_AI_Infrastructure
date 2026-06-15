@@ -3,10 +3,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the ReplayFlow workflow in the Interceptor skill to replay a recorded flow", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **ReplayFlow** in **Interceptor**...
@@ -29,7 +29,7 @@ Replay a previously recorded user flow to verify it still works after a deploy o
 Recorded flows live in `skills/Interceptor/Flows/`. List available flows:
 
 ```bash
-ls ~/.claude/skills/Interceptor/Flows/
+ls ~/.config/opencode/skills/Interceptor/Flows/
 ```
 
 Or regenerate from a monitor session:

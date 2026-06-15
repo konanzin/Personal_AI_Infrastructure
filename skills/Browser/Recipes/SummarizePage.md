@@ -1,7 +1,7 @@
 ---
 name: Summarize Page
 description: Navigate to a URL and extract a summary of the page content
-tool: BrowserAgent
+tool: agent-browser
 defaults:
   format: markdown
 ---

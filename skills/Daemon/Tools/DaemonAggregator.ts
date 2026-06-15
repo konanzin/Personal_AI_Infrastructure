@@ -22,7 +22,7 @@ import { filterContent, filterDaemonData, loadSecurityOverrides } from "./Securi
 // ─── Path Resolution ───
 
 const HOME = process.env.HOME || process.env.USERPROFILE || "";
-const PAI_DIR = process.env.PAI_DIR || join(HOME, ".claude", "PAI");
+const PAI_DIR = process.env.PAI_DIR || join(HOME, ".config", "opencode", "PAI");
 const USER_DIR = join(PAI_DIR, "USER");
 const MEMORY_DIR = join(PAI_DIR, "MEMORY");
 const TELOS_DIR = join(USER_DIR, "TELOS");
@@ -369,8 +369,8 @@ function readPreferences(): string[] {
 function readExistingDaemon(): Record<string, unknown> {
   const daemonPath = join(USER_DAEMON_DIR, "daemon.md");
   if (!existsSync(daemonPath)) {
-    // Fall back to old location
-    const oldPath = join(HOME, ".claude", "skills", "_DAEMON", "Mcp", "daemon.md");
+    // Fall back to the installed skill location.
+    const oldPath = join(HOME, ".config", "opencode", "skills", "_DAEMON", "Mcp", "daemon.md");
     if (!existsSync(oldPath)) return {};
     return parseDaemonMd(readFileSync(oldPath, "utf-8"));
   }

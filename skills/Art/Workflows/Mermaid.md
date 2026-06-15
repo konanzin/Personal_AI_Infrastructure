@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Mermaid workflow in the Art skill to create diagrams", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **Mermaid** in **Art**...
@@ -18,6 +18,8 @@ Running **Mermaid** in **Art**...
 Creates **EXCALIDRAW-STYLE MERMAID DIAGRAMS** — flowcharts, sequence diagrams, state machines, and other technical diagrams with whiteboard hand-drawn feel, derived from content via story explanation.
 
 ---
+
+**Capability guard:** before calling `RemoveBg.ts`, verify `test -f ~/.config/opencode/PAI/TOOLS/RemoveBg.ts`; if missing, use local `rembg` directly when available or report transparent-background export unavailable.
 
 ## Purpose
 
@@ -646,7 +648,7 @@ Optional: Sign small in bottom right corner in charcoal (#2D2D2D).
 **Execute with optimal model for text-heavy diagrams:**
 
 ```bash
-bun run ~/.claude/skills/art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "[YOUR COMPREHENSIVE PROMPT]" \
   --size 2K \
@@ -669,7 +671,7 @@ GOING INTO BLOG/WEBSITE: Remove background for transparency
 **For blog/website use** — use the **Images skill** for background removal:
 
 ```bash
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts /path/to/mermaid-diagram.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts /path/to/mermaid-diagram.png
 ```
 
 

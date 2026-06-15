@@ -18,14 +18,14 @@ Read and display the current state of world threat models.
 ### Step 1: Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Checking current world model state", "language": "en-US", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
 ```
 
 ### Step 2: Read INDEX
 
-Read `~/.claude/PAI/MEMORY/RESEARCH/WorldModels/INDEX.md`.
+Read `~/.config/opencode/PAI/MEMORY/RESEARCH/WorldModels/INDEX.md`.
 If it doesn't exist: "No world models found. Run 'update world models' to create them."
 
 ### Step 3: Determine View Scope

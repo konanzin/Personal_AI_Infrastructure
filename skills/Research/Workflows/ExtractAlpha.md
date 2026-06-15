@@ -121,13 +121,13 @@ Capture the subtle genius buried in the content.
 **Use the current work item directory for all working files during analysis:**
 
 ```bash
-~/.claude/PAI/MEMORY/WORK/{current_work}/
+~/.config/opencode/PAI/MEMORY/WORK/{current_work}/
 ```
 
 **To get the current work directory:**
-1. Read `~/.claude/`
+1. Read `~/.config/opencode/`
 2. Extract the `work_dir` value
-3. Use `~/.claude/PAI/MEMORY/WORK/{work_dir}/` for temporary artifacts
+3. Use `~/.config/opencode/PAI/MEMORY/WORK/{work_dir}/` for temporary artifacts
 
 **What goes in the work item directory:**
 - Raw transcripts from fabric -y
@@ -143,7 +143,7 @@ Capture the subtle genius buried in the content.
 
 **Example work item structure:**
 ```
-~/.claude/PAI/MEMORY/WORK/20260111-172408_extract-alpha-analysis/
+~/.config/opencode/PAI/MEMORY/WORK/20260111-172408_extract-alpha-analysis/
 ├── raw-transcript.txt
 ├── deep thinking-notes.md
 ├── draft-insights.md
@@ -155,7 +155,7 @@ Capture the subtle genius buried in the content.
 **Save final outputs to permanent history:**
 
 ```bash
-~/.claude/History/research/YYYY-MM-DD_description/
+~/.config/opencode/History/research/YYYY-MM-DD_description/
 ```
 
 **What goes in history/research/:**
@@ -166,7 +166,7 @@ Capture the subtle genius buried in the content.
 
 **Example history structure:**
 ```
-~/.claude/History/research/2025-10-26_podcast-analysis/
+~/.config/opencode/History/research/2025-10-26_podcast-analysis/
 ├── README.md                  # Research session documentation
 ├── extract_alpha.md           # Final 24-30 insights
 ├── deep thinking-analysis.md     # Full deep analysis
@@ -209,16 +209,16 @@ Create a README.md in the history directory documenting the research:
 1. **Check if hooks captured the output:**
    ```bash
    # Check most recent history entries
-   ls -lt ~/.claude/History/research/ | head -5
+   ls -lt ~/.config/opencode/History/research/ | head -5
 
    # Verify your research directory exists
-   ls ~/.claude/History/research/YYYY-MM-DD_description/
+   ls ~/.config/opencode/History/research/YYYY-MM-DD_description/
    ```
 
 2. **If hooks did NOT capture automatically:**
    ```bash
    # Create directory structure manually
-   mkdir -p ~/.claude/History/research/YYYY-MM-DD_description/
+   mkdir -p ~/.config/opencode/History/research/YYYY-MM-DD_description/
 
    # Save extract_alpha.md (final insights)
    # Save deep thinking-analysis.md (full analysis)
@@ -228,7 +228,7 @@ Create a README.md in the history directory documenting the research:
 
 3. **Confirm all files saved:**
    ```bash
-   ls -lah ~/.claude/History/research/YYYY-MM-DD_description/
+   ls -lah ~/.config/opencode/History/research/YYYY-MM-DD_description/
    # Should show: README.md, extract_alpha.md, deep thinking-analysis.md, metadata.json
    ```
 
@@ -236,10 +236,10 @@ Create a README.md in the history directory documenting the research:
 
 ```bash
 # 1. Get current work directory
-WORK_DIR=$(jq -r '.work_dir' ~/.claude/PAI/MEMORY/STATE/current-work.json)
+WORK_DIR=$(jq -r '.work_dir' ~/.config/opencode/PAI/MEMORY/STATE/current-work.json)
 
 # 2. Work in current work item directory
-cd ~/.claude/PAI/MEMORY/WORK/${WORK_DIR}/
+cd ~/.config/opencode/PAI/MEMORY/WORK/${WORK_DIR}/
 
 # 3. Extract content to work item directory
 fabric -y "YOUTUBE_URL" > raw-transcript.txt
@@ -251,7 +251,7 @@ fabric -y "YOUTUBE_URL" > raw-transcript.txt
 # [Extract 24-30 insights from deep thinking analysis, draft in work item directory]
 
 # 6. Create permanent history directory
-mkdir -p ~/.claude/History/research/$(date +%Y-%m-%d)_podcast-analysis/
+mkdir -p ~/.config/opencode/History/research/$(date +%Y-%m-%d)_podcast-analysis/
 
 # 7. Save final outputs to history
 # - extract_alpha.md (final insights)
@@ -260,7 +260,7 @@ mkdir -p ~/.claude/History/research/$(date +%Y-%m-%d)_podcast-analysis/
 # - metadata.json (source info)
 
 # 8. Verify hooks captured it
-ls -lah ~/.claude/History/research/$(date +%Y-%m-%d)_podcast-analysis/
+ls -lah ~/.config/opencode/History/research/$(date +%Y-%m-%d)_podcast-analysis/
 
 # 9. Note: working artifacts remain tied to work item for learning
 # (Don't delete working files - they provide context for the work item)
@@ -371,11 +371,11 @@ fabric -y "https://youtu.be/VIDEO_ID"
 When this skill activates, PAI should:
 
 1. **Load content** via appropriate method (fabric -y, WebFetch, Read, or paste)
-2. **Get current work directory** - Read `~/.claude/` for `work_dir`
-3. **Use work item directory** - Work in `~/.claude/PAI/MEMORY/WORK/{work_dir}/`
+2. **Get current work directory** - Read `~/.config/opencode/` for `work_dir`
+3. **Use work item directory** - Work in `~/.config/opencode/PAI/MEMORY/WORK/{work_dir}/`
 4. **Engage deep thinking mode** - Deep extended thinking through all 10 dimensions
 5. **Extract insights** - Extract 24-30 highest-alpha ideas focusing on low-probability brilliant insights
-6. **Save to history** - Final outputs to `~/.claude/History/research/YYYY-MM-DD_description/`
+6. **Save to history** - Final outputs to `~/.config/opencode/History/research/YYYY-MM-DD_description/`
 7. **Verify capture** - Ensure hooks captured or manually save all files
 8. **Output simple list** - Unformatted markdown, Paul Graham style, 8-12 words each
 9. **Prioritize surprise** - Novel ideas over obvious takeaways

@@ -10,10 +10,10 @@ purpose: Generate complete, production-ready TypeScript CLI from requirements
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the CreateCli workflow in the CreateCLI skill to generate new CLI", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **CreateCli** workflow in the **CreateCLI** skill to generate new CLI...
@@ -276,7 +276,7 @@ const format = formatIdx !== -1 ? args[formatIdx + 1] : 'json';
 4. **Value flags**: `--flag <value>` for choices
 5. **Composable**: Flags should combine logically
 
-**Reference:** `~/.claude/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md` (Configuration Flags section)
+**Reference:** `~/.config/opencode/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md` (Configuration Flags section)
 
 ---
 
@@ -371,7 +371,7 @@ PHILOSOPHY:
   - Documented: Full help and examples
   - Testable: Predictable behavior
 
-For more information, see ~/.claude/Bin/{{CLI_NAME}}/README.md
+For more information, see ~/.config/opencode/Bin/{{CLI_NAME}}/README.md
 
 Version: 1.0.0
 `);
@@ -537,7 +537,7 @@ main().catch((error) => {
 
 ## Full Documentation
 
-See: ~/.claude/Bin/{{CLI_NAME}}/README.md
+See: ~/.config/opencode/Bin/{{CLI_NAME}}/README.md
 ```
 
 ---
@@ -603,7 +603,7 @@ See: ~/.claude/Bin/{{CLI_NAME}}/README.md
 
 **Validation Commands:**
 ```bash
-cd ~/.claude/Bin/{{CLI_NAME}}/
+cd ~/.config/opencode/Bin/{{CLI_NAME}}/
 chmod +x {{CLI_NAME}}.ts
 ./{{CLI_NAME}}.ts --help
 ./{{CLI_NAME}}.ts --version
@@ -611,7 +611,7 @@ chmod +x {{CLI_NAME}}.ts
 
 **Report to user:**
 ```
-✅ CLI Created: ~/.claude/Bin/{{CLI_NAME}}/
+✅ CLI Created: ~/.config/opencode/Bin/{{CLI_NAME}}/
 
 Files generated:
 - {{CLI_NAME}}.ts ({{LINE_COUNT}} lines)
@@ -626,7 +626,7 @@ Next steps:
 2. Test: ./{{CLI_NAME}}.ts --help
 3. Use: ./{{CLI_NAME}}.ts {{EXAMPLE_COMMAND}}
 
-Documentation: ~/.claude/Bin/{{CLI_NAME}}/README.md
+Documentation: ~/.config/opencode/Bin/{{CLI_NAME}}/README.md
 ```
 
 ---
@@ -638,7 +638,7 @@ Documentation: ~/.claude/Bin/{{CLI_NAME}}/README.md
 
 **Generated Output:**
 ```
-✅ CLI Created: ~/.claude/Bin/notioncli/
+✅ CLI Created: ~/.config/opencode/Bin/notioncli/
 
 Files generated:
 - notioncli.ts (342 lines)
@@ -657,7 +657,7 @@ Commands available:
 Next steps:
 1. Add NOTION_API_KEY=your_key to ${PAI_CONFIG_DIR}/.env
 2. Test: notioncli databases
-3. Read: ~/.claude/Bin/notioncli/README.md
+3. Read: ~/.config/opencode/Bin/notioncli/README.md
 
 The CLI follows llcli pattern with type safety, error handling,
 and comprehensive documentation.
@@ -751,7 +751,7 @@ Show real usage examples, not just flag descriptions.
 Run `--help` and version command before reporting success.
 
 ### 8. **Follow llcli Pattern**
-Use proven structure from ~/.claude/Bin/llcli/ as reference.
+Use proven structure from ~/.config/opencode/Bin/llcli/ as reference.
 
 ---
 

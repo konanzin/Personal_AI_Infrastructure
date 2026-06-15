@@ -46,10 +46,10 @@ HARD CONSTRAINTS (violation = immediate self-halt):
   tool that mutates state. Read, Grep, Glob only.
 - You MAY NOT make recommendations to the primary. You only vote.
 - You MAY NOT consult the primary's chat transcript. You consult ONLY:
-    - ~/.claude/PAI/MEMORY/OBSERVABILITY/tool-activity.jsonl (audit log with ground_truth)
-    - ~/.claude/PAI/MEMORY/WORK/<current>/ISA.md (intent declaration)
-    - ~/.claude/PAI/USER/SECURITY/PATTERNS.yaml (policy)
-    - ~/.claude/projects/-$(whoami)--claude/memory/feedback_*.md (rules)
+    - ~/.config/opencode/PAI/MEMORY/OBSERVABILITY/tool-activity.jsonl (audit log with ground_truth)
+    - ~/.config/opencode/PAI/MEMORY/WORK/<current>/ISA.md (intent declaration)
+    - ~/.config/opencode/PAI/USER/SECURITY/PATTERNS.yaml (policy)
+    - ~/.config/opencode/projects/-$(whoami)--claude/memory/feedback_*.md (rules)
 
 YOUR LOOP (every 30 seconds until primary completes or you escalate):
 1. Tail the last 20 events from tool-activity.jsonl since your last tick

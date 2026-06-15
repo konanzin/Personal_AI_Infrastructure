@@ -25,7 +25,7 @@ The social skill now uses code-based Apify scripts instead of `mcp__apify` MCP t
 **Example Workflow:**
 
 1. User: "Turn my latest tweet into a LinkedIn post"
-2. System runs: `bun ~/.claude/filesystem-mcps/apify/get-latest-tweet.ts`
+2. System runs: `bun ~/.config/opencode/filesystem-mcps/apify/get-latest-tweet.ts`
 3. Script returns: Tweet text + metadata (~500 tokens)
 4. System transforms tweet into LinkedIn format
 5. **Token savings: 98%** (vs fetching unfiltered profile data)
@@ -36,13 +36,13 @@ The social skill now uses code-based Apify scripts instead of `mcp__apify` MCP t
 
 ```bash
 # Research what ThePrimeagen is discussing
-bun ~/.claude/filesystem-mcps/apify/get-user-tweets.ts ThePrimeagen 10
+bun ~/.config/opencode/filesystem-mcps/apify/get-user-tweets.ts ThePrimeagen 10
 
 # Analyze Paul Graham's recent thoughts
-bun ~/.claude/filesystem-mcps/apify/get-user-tweets.ts paulg 20
+bun ~/.config/opencode/filesystem-mcps/apify/get-user-tweets.ts paulg 20
 
 # Track Simon Willison's posts
-bun ~/.claude/filesystem-mcps/apify/get-user-tweets.ts simonw 15
+bun ~/.config/opencode/filesystem-mcps/apify/get-user-tweets.ts simonw 15
 ```
 
 **Token Efficiency:**
@@ -56,7 +56,7 @@ bun ~/.claude/filesystem-mcps/apify/get-user-tweets.ts simonw 15
 
 ```bash
 # Get user's thread about AI topic
-bun ~/.claude/filesystem-mcps/apify/get-latest-thread.ts
+bun ~/.config/opencode/filesystem-mcps/apify/get-latest-thread.ts
 
 # Expand thread into blog post format
 # Token efficient: only thread content in context
@@ -111,7 +111,7 @@ mcp__Apify__get-actor-output(runId)
 
 ```typescript
 // All in one script, filtering in code
-bun ~/.claude/filesystem-mcps/apify/get-latest-tweet.ts
+bun ~/.config/opencode/filesystem-mcps/apify/get-latest-tweet.ts
 
 // Returns only filtered result: ~500 tokens
 // Savings: 98.2%
@@ -123,7 +123,7 @@ bun ~/.claude/filesystem-mcps/apify/get-latest-tweet.ts
 ✅ Use appropriate script for the task
 ✅ Let script filter data before returning
 ✅ Trust token savings calculations
-✅ Run from `~/.claude/filesystem-mcps/apify/` directory or use full path
+✅ Run from `~/.config/opencode/filesystem-mcps/apify/` directory or use full path
 ✅ Check execution time (~10 seconds expected)
 
 ### DON'T:
@@ -198,13 +198,13 @@ Other Apify actors worth implementing:
 ## Documentation
 
 **For Users:**
-- Quick reference: `~/.claude/`
-- Social skill: `~/.claude/`
+- Quick reference: `~/.config/opencode/`
+- Social skill: `~/.config/opencode/`
 
 **For Developers:**
-- Implementation: `~/.claude/`
-- Standards: `~/.claude/`
-- Parent guide: `~/.claude/`
+- Implementation: `~/.config/opencode/`
+- Standards: `~/.config/opencode/`
+- Parent guide: `~/.config/opencode/`
 
 ## Support
 

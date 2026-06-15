@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the AnnotatedScreenshots workflow in the Art skill to annotate images", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **AnnotatedScreenshots** in **Art**...
@@ -261,7 +261,7 @@ If generating combined image is difficult:
 
 **Option A: Generate combined (if model supports):**
 ```bash
-bun run ~/.claude/skills/art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/art/Tools/Generate.ts \
   --model nano-banana-pro \
   --reference-image /path/to/screenshot.png \
   --prompt "[ANNOTATION PROMPT]" \

@@ -16,7 +16,7 @@ Refresh or create world model documents using deep research and user-provided an
 
 ## Prerequisites
 
-- Model template at `~/.claude/skills/WorldThreatModel/ModelTemplate.md`
+- Model template at `~/.config/opencode/skills/WorldThreatModel/ModelTemplate.md`
 - Research skill available for web research
 
 ## Workflow Steps
@@ -24,7 +24,7 @@ Refresh or create world model documents using deep research and user-provided an
 ### Step 0: Check Existing State
 
 ```
-Read ~/.claude/PAI/MEMORY/RESEARCH/WorldModels/INDEX.md (if exists)
+Read ~/.config/opencode/PAI/MEMORY/RESEARCH/WorldModels/INDEX.md (if exists)
 Inventory which models exist and their last_updated dates
 Determine: full creation vs. targeted update
 ```
@@ -32,7 +32,7 @@ Determine: full creation vs. targeted update
 ### Step 1: Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Updating world threat models. This will take several minutes as I research current state for each time horizon.", "language": "en-US", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
 ```
@@ -79,11 +79,11 @@ For each model, following `ModelTemplate.md`:
 4. Include specific data points, named entities, cited reasoning
 5. Write Wildcards section with probability estimates
 
-Save to: `~/.claude/PAI/MEMORY/RESEARCH/WorldModels/{horizon}.md`
+Save to: `~/.config/opencode/PAI/MEMORY/RESEARCH/WorldModels/{horizon}.md`
 
 ### Step 5: Update INDEX
 
-Write/update `~/.claude/PAI/MEMORY/RESEARCH/WorldModels/INDEX.md`:
+Write/update `~/.config/opencode/PAI/MEMORY/RESEARCH/WorldModels/INDEX.md`:
 
 ```markdown
 # World Threat Models — Index
@@ -104,7 +104,7 @@ Last full update: {date}
 ### Step 6: Voice Completion
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "World models updated. N horizons refreshed with current research.", "language": "en-US", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
 ```

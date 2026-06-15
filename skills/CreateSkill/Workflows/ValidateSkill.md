@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the ValidateSkill workflow in the CreateSkill skill to validate skill structure", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **ValidateSkill** workflow in the **CreateSkill** skill to validate skill structure...
@@ -20,7 +20,7 @@ Running the **ValidateSkill** workflow in the **CreateSkill** skill to validate 
 **REQUIRED FIRST:** Read the canonical structure:
 
 ```
-~/.claude/PAI/DOCUMENTATION/Skills/SkillSystem.md
+~/.config/opencode/PAI/DOCUMENTATION/Skills/SkillSystem.md
 ```
 
 ---
@@ -28,7 +28,7 @@ Running the **ValidateSkill** workflow in the **CreateSkill** skill to validate 
 ## Step 2: Read the Target Skill
 
 ```bash
-~/.claude/skills/[SkillName]/SKILL.md
+~/.config/opencode/skills/[SkillName]/SKILL.md
 ```
 
 ---
@@ -37,7 +37,7 @@ Running the **ValidateSkill** workflow in the **CreateSkill** skill to validate 
 
 ### Skill Directory
 ```bash
-ls ~/.claude/skills/ | grep -i [skillname]
+ls ~/.config/opencode/skills/ | grep -i [skillname]
 ```
 
 Verify TitleCase:
@@ -46,7 +46,7 @@ Verify TitleCase:
 
 ### Workflow Files
 ```bash
-ls ~/.claude/skills/[SkillName]/Workflows/
+ls ~/.config/opencode/skills/[SkillName]/Workflows/
 ```
 
 Verify TitleCase:
@@ -55,7 +55,7 @@ Verify TitleCase:
 
 ### Tool Files
 ```bash
-ls ~/.claude/skills/[SkillName]/Tools/
+ls ~/.config/opencode/skills/[SkillName]/Tools/
 ```
 
 Verify TitleCase:
@@ -148,7 +148,7 @@ Common confusable pairs to check: research-style skills (Research vs investigati
 Every skill ships with the PAI public release. Verify the skill is clean of personal/sensitive content:
 
 ```bash
-rg -i "danielmiessler|unsupervised|ULAdmin|thesurface|human3|ul\.live|/Users/[a-z]+/" ~/.claude/skills/[SkillName]/
+rg -i "danielmiessler|unsupervised|ULAdmin|thesurface|human3|ul\.live|/Users/[a-z]+/" ~/.config/opencode/skills/[SkillName]/
 ```
 
 **Check for violations:**
@@ -158,7 +158,7 @@ rg -i "danielmiessler|unsupervised|ULAdmin|thesurface|human3|ul\.live|/Users/[a-
 - User-specific absolute paths (`/Users/<name>/...`) — use `~/` instead
 - Personal domain names (<author>.example, <product>.example, <brand>.example) — unless the skill is specifically about operating that domain
 
-**Zero matches = PASS.** Any match = FAIL, recommend moving to `~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/<SkillName>/` or rewriting in generic language.
+**Zero matches = PASS.** Any match = FAIL, recommend moving to `~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/<SkillName>/` or rewriting in generic language.
 
 ---
 
@@ -176,7 +176,7 @@ Apply the bitter lesson test to the skill's instructions:
 ## Step 6: Check Workflow Files
 
 ```bash
-ls ~/.claude/skills/[SkillName]/Workflows/
+ls ~/.config/opencode/skills/[SkillName]/Workflows/
 ```
 
 Verify:
@@ -190,7 +190,7 @@ Verify:
 ## Step 7: Check Structure
 
 ```bash
-ls -la ~/.claude/skills/[SkillName]/
+ls -la ~/.config/opencode/skills/[SkillName]/
 ```
 
 Verify:
@@ -208,7 +208,7 @@ Verify:
 
 Check each tool for flag-based configuration:
 ```bash
-bun ~/.claude/skills/[SkillName]/Tools/[ToolName].ts --help
+bun ~/.config/opencode/skills/[SkillName]/Tools/[ToolName].ts --help
 ```
 
 Verify the tool exposes behavioral configuration via flags:
@@ -222,7 +222,7 @@ Verify the tool exposes behavioral configuration via flags:
 For workflows that call CLI tools, check for intent-to-flag mapping tables:
 
 ```bash
-grep -l "Intent-to-Flag" ~/.claude/skills/[SkillName]/Workflows/*.md
+grep -l "Intent-to-Flag" ~/.config/opencode/skills/[SkillName]/Workflows/*.md
 ```
 
 **Required pattern in workflows with CLI tools:**
@@ -235,7 +235,7 @@ grep -l "Intent-to-Flag" ~/.claude/skills/[SkillName]/Workflows/*.md
 | (default) | `--model sonnet` | Balanced |
 ```
 
-**Reference:** `~/.claude/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md`
+**Reference:** `~/.config/opencode/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md`
 
 ---
 

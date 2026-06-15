@@ -5,10 +5,10 @@ Query and display evaluation results, generate reports, and track trends.
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the ViewResults workflow in the Evals skill to display eval results", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **ViewResults** workflow in the **Evals** skill to display eval results...
@@ -36,7 +36,7 @@ Ask the user:
 
 ```bash
 # Show most recent run
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts results \
   --use-case <name> \
   --latest
 ```
@@ -45,7 +45,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
 
 ```bash
 # List last 10 runs
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts results \
   --use-case <name> \
   --limit 10
 ```
@@ -55,7 +55,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
 **Single Run Details:**
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts results \
   --run-id <run-id> \
   --verbose
 ```
@@ -63,7 +63,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
 **Per-Test-Case Breakdown:**
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts results \
   --run-id <run-id> \
   --show-cases
 ```
@@ -74,19 +74,19 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
 
 ```bash
 # Generate markdown report
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts report \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts report \
   --run-id <run-id> \
-  --output ~/.claude/skills/Evals/Results/<use-case>/<run-id>/report.md
+  --output ~/.config/opencode/skills/Evals/Results/<use-case>/<run-id>/report.md
 ```
 
 **Using Report Template:**
 
 ```bash
 # Render with template
-bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
+bun run ~/.config/opencode/Templates/Tools/RenderTemplate.ts \
   -t Evals/Report.hbs \
-  -d ~/.claude/skills/Evals/Results/<use-case>/<run-id>/results.yaml \
-  -o ~/.claude/skills/Evals/Results/<use-case>/<run-id>/report.md
+  -d ~/.config/opencode/skills/Evals/Results/<use-case>/<run-id>/results.yaml \
+  -o ~/.config/opencode/skills/Evals/Results/<use-case>/<run-id>/report.md
 ```
 
 ### Step 5: Query Database
@@ -94,7 +94,7 @@ bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
 **Direct SQLite Queries:**
 
 ```bash
-cd ~/.claude/skills/Evals/EvalServer
+cd ~/.config/opencode/skills/Evals/EvalServer
 
 # Recent runs by use case
 sqlite3 storage/evals.db "
@@ -127,7 +127,7 @@ sqlite3 storage/evals.db "
 **Two Runs Side-by-Side:**
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts compare \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts compare \
   --run-a <run-id-1> \
   --run-b <run-id-2>
 ```
@@ -135,7 +135,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts compare \
 **Trend Analysis:**
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts trend \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts trend \
   --use-case <name> \
   --days 30
 ```
@@ -274,7 +274,7 @@ For spreadsheet analysis.
 ### Regression Detection
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts trend \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts trend \
   --use-case <name> \
   --detect-regression \
   --threshold 0.10  # Alert if >10% drop
@@ -327,7 +327,7 @@ Alert: None
 ### "How did the last eval go?"
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts results \
   --use-case <name> \
   --latest \
   --summary
@@ -336,7 +336,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
 ### "Why did test X fail?"
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts results \
   --run-id <run-id> \
   --test-id <test-id> \
   --verbose
@@ -345,7 +345,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
 ### "Is performance improving or declining?"
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts trend \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts trend \
   --use-case <name> \
   --days 14
 ```
@@ -353,7 +353,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts trend \
 ### "Which model is best for this task?"
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts compare \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts compare \
   --use-case <name> \
   --compare-models \
   --recent
@@ -362,7 +362,7 @@ bun run ~/.claude/skills/Evals/EvalServer/cli.ts compare \
 ### "Show me all failures this week"
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli.ts results \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli.ts results \
   --use-case <name> \
   --since "7 days ago" \
   --failures-only

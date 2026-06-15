@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the TechnicalDiagrams workflow in the Art skill to create diagrams", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **TechnicalDiagrams** in **Art**...
@@ -65,7 +65,7 @@ The workflow template below includes a title + subtitle block. **Override this w
 
 # Example image
 # Ignore for now
-# ~/.claude/skills/Art/WorkflowExamples/TechnicalDiagrams/example.png
+# ~/.config/opencode/skills/Art/WorkflowExamples/TechnicalDiagrams/example.png
 
 ---
 
@@ -231,7 +231,7 @@ All the art components, labels, and such should mostly look hand-drawn, similar 
 ### Generate Command
 
 ```bash
-bun run ~/.claude/skills/Art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/Art/Tools/Generate.ts \
   --model [SELECTED_MODEL] \
   --prompt "[PROMPT]" \
   --size [SELECTED_SIZE] \

@@ -3,10 +3,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the TechnicalCreativityGemini3 workflow in the BeCreative skill to generate technical solutions", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **TechnicalCreativityGemini3** in **BeCreative**...
@@ -361,7 +361,7 @@ This workflow is part of the be-creative skill ecosystem but serves a specialize
 ```markdown
 For technical creativity challenges, use the technical-creativity-gemini-3 workflow:
 
-1. Load workflow: `read ~/.claude/skills/BeCreative/Workflows/TechnicalCreativityGemini3.md`
+1. Load workflow: `read ~/.config/opencode/skills/BeCreative/Workflows/TechnicalCreativityGemini3.md`
 2. Follow the workflow structure (Problem → Constraints → Generation → Evaluation)
 3. Use Gemini 3 Pro via llm CLI for creative technical solutions
 4. Return diverse technical approaches with trade-off analysis

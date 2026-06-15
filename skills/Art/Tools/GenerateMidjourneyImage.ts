@@ -9,7 +9,7 @@
  * Usage:
  *   generate-midjourney-image --prompt "..." --aspect-ratio 16:9 --output /tmp/image.png
  *
- * @see ~/.claude/skills/art/SKILL.md
+ * @see ~/.config/opencode/skills/art/SKILL.md
  */
 
 import { DiscordBotClient } from '../lib/discord-bot.js';
@@ -26,7 +26,7 @@ import { resolve } from 'node:path';
  * This ensures API keys are available regardless of how the CLI is invoked
  */
 async function loadEnv(): Promise<void> {
-  const paiDir = process.env.PAI_DIR || resolve(process.env.HOME!, '.claude');
+  const paiDir = process.env.PAI_CONFIG_DIR || process.env.OPENCODE_DIR || resolve(process.env.HOME!, '.config/opencode');
   const envPath = resolve(paiDir, '.env');
   try {
     const envContent = await readFile(envPath, 'utf-8');

@@ -5,10 +5,10 @@ Create a custom LLM-as-Judge using templates.
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the CreateJudge workflow in the Evals skill to create LLM judge", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **CreateJudge** workflow in the **Evals** skill to create LLM judge...
@@ -33,7 +33,7 @@ Ask the user:
 
 ### Step 2: Create Judge Config
 
-Create `~/.claude/skills/Evals/UseCases/<name>/judge-config.yaml`:
+Create `~/.config/opencode/skills/Evals/UseCases/<name>/judge-config.yaml`:
 
 ```yaml
 judge:
@@ -65,10 +65,10 @@ output:
 ### Step 3: Render Judge Prompt
 
 ```bash
-bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
+bun run ~/.config/opencode/Templates/Tools/RenderTemplate.ts \
   -t Evals/Judge.hbs \
-  -d ~/.claude/skills/Evals/UseCases/<name>/judge-config.yaml \
-  -o ~/.claude/skills/Evals/UseCases/<name>/judge-prompt.md \
+  -d ~/.config/opencode/skills/Evals/UseCases/<name>/judge-config.yaml \
+  -o ~/.config/opencode/skills/Evals/UseCases/<name>/judge-prompt.md \
   --preview
 ```
 
@@ -99,7 +99,7 @@ criteria:
 Run a single test case to verify:
 
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli-run.ts \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli-run.ts \
   --use-case <name> \
   --test-id <single-test> \
   --verbose

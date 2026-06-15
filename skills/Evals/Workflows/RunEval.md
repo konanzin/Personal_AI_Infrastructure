@@ -5,10 +5,10 @@ Run evaluations for a specific use case.
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the RunEval workflow in the Evals skill to execute evaluation", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **RunEval** workflow in the **Evals** skill to execute evaluation...
@@ -27,7 +27,7 @@ Running the **RunEval** workflow in the **Evals** skill to execute evaluation...
 
 ```bash
 # Check use case exists
-ls ~/.claude/skills/Evals/UseCases/<use-case>/config.yaml
+ls ~/.config/opencode/skills/Evals/UseCases/<use-case>/config.yaml
 ```
 
 If missing, redirect to `CreateUseCase.md` workflow.
@@ -36,12 +36,12 @@ If missing, redirect to `CreateUseCase.md` workflow.
 
 ```bash
 # Check if server is running
-curl -s http://localhost:5173 > /dev/null 2>&1 && echo "Running" || echo "Not running"
+curl -s http://localhost:5173 > /dev/null 2>&1 || true) && echo "Running" || echo "Not running"
 ```
 
 If not running, start it:
 ```bash
-cd ~/.claude/skills/Evals/EvalServer && bun run dev &
+cd ~/.config/opencode/skills/Evals/EvalServer && bun run dev &
 ```
 
 ### Step 3: Run Evaluation
@@ -55,7 +55,7 @@ cd ~/.claude/skills/Evals/EvalServer && bun run dev &
 
 **Option B: CLI**
 ```bash
-bun run ~/.claude/skills/Evals/EvalServer/cli-run.ts \
+bun run ~/.config/opencode/skills/Evals/EvalServer/cli-run.ts \
   --use-case <name> \
   --model claude-3-5-sonnet-20241022
 ```

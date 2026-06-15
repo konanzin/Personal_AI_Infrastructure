@@ -3,10 +3,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Update workflow in the Browser skill to sync capabilities", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **Update** in **Browser**...
@@ -43,17 +43,17 @@ agent-browser --session update-test screenshot /tmp/update-test.png
 agent-browser open https://example.com && agent-browser screenshot /tmp/oneshot-test.png
 ```
 
-### 4. Verify BrowserAgent
+### 4. Verify Parallel Worker Pattern
 
 ```
-Agent(subagent_type="BrowserAgent", prompt="Navigate to https://example.com. Take a snapshot. Report page title.")
+Agent(subagent_type="general-purpose", prompt="Use agent-browser --session update-worker to navigate to https://example.com. Take a snapshot. Report page title.")
 ```
 
 ### 5. Verify Stories and Recipes
 
 ```bash
-ls ~/.claude/skills/Browser/Stories/*.yaml
-ls ~/.claude/skills/Browser/Recipes/*.md
+ls ~/.config/opencode/skills/Browser/Stories/*.yaml
+ls ~/.config/opencode/skills/Browser/Recipes/*.md
 ```
 
 ## Version Tracking
@@ -63,7 +63,7 @@ ls ~/.claude/skills/Browser/Recipes/*.md
 # Version: 8.0.0
 # Headless: agent-browser (Rust CLI daemon, headless default)
 # One-shot: agent-browser open <url> && agent-browser screenshot <path>
-# Agents: BrowserAgent, UIReviewer (both headless agent-browser)
+# Agents: general-purpose workers with agent-browser instructions
 # Orchestration: ReviewStories, Automate
 # Custom code: NONE
 ```

@@ -163,7 +163,7 @@ Now create the FULL beat map — every major story beat with ALL seven layers ma
 
 Write the Story Bible as a PRD file:
 
-**Location:** Project directory `.prd/` or `~/.claude/plans/`
+**Location:** Project directory `.prd/` or `~/.config/opencode/plans/`
 
 ```markdown
 ---

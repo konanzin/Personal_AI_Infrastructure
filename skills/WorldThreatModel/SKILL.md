@@ -80,7 +80,7 @@ This skill orchestrates multiple PAI capabilities:
 
 Before any workflow execution:
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running WORKFLOW_NAME in the World Threat Model Harness", "language": "en-US", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
 ```
@@ -88,7 +88,7 @@ curl -s -X POST http://localhost:31337/notify \
 ## Customization Check
 
 Before execution, check for user customizations at:
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/WorldThreatModelHarness/`
+`~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/WorldThreatModelHarness/`
 
 ## Gotchas
 
@@ -118,7 +118,7 @@ User: "what could go wrong with our newsletter business model?"
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"WorldThreatModel","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"WorldThreatModel","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

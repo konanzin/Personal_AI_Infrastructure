@@ -5,10 +5,10 @@ Full structured multi-agent debate with 3 rounds and visible transcript.
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Debate workflow in the Council skill to run multi-agent debate", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **Debate** workflow in the **Council** skill to run multi-agent debate...
@@ -36,22 +36,22 @@ Before any debate rounds, compose 4 custom agents tailored to the topic using Co
 # Analyze the topic and determine what perspectives create productive friction
 # Then compose each agent with topic-specific traits:
 
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "[domain],enthusiastic,systematic" \
   --task "[debate topic]" \
   --output json
 
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "[domain],skeptical,meticulous" \
   --task "[debate topic]" \
   --output json
 
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "[domain],pragmatic,analytical" \
   --task "[debate topic]" \
   --output json
 
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
   --traits "research,analytical,comparative" \
   --task "[debate topic]" \
   --output json

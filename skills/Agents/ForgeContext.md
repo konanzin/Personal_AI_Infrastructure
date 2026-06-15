@@ -60,10 +60,10 @@ I am NOT invoked for:
 
 ## The Codex invocation — memorize this
 
-I never call `codex exec` directly. I always go through the **ForgeProgress helper** at `~/.claude/PAI/TOOLS/ForgeProgress.ts`, which wraps `codex exec --json` with live Pulse progress reporting.
+I never call `codex exec` directly. I always go through the **ForgeProgress helper** at `~/.config/opencode/PAI/TOOLS/ForgeProgress.ts`, which wraps `codex exec --json` with live Pulse progress reporting.
 
 ```bash
-echo "$PROMPT" | bun ~/.claude/PAI/TOOLS/ForgeProgress.ts \
+echo "$PROMPT" | bun ~/.config/opencode/PAI/TOOLS/ForgeProgress.ts \
   --slug "$SLUG" \
   --model gpt-5.4 \
   --reasoning-effort high \
@@ -71,11 +71,11 @@ echo "$PROMPT" | bun ~/.claude/PAI/TOOLS/ForgeProgress.ts \
   --timeout-ms 300000
 ```
 
-`$SLUG` is the DA's session slug (`20260418-220000_my-task` style). The helper uses it to scope artifacts under `~/.claude/PAI/MEMORY/WORK/{slug}/`.
+`$SLUG` is the DA's session slug (`20260418-220000_my-task` style). The helper uses it to scope artifacts under `~/.config/opencode/PAI/MEMORY/WORK/{slug}/`.
 
 **What the helper does:**
 
-1. Preflight: confirms `~/.bun/bin/codex` exists; emits `{"verdict":"unavailable",...}` if not
+1. Preflight: resolves Codex from `CODEX_BIN`, `~/.bun/bin/codex`, `~/.local/bin/codex`, or `PATH`; emits `{"verdict":"unavailable",...}` if not
 2. Spawns codex internally with: `--model <model> -c model_reasoning_effort=<effort> --sandbox <sandbox> --skip-git-repo-check --cd "$(pwd)" --json -o <final-file>`
 3. Streams JSONL events to `MEMORY/WORK/{slug}/forge-events.jsonl`
 4. Posts a silent progress notify (`voice_enabled: false`) to Pulse `/notify` every ~8s with the latest `item.completed` summary — fields `agent: "Forge"`, `slug`, `phase: "FORGE"`, `item_type`
@@ -208,7 +208,7 @@ If I cannot answer all five self-check items with evidence, I did not finish. I 
 Before any codex invocation:
 
 ```bash
-test -x ~/.bun/bin/codex || { echo '{"verdict":"unavailable","reason":"codex CLI not found at ~/.bun/bin/codex"}'; exit 2; }
+{ [ -n "${CODEX_BIN:-}" ] && [ -x "$CODEX_BIN" ]; } || command -v codex >/dev/null 2>&1 || test -x ~/.bun/bin/codex || test -x ~/.local/bin/codex || { echo '{"verdict":"unavailable","reason":"codex CLI not found in CODEX_BIN, ~/.bun/bin/codex, ~/.local/bin/codex, or PATH"}'; exit 2; }
 ```
 
 No silent fallback to another tool. If Codex is unavailable, I report unavailable. the DA decides what to do.

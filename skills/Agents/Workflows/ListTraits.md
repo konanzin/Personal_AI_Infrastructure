@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the ListTraits workflow in the Agents skill to show traits", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **ListTraits** in **Agents**...
@@ -28,7 +28,7 @@ User says:
 ### Step 1: Run ComposeAgent with --list Flag
 
 ```bash
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --list
+bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts --list
 ```
 
 ### Step 2: Present Results to User
@@ -208,6 +208,6 @@ Popular Combos:
 
 ## References
 
-- Full trait definitions: `~/.claude/skills/Agents/Data/Traits.yaml`
+- Full trait definitions: `~/.config/opencode/skills/Agents/Data/Traits.yaml`
 - Voice mappings: Lines 349-794 in Traits.yaml
-- ComposeAgent tool: `~/.claude/skills/Agents/Tools/ComposeAgent.ts`
+- ComposeAgent tool: `~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts`

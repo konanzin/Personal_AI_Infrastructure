@@ -7,10 +7,10 @@ The description field in SKILL.md frontmatter is the primary mechanism that dete
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the OptimizeDescription workflow in the CreateSkill skill to optimize skill triggering", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **OptimizeDescription** workflow in the **CreateSkill** skill to optimize skill triggering...
@@ -85,7 +85,7 @@ This step matters — bad eval queries lead to bad descriptions.
 First, collect all skill names and descriptions:
 
 ```bash
-rg '^(name|description):' ~/.claude/skills/*/SKILL.md ~/.claude/skills/*/*/SKILL.md --no-filename 2>/dev/null | head -200
+rg '^(name|description):' ~/.config/opencode/skills/*/SKILL.md ~/.config/opencode/skills/*/*/SKILL.md --no-filename 2>/dev/null | head -200
 ```
 
 Then spawn a **single** Agent subagent that evaluates ALL queries at once (batching avoids 20+ separate agent spawns):

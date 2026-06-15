@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Visualize workflow in the Art skill to create visualizations", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **Visualize** in **Art**...
@@ -18,6 +18,8 @@ Running **Visualize** in **Art**...
 Creates **ADAPTIVE VISUALIZATIONS** — analyzes content to select and orchestrate the best combination of visualization techniques, from pure data viz to mixed-media infographics to multi-panel compositions.
 
 ---
+
+**Capability guard:** before calling `RemoveBg.ts`, verify `test -f ~/.config/opencode/PAI/TOOLS/RemoveBg.ts`; if missing, use local `rembg` directly when available or report background removal unavailable.
 
 ## Purpose
 
@@ -98,7 +100,7 @@ TRANSPARENT: Use Images skill to remove background for overlay use
 **For transparent background** — use the **Images skill** for background removal:
 
 ```bash
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts /path/to/visualization.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts /path/to/visualization.png
 ```
 
 
@@ -595,7 +597,7 @@ Optional: Sign small in bottom right corner in charcoal (#2D2D2D).
 **Construct command based on intent:**
 
 ```bash
-bun run ~/.claude/skills/art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/art/Tools/Generate.ts \
   --model [SELECTED_MODEL] \
   --prompt "[YOUR COMPREHENSIVE PROMPT]" \
   --size [SELECTED_SIZE] \

@@ -5,10 +5,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Comparisons workflow in the Art skill to create side-by-side visuals", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **Comparisons** in **Art**...
@@ -49,7 +49,7 @@ Illustrated comparisons show two contrasting concepts, states, or approaches sid
 ### Character Requirements (When figures present)
 
 **If comparison includes human or robot figures, MUST apply Planeform aesthetic:**
-- Read: `~/.claude/`
+- Read: `~/.config/opencode/`
 - Figures built from ANGULAR PLANES (no round forms)
 - Adult proportions (1:7), NOT cute/stubby
 - Faces are minimal geometric blocks
@@ -285,7 +285,7 @@ Optional: Sign small in bottom right corner in charcoal (#2D2D2D).
 ### Step 5: Execute Generation
 
 ```bash
-bun run ~/.claude/skills/art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "[YOUR PROMPT]" \
   --size 2K \

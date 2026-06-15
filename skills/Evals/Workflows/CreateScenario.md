@@ -83,7 +83,7 @@ skills/Evals/
 ├── Scenarios/                       # authored scenarios live here
 │   └── <name>.scenario.ts
 ├── Tools/
-│   ├── PAIAgentAdapter.ts           # wraps Inference.ts as scenario AgentAdapter
+│   ├── PAIAgentAdapter.ts           # wraps OpenCodeInference as scenario AgentAdapter
 │   ├── ScenarioRunner.ts            # CLI entrypoint
 │   └── ScenarioToTranscript.ts      # result → Evals types
 ```

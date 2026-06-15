@@ -5,15 +5,17 @@ Generate complete YouTube thumbnails from content input with dramatic tech backg
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the AdHocYouTubeThumbnail workflow in the Art skill to create thumbnails", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running **AdHocYouTubeThumbnail** in **Art**...
 
 ---
+
+**Capability guard:** before calling `RemoveBg.ts`, verify `test -f ~/.config/opencode/PAI/TOOLS/RemoveBg.ts`; if missing, use local `rembg` directly when available or report transparent-headshot background removal unavailable.
 
 ## Explicit Criteria
 
@@ -128,7 +130,7 @@ Topic context: [EXTRACTED TOPIC]
 ### Generate Command
 
 ```bash
-bun run ~/.claude/skills/Art/Tools/Generate.ts \
+bun run ~/.config/opencode/skills/Art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "[BACKGROUND PROMPT]" \
   --size 2K \
@@ -211,11 +213,11 @@ Rembrandt lighting pattern. Looking at camera. Ultra-tight crop on face only.
 ```bash
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
-bun ~/.claude/skills/<your-headshot-skill>/Tools/Headshot.ts \
+bun ~/.config/opencode/skills/<your-headshot-skill>/Tools/Headshot.ts \
   --prompt "[FACE-ONLY HEADSHOT PROMPT]" \
-  --reference ~/.claude/skills/<your-headshot-skill>/Examples/reference.png \
-  --reference ~/.claude/skills/<your-headshot-skill>/Examples/studio-style.png \
-  --reference ~/.claude/skills/<your-headshot-skill>/Examples/clean-smile.png \
+  --reference ~/.config/opencode/skills/<your-headshot-skill>/Examples/reference.png \
+  --reference ~/.config/opencode/skills/<your-headshot-skill>/Examples/studio-style.png \
+  --reference ~/.config/opencode/skills/<your-headshot-skill>/Examples/clean-smile.png \
   --size 2K \
   --aspect-ratio 1:1 \
   --output ~/Downloads/yt-headshot-${TIMESTAMP}.png
@@ -226,7 +228,7 @@ bun ~/.claude/skills/<your-headshot-skill>/Tools/Headshot.ts \
 ### Remove Background
 
 ```bash
-bun ~/.claude/PAI/TOOLS/RemoveBg.ts ~/Downloads/yt-headshot-${TIMESTAMP}.png
+bun ~/.config/opencode/PAI/TOOLS/RemoveBg.ts ~/Downloads/yt-headshot-${TIMESTAMP}.png
 ```
 
 ---
@@ -238,7 +240,7 @@ bun ~/.claude/PAI/TOOLS/RemoveBg.ts ~/Downloads/yt-headshot-${TIMESTAMP}.png
 ### Compose Command
 
 ```bash
-bun ~/.claude/skills/Art/Tools/ComposeThumbnail.ts \
+bun ~/.config/opencode/skills/Art/Tools/ComposeThumbnail.ts \
   --background ~/Downloads/yt-bg-${TIMESTAMP}.png \
   --headshot ~/Downloads/yt-headshot-${TIMESTAMP}.png \
   --title "[TITLE]" \

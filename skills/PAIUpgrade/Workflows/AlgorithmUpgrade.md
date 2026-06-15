@@ -3,10 +3,10 @@
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Algorithm Upgrade workflow to analyze and propose improvements to the PAI Algorithm", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **AlgorithmUpgrade** workflow in the **PAIUpgrade** skill to propose Algorithm improvements...
@@ -101,14 +101,14 @@ The learning system captures signals across multiple sources. Read ALL of them �
 #### 2a: Algorithm Reflections (primary)
 
 ```
-Read ~/.claude/PAI/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl
+Read ~/.config/opencode/PAI/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl
 Parse each line as JSON. This is the richest source — Q1/Q2/Q3 self-reflection after each Algorithm run.
 ```
 
 #### 2b: Rating Signals
 
 ```
-Read ~/.claude/PAI/MEMORY/LEARNING/SIGNALS/ratings.jsonl
+Read ~/.config/opencode/PAI/MEMORY/LEARNING/SIGNALS/ratings.jsonl
 Focus on entries with rating <= 5. Extract the response_preview and sentiment_summary
 to understand WHAT went wrong from the user's perspective (not just the algorithm's self-assessment).
 ```
@@ -116,7 +116,7 @@ to understand WHAT went wrong from the user's perspective (not just the algorith
 #### 2c: Algorithm-Specific Learnings
 
 ```
-Read all files in ~/.claude/PAI/MEMORY/LEARNING/ALGORITHM/ (latest month first, then previous month)
+Read all files in ~/.config/opencode/PAI/MEMORY/LEARNING/ALGORITHM/ (latest month first, then previous month)
 These are detailed learning captures from low-sentiment sessions — they contain root cause analysis
 that reflections alone may miss.
 ```
@@ -124,7 +124,7 @@ that reflections alone may miss.
 #### 2d: Failure Patterns
 
 ```
-Read ~/.claude/PAI/MEMORY/LEARNING/FAILURES/ (latest month, plus ROOT_CAUSE_ANALYSIS.md)
+Read ~/.config/opencode/PAI/MEMORY/LEARNING/FAILURES/ (latest month, plus ROOT_CAUSE_ANALYSIS.md)
 These capture recurring failure patterns. Cross-reference against the Algorithm digest from Step 1
 to identify which Algorithm rules SHOULD have prevented these failures but didn't.
 ```
@@ -141,19 +141,19 @@ Use Agent tool with subagent_type=general-purpose:
 You have four data sources to analyze:
 
 SOURCE 1: algorithm-reflections.jsonl (Step 2a)
-Read ~/.claude/PAI/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl
+Read ~/.config/opencode/PAI/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl
 Parse each line as JSON.
 For EACH entry, analyze Q2 (algorithm improvements).
 
 SOURCE 2: Low-rated sessions from ratings.jsonl (Step 2b)
-Read ~/.claude/PAI/MEMORY/LEARNING/SIGNALS/ratings.jsonl
+Read ~/.config/opencode/PAI/MEMORY/LEARNING/SIGNALS/ratings.jsonl
 Filter to rating <= 5. For each, extract what went wrong.
 
 SOURCE 3: Algorithm learning files (Step 2c)
-Read files in ~/.claude/PAI/MEMORY/LEARNING/ALGORITHM/ (2026-03/ then 2026-02/)
+Read files in ~/.config/opencode/PAI/MEMORY/LEARNING/ALGORITHM/ (2026-03/ then 2026-02/)
 
 SOURCE 4: Failure patterns (Step 2d)
-Read ~/.claude/PAI/MEMORY/LEARNING/FAILURES/ latest month + ROOT_CAUSE_ANALYSIS.md
+Read ~/.config/opencode/PAI/MEMORY/LEARNING/FAILURES/ latest month + ROOT_CAUSE_ANALYSIS.md
 
 For EACH signal across ALL sources, classify the theme using this routing table:
 
@@ -209,17 +209,17 @@ EFFORT LEVEL: Return within 60 seconds."
 Before proposing Algorithm changes, verify that the Algorithm's Claude Code references (Platform Capabilities table, agent types, hook events, slash commands) are current:
 
 ```
-Use Agent tool with subagent_type=claude-code-guide:
+Use Agent tool with subagent_type=general-purpose:
 
-"The PAI Algorithm has a Platform Capabilities table referencing Claude Code features.
-Read the current Algorithm spec at ~/.claude/PAI/ALGORITHM/v{VERSION}.md (get version from ~/.claude/PAI/ALGORITHM/LATEST).
+"The PAI Algorithm has a Platform Capabilities table referencing OpenCode runtime features.
+Read the current Algorithm spec at ~/.config/opencode/PAI/ALGORITHM/v{VERSION}.md (get version from ~/.config/opencode/PAI/ALGORITHM/LATEST).
 
 Verify that:
 1. All subagent_type values in the table are valid current types
 2. All slash commands referenced (e.g., /simplify, /batch, /debug) still exist
-3. Hook event types referenced match the current Claude Code hook API
-4. Any Claude Code features mentioned are current (not deprecated or renamed)
-5. Any MISSING Claude Code features that should be in the Algorithm's awareness
+3. Hook event types referenced match the current OpenCode plugin API
+4. Any OpenCode features mentioned are current (not deprecated or renamed)
+5. Any MISSING OpenCode features that should be in the Algorithm's awareness
 
 Return:
 {
@@ -231,7 +231,7 @@ Return:
 EFFORT LEVEL: Return within 60 seconds."
 ```
 
-Include any stale references or missing features as additional upgrade proposals in Step 5, tagged with source `claude-code-guide` and priority based on staleness impact.
+Include any stale references or missing features as additional upgrade proposals in Step 5, tagged with source `OpenCode Runtime Check` and priority based on staleness impact.
 
 ### Step 4: Cross-Reference Signals Against Current Algorithm Spec
 

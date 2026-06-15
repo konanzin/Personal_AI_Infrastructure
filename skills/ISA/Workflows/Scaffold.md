@@ -21,23 +21,23 @@ Generate a fresh ISA from a prompt at a specified effort tier. The output is a p
 
 A markdown file at one of:
 - `<project-root>/ISA.md` — when `project` is supplied (existing project ISA is read-extended, not overwritten)
-- `~/.claude/PAI/MEMORY/WORK/{slug}/ISA.md` — when no project (slug = `YYYYMMDD-HHMMSS_kebab-task-description`)
-- `~/.claude/PAI/MEMORY/WORK/{slug}/_ephemeral/<feature>.md` — when `ephemeral_feature` is set
+- `~/.config/opencode/PAI/MEMORY/WORK/{slug}/ISA.md` — when no project (slug = `YYYYMMDD-HHMMSS_kebab-task-description`)
+- `~/.config/opencode/PAI/MEMORY/WORK/{slug}/_ephemeral/<feature>.md` — when `ephemeral_feature` is set
 
 ## Procedure
 
 ### Step 1 — Voice notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the Scaffold workflow in the ISA skill", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 ### Step 2 — Pick the canonical template
 
-Always start by reading `~/.claude/skills/ISA/Examples/canonical-isa.md` for section headers and tone. For E1 reference, read `e1-minimal.md`. For E5 reference, read `e5-comprehensive.md`.
+Always start by reading `~/.config/opencode/skills/ISA/Examples/canonical-isa.md` for section headers and tone. For E1 reference, read `e1-minimal.md`. For E5 reference, read `e5-comprehensive.md`.
 
 ### Step 3 — Reverse-engineer the prompt
 

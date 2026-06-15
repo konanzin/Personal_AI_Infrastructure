@@ -4,16 +4,16 @@ description: "Dual-context Life OS and organizational analysis skill. Personal T
 effort: medium
 ---
 
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
+## Optional Legacy Pulse Progress Notification
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
+If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
 
-1. **Send voice notification**:
+1. **Send optional progress notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running the WORKFLOWNAME workflow in the Telos skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -21,13 +21,13 @@ effort: medium
    Running the **WorkflowName** workflow in the **Telos** skill to ACTION...
    ```
 
-**This is not optional. Execute this curl command immediately upon skill invocation.**
+This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
 
 # Telos
 
 **TELOS** (Telic Evolution and Life Operating System) is a comprehensive context-gathering system with two applications:
 
-1. **Personal TELOS** - {PRINCIPAL.NAME}'s life context system (beliefs, goals, lessons, wisdom) at `~/.claude/PAI/USER/TELOS/`
+1. **Personal TELOS** - {PRINCIPAL.NAME}'s life context system (beliefs, goals, lessons, wisdom) at `~/.config/opencode/PAI/USER/TELOS/`
 2. **Project TELOS** - Analysis framework for organizations/projects (relationships, dependencies, goals, progress)
 
 
@@ -104,7 +104,7 @@ User: "write a TELOS report for Acme Corp"
 
 | User Request | Context | Location |
 |--------------|---------|----------|
-| "my TELOS", "my goals", "my beliefs", "add to TELOS" | Personal TELOS | `~/.claude/PAI/USER/TELOS/` |
+| "my TELOS", "my goals", "my beliefs", "add to TELOS" | Personal TELOS | `~/.config/opencode/PAI/USER/TELOS/` |
 | "Alma", "TELOSAPP", "analyze [project]", "dashboard for" | Project TELOS | User-specified directory |
 | "analyze ~/path/to/project" | Project TELOS | Specified path |
 
@@ -116,14 +116,14 @@ User: "write a TELOS report for Acme Corp"
 
 **CRITICAL PATH:** All personal TELOS files are located at:
 ```
-~/.claude/PAI/USER/TELOS/
+~/.config/opencode/PAI/USER/TELOS/
 ```
 
 Personal TELOS lives in the CORE USER directory, NOT directly under the Telos skill directory.
 
 ## Personal TELOS Framework
 
-All files located in `~/.claude/PAI/USER/TELOS/`:
+All files located in `~/.config/opencode/PAI/USER/TELOS/`:
 
 ### Core Philosophy
 - **TELOS.md** - Main framework document
@@ -160,11 +160,11 @@ All files located in `~/.claude/PAI/USER/TELOS/`:
 
 ```bash
 # View specific file
-read ~/.claude/PAI/USER/TELOS/GOALS.md
-read ~/.claude/PAI/USER/TELOS/BELIEFS.md
+read ~/.config/opencode/PAI/USER/TELOS/GOALS.md
+read ~/.config/opencode/PAI/USER/TELOS/BELIEFS.md
 
 # View recent updates
-read ~/.claude/PAI/USER/TELOS/updates.md
+read ~/.config/opencode/PAI/USER/TELOS/updates.md
 ```
 
 ### Update Personal TELOS
@@ -375,7 +375,7 @@ Engineer 10: Integration and testing
 ## Key Principles
 
 1. **Dual Context** - Handles both personal and project TELOS seamlessly
-   - Personal TELOS: `~/.claude/PAI/USER/TELOS/` (in CORE USER directory)
+   - Personal TELOS: `~/.config/opencode/PAI/USER/TELOS/` (in CORE USER directory)
    - Project TELOS: User-specified directories
 2. **Auto-Detection** - Determines context from user question
 3. **Flexible Discovery** - Finds files regardless of structure
@@ -389,7 +389,7 @@ Engineer 10: Integration and testing
 
 **TELOS is {PRINCIPAL.NAME}'s life operating system AND project analysis framework. One skill, two powerful contexts.**
 
-**Remember:** Personal TELOS files live at `~/.claude/PAI/USER/TELOS/` (in the CORE USER directory)
+**Remember:** Personal TELOS files live at `~/.config/opencode/PAI/USER/TELOS/` (in the CORE USER directory)
 
 ## Gotchas
 
@@ -402,7 +402,7 @@ Engineer 10: Integration and testing
 After completing any workflow, append a single JSONL entry:
 
 ```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Telos","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.claude/PAI/MEMORY/SKILLS/execution.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Telos","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
 ```
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

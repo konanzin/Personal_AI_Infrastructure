@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
- * PAIAgentAdapter — wraps PAI's Inference.ts as a scenario AgentAdapter.
+ * PAIAgentAdapter - wraps the OpenCode inference adapter as a scenario AgentAdapter.
  *
  * Lets scenario.run() drive a PAI agent in multi-turn simulations without
  * pulling in the ai-sdk Anthropic provider for the agent-under-test path
  * (scenario's UserSimulatorAgent + JudgeAgent still use ai-sdk directly).
  */
 
-import { inference, type InferenceLevel } from '../../../PAI/TOOLS/Inference.ts';
+import { inference, type InferenceLevel } from '../../Lib/OpenCodeInference.ts';
 import { AgentAdapter, AgentRole, type AgentInput, type AgentReturnTypes } from '@langwatch/scenario';
 
 export interface PAIAgentAdapterOptions {

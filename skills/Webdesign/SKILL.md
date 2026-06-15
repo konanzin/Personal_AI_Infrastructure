@@ -5,12 +5,12 @@ license: Complete terms in LICENSE.txt
 effort: medium
 ---
 
-## Voice Notification (REQUIRED FIRST ACTION)
+## Optional Legacy Pulse Progress Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Webdesign skill", "language": "en-US", "voice_enabled": true}' > /dev/null
+  -d '{"message": "Running the Webdesign skill", "language": "en-US", "voice_enabled": true}' > /dev/null 2>&1 || true) &
 ```
 
 ## What This Skill Is
@@ -41,7 +41,7 @@ When invoked standalone for a greenfield design, the skill produces a self-conta
 User-specific design preferences (color palette, typography, spacing grid, animation timing, framework defaults) live at:
 
 ```
-~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/Webdesign/
+~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/Webdesign/
 ├── PREFERENCES.md     # Design tokens, preferred frameworks
 ├── README.md
 └── EXTEND.yaml

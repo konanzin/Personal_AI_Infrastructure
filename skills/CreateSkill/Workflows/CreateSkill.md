@@ -5,10 +5,10 @@ Create a new skill following the canonical structure with proper TitleCase namin
 ## Voice Notification
 
 ```bash
-curl -s -X POST http://localhost:31337/notify \
+(curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
   -d '{"message": "Running the CreateSkill workflow in the CreateSkill skill to create new skill", "language": "en-US"}' \
-  > /dev/null 2>&1 &
+  > /dev/null 2>&1 || true) &
 ```
 
 Running the **CreateSkill** workflow in the **CreateSkill** skill to create new skill...
@@ -17,8 +17,8 @@ Running the **CreateSkill** workflow in the **CreateSkill** skill to create new 
 
 **REQUIRED FIRST:**
 
-1. Read the skill system documentation: `~/.claude/PAI/DOCUMENTATION/Skills/SkillSystem.md`
-2. Read a canonical example skill — pick any existing public skill in `~/.claude/skills/` (e.g. `Research/SKILL.md`, `Daemon/SKILL.md`) and study its frontmatter, voice notification, workflow routing, and examples sections.
+1. Read the skill system documentation: `~/.config/opencode/PAI/DOCUMENTATION/Skills/SkillSystem.md`
+2. Read a canonical example skill — pick any existing public skill in `~/.config/opencode/skills/` (e.g. `Research/SKILL.md`, `Daemon/SKILL.md`) and study its frontmatter, voice notification, workflow routing, and examples sections.
 
 ## Step 2: Understand the Request
 
@@ -72,14 +72,14 @@ Before building, apply the bitter lesson test: **"Would a smarter model make thi
 ## Step 4: Create the Skill Directory
 
 ```bash
-mkdir -p ~/.claude/skills/[SkillName]/Workflows
-mkdir -p ~/.claude/skills/[SkillName]/Tools
+mkdir -p ~/.config/opencode/skills/[SkillName]/Workflows
+mkdir -p ~/.config/opencode/skills/[SkillName]/Tools
 ```
 
 **Example:**
 ```bash
-mkdir -p ~/.claude/skills/_DAEMON/Workflows
-mkdir -p ~/.claude/skills/_DAEMON/Tools
+mkdir -p ~/.config/opencode/skills/_DAEMON/Workflows
+mkdir -p ~/.config/opencode/skills/_DAEMON/Tools
 ```
 
 ## Step 5: Create SKILL.md
@@ -102,10 +102,10 @@ description: [What it does]. USE WHEN [intent triggers using OR]. NOT FOR [confu
 
 1. **Send voice notification**:
    ```bash
-   curl -s -X POST http://localhost:31337/notify \
+   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
      -d '{"message": "Running WORKFLOWNAME in SKILLNAME", "language": "en-US"}' \
-     > /dev/null 2>&1 &
+     > /dev/null 2>&1 || true) &
    ```
 
 2. **Output text notification**:
@@ -113,7 +113,7 @@ description: [What it does]. USE WHEN [intent triggers using OR]. NOT FOR [confu
    Running **WorkflowName** in **SkillName**...
    ```
 
-**Full documentation:** `~/.claude/PAI/DOCUMENTATION/Notifications/NotificationSystem.md`
+**Full documentation:** `~/.config/opencode/PAI/DOCUMENTATION/Notifications/NotificationSystem.md`
 
 ## Workflow Routing
 
@@ -152,7 +152,7 @@ User: "[Different request]"
 
 ## Step 5b: Public Release Readiness (MANDATORY)
 
-**Every skill in `~/.claude/skills/` ships with the PAI public release.** Write generic from the start — do not rely on a scrub at release-time.
+**Every skill in `~/.config/opencode/skills/` ships with the PAI public release.** Write generic from the start — do not rely on a scrub at release-time.
 
 ### Required
 
@@ -162,13 +162,13 @@ User: "[Different request]"
 
 ### Where Personal Context Belongs
 
-User-specific preferences, project names, domain lists, and war stories go in `~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/<SkillName>/` — the skill body loads these at runtime via the Customization block. This keeps the public skill generic while each PAI user layers their own context.
+User-specific preferences, project names, domain lists, and war stories go in `~/.config/opencode/PAI/USER/SKILLCUSTOMIZATIONS/<SkillName>/` — the skill body loads these at runtime via the Customization block. This keeps the public skill generic while each PAI user layers their own context.
 
 ### Pre-Flight Check
 
 Before finalizing, grep the skill for personal refs:
 ```bash
-rg -i "danielmiessler|unsupervised|ULAdmin|thesurface|human3|ul\.live|/Users/[a-z]+/" ~/.claude/skills/[SkillName]/
+rg -i "danielmiessler|unsupervised|ULAdmin|thesurface|human3|ul\.live|/Users/[a-z]+/" ~/.config/opencode/skills/[SkillName]/
 ```
 
 Zero matches = ready. Any match = replace with generic language or move to `SKILLCUSTOMIZATIONS/`.
@@ -178,7 +178,7 @@ Zero matches = ready. Any match = replace with generic language or move to `SKIL
 For each workflow in the routing section:
 
 ```bash
-touch ~/.claude/skills/[SkillName]/Workflows/[WorkflowName].md
+touch ~/.config/opencode/skills/[SkillName]/Workflows/[WorkflowName].md
 ```
 
 ### Workflow-to-Tool Integration (REQUIRED for workflows with CLI tools)
@@ -220,23 +220,23 @@ bun ToolName.ts \
 - Workflows should expose this flexibility, not hardcode single patterns
 - Users speak naturally; workflows translate to precise CLI
 
-**Reference:** `~/.claude/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md` (Workflow-to-Tool Integration section)
+**Reference:** `~/.config/opencode/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md` (Workflow-to-Tool Integration section)
 
 **Examples (TitleCase):**
 ```bash
-touch ~/.claude/skills/MyDaemon/Workflows/UpdateDaemonInfo.md
-touch ~/.claude/skills/MyDaemon/Workflows/UpdatePublicRepo.md
-touch ~/.claude/skills/MyBlog/Workflows/Create.md
-touch ~/.claude/skills/MyBlog/Workflows/Publish.md
+touch ~/.config/opencode/skills/MyDaemon/Workflows/UpdateDaemonInfo.md
+touch ~/.config/opencode/skills/MyDaemon/Workflows/UpdatePublicRepo.md
+touch ~/.config/opencode/skills/MyBlog/Workflows/Create.md
+touch ~/.config/opencode/skills/MyBlog/Workflows/Publish.md
 ```
 
 ## Step 7: Verify TitleCase
 
 Run this check:
 ```bash
-ls ~/.claude/skills/[SkillName]/
-ls ~/.claude/skills/[SkillName]/Workflows/
-ls ~/.claude/skills/[SkillName]/Tools/
+ls ~/.config/opencode/skills/[SkillName]/
+ls ~/.config/opencode/skills/[SkillName]/Workflows/
+ls ~/.config/opencode/skills/[SkillName]/Tools/
 ```
 
 Verify ALL files use TitleCase:
