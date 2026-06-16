@@ -1,83 +1,138 @@
-# PAI Security Patterns v3.0 — Example Template
-# Copy to USER/SECURITY/PATTERNS.yaml and customize.
-# SecurityPipeline loads USER patterns first, falls back to this.
+# PAI Security Patterns — EXAMPLE / SEED TEMPLATE (OpenCode port)
 #
-# DESIGN: Block catastrophic ops, alert on suspicious, allow everything else.
-# ZERO confirm patterns — prompts cause friction. Use blocked (silent deny)
-# or alert (log + allow) only.
+# This is the canonical, versioned policy. install.sh seeds it to
+# ~/.config/opencode/PAI/USER/SECURITY/PATTERNS.yaml (user-owned, gitignored)
+# when no user policy exists. Edit the installed copy to customize.
 #
-# Pattern syntax: JavaScript RegExp (case-insensitive via 'i' flag)
-# matchesPattern() does regex.test(fullCommand) — matches anywhere in string
----
-version: "3.0"
-last_updated: "2026-03-31"
-
-philosophy:
-  mode: targeted
-  principle: "Block catastrophic operations silently. Alert on suspicious. Never prompt. Fail closed on missing config."
+# DESIGN: Block catastrophic ops (deny), alert on suspicious (log + allow),
+# fast-path trusted tools. NO bash "confirm" tier — confirmation survives only
+# for path tiers, surfaced via OpenCode's native permission prompt.
+#
+# LOADING CASCADE (see plugins/lib/pai-hooks.lib.js loadSecurityPolicy):
+#   1. installed USER/SECURITY/PATTERNS.yaml → parse + compile
+#   2. file absent             → bundled default policy in the plugin
+#   3. file present but corrupt → FAIL-CLOSED (deny gated tools, except
+#      read/write to the policy file so it can be repaired)
+#
+# Pattern syntax: JavaScript RegExp source, matched case-insensitively anywhere
+# in the command. Edit with care — a corrupt file fails closed.
+version: "3.1-opencode"
 
 bash:
-  # TRUSTED — Fast-path allow, skip all pattern checking
-  trusted: []
-
-  # BLOCKED — Hard deny via exit(2). No prompt, no workaround.
+  trusted:
+    - pattern: '^playwright-cli\b'
+      reason: 'Playwright CLI (Browser skill)'
+    - pattern: '^bunx playwright\b'
+      reason: 'Playwright one-shot (Browser skill)'
+    - pattern: '^agent-browser\b'
+      reason: 'agent-browser CLI (Browser skill)'
   blocked:
-    # ── Filesystem destruction ────────────────────────────────────
-    - pattern: "rm\\s.*-\\w*r.*\\s+/(\\s|$)"
-      reason: "Recursive deletion of system root"
-    - pattern: "rm\\s.*-\\w*r.*\\s+~/?(\\s|$)"
-      reason: "Recursive deletion of home directory"
-
-    # ── Credential access via shell ──────────────────────────────
-    - pattern: "cat.*\\.env"
-      reason: "Reading .env file via cat (use Read tool or secrets utility)"
-    - pattern: "source.*\\.env"
-      reason: "Sourcing .env file into shell environment"
-
-    # ── Credential exfiltration in outbound commands ─────────────
-    - pattern: "sk_live_"
-      reason: "Stripe live key detected in command string"
-    - pattern: "sk-ant-"
-      reason: "Anthropic API key detected in command string"
-    - pattern: "PRIVATE KEY"
-      reason: "Private key material detected in command string"
-
-    # ── Pipe to shell (universal) ────────────────────────────────
-    - pattern: "\\|\\s*(sh|bash|zsh)\\b"
-      reason: "Piping output to shell interpreter"
-
-  # ALERT — Logged but allowed. Visibility without friction.
+    - pattern: 'rm\s.*-\w*r.*\s+/(\s|$)'
+      reason: 'Recursive deletion of system root (/)'
+    - pattern: 'rm\s.*-\w*r.*\s+~/?(\s|$|;|&&)'
+      reason: 'Recursive deletion of home directory (~)'
+    - pattern: 'rm\s.*-\w*r.*\s+\$\{?HOME\}?/?(\s|$|;|&&)'
+      reason: 'Recursive deletion of home directory ($HOME)'
+    - pattern: 'rm\s.*-\w*r.*\s(~|\$\{?HOME\}?)/\.config/opencode(/|\s|$|;|&&)'
+      reason: 'Recursive deletion of ~/.config/opencode (entire PAI infrastructure)'
+    - pattern: 'rm\s.*-\w*r.*\s+~/Projects/?(\s|$|;|&&)'
+      reason: 'Recursive deletion of ~/Projects'
+    - pattern: 'rm\s.*(PATTERNS\.yaml|pai-hooks(\.lib)?\.js)'
+      reason: 'Deletion of PAI security policy/plugin disables protection'
+    - pattern: ':\(\)\s*\{\s*:\|:&\s*\};:'
+      reason: 'Fork bomb'
+    - pattern: 'mkfs(\.|\b)'
+      reason: 'Filesystem format/wipe (mkfs)'
+    - pattern: 'dd\s+if=/dev/zero'
+      reason: 'Disk overwrite with zeros (dd if=/dev/zero)'
+    - pattern: 'dd\s+if=.*of=/dev/(sd|hd|nvme)'
+      reason: 'dd to disk device'
+    - pattern: '>\s*/dev/(sd|hd|nvme)'
+      reason: 'Redirect to disk device'
+    - pattern: 'diskutil\s+(eraseDisk|zeroDisk|apfs\s+(deleteContainer|eraseVolume))'
+      reason: 'Disk/volume destruction (diskutil)'
+    - pattern: 'chmod\s+-R\s+777\s+/'
+      reason: 'chmod 777 on root'
+    - pattern: 'chown\s+-R\s+.*\s+/(\s|$)'
+      reason: 'chown -R on root'
+    - pattern: 'gh\s+repo\s+delete'
+      reason: 'GitHub repository deletion'
+    - pattern: 'gh\s+repo\s+edit\b.*--visibility\s+public'
+      reason: 'Repository visibility changed to public'
+    - pattern: '(curl|wget|fetch|aria2c|httpie)\s+[^|]*\|\s*(sh|bash|zsh)\b'
+      reason: 'Piping HTTP downloader output to shell interpreter'
+    # ── Credential access via shell (deny — matches original PAI) ──
+    - pattern: '\b(cat|grep|rg|sed|awk|source|less|head|tail)\b[^|;&]*\.env\b'
+      reason: 'Reading .env via shell (use Read tool or secrets utility)'
   alert:
-    - pattern: "curl.*\\|.*sh"
-      reason: "Piping curl to shell"
-    - pattern: "git push.*--force"
-      reason: "Force push (logged for audit)"
-    - pattern: "git reset --hard"
-      reason: "Hard reset (logged for audit)"
-    - pattern: "DROP DATABASE"
-      reason: "Database drop (logged for audit)"
-
-    # ── Outbound data exfiltration (alert, not block) ────────────
-    - pattern: "curl.*(-X POST|--data|\\s-d\\s)"
-      reason: "Outbound HTTP POST via curl (logged for audit)"
-
-    # ── Environment variable dump (credential exposure) ──────────
-    - pattern: "^(printenv|env)\\s*$"
-      reason: "Full environment variable dump (credential exposure risk)"
+    - pattern: 'rm\s+.*-\w*[rR]'
+      reason: 'Recursive rm (logged for audit)'
+    - pattern: 'git\s+push\b.*(--force|\s-f\b)'
+      reason: 'Force push (audit)'
+    - pattern: 'git\s+reset\s+--hard'
+      reason: 'Hard reset (audit)'
+    - pattern: '\bDROP\s+(DATABASE|TABLE)\b'
+      reason: 'Destructive SQL (audit)'
+    - pattern: '\bTRUNCATE\b'
+      reason: 'Table truncate (audit)'
+    - pattern: 'terraform\s+destroy'
+      reason: 'Infrastructure destruction (audit)'
+    - pattern: '\b(nc|ncat|socat)\s'
+      reason: 'Netcat/socat usage (exfil risk, audit)'
+    - pattern: '\bsendmail\b'
+      reason: 'Direct sendmail usage (exfil risk, audit)'
+    - pattern: '(curl|wget)\b.*(-X\s*POST|--data|--post-data|--post-file|\s-d\s)'
+      reason: 'Outbound HTTP POST (audit)'
+    - pattern: '^(printenv|env)\s*$'
+      reason: 'Full environment dump (audit)'
+    - pattern: '^set\s*$'
+      reason: 'Shell variable dump (audit)'
+    - pattern: 'eval\s*[\(`"]'
+      reason: 'eval usage (audit)'
+    - pattern: 'python3?\s+-c\s'
+      reason: 'Python inline execution (audit)'
+    - pattern: 'node\s+-e\s'
+      reason: 'Node inline execution (audit)'
+    - pattern: 'ruby\s+-e\s'
+      reason: 'Ruby inline execution (audit)'
+    - pattern: 'perl\s+-e\s'
+      reason: 'Perl inline execution (audit)'
+    - pattern: 'npm\s+.*--unsafe-perm'
+      reason: 'npm --unsafe-perm (audit)'
 
 paths:
-  # ZERO ACCESS — Hard block on read, write, and delete
+  # block read + write + delete
   zeroAccess:
-    - "~/.ssh/id_*"
-    - "~/.ssh/*.pem"
-    - "~/.aws/credentials"
-    - "**/.env"
-    - "**/.env.*"
-
-  # READ ONLY — Can read, cannot write or delete
-  readOnly: []
-
-  # NO DELETE — Can read and modify but cannot delete
-  noDelete: []
-
-projects: {}
+    - '~/.ssh/id_*'
+    - '~/.ssh/*.pem'
+    - '~/.aws/credentials'
+    - '~/.gnupg/**'
+    - '**/service-account*.json'
+    - '/etc/shadow'
+    - '/etc/gshadow'
+    - '/proc/kcore'
+    - '**/.env'
+    - '**/.env.*'
+  # log + allow on read/write (empty: .env reads are denied above, matching original PAI)
+  alertAccess: []
+  # require approval (native prompt) on read/write
+  confirmAccess:
+    - '~/.config/opencode/.mcp.json'
+  # block write + delete (reads allowed)
+  readOnly:
+    - '/etc/**'
+    - '~/.config/opencode/PAI/USER/SECURITY/PATTERNS.yaml'
+    - '~/.config/opencode/plugins/pai-hooks.js'
+    - '~/.config/opencode/plugins/lib/**'
+  # block delete only
+  noDelete:
+    - '~/.config/opencode/PAI/**'
+    - '~/.config/opencode/plugins/**'
+    - '**/.git/**'
+  # require approval on write (.env omitted: zeroAccess denies its write/delete too)
+  confirmWrite:
+    - '**/.npmrc'
+    - '**/.pypirc'
+    - '**/id_rsa'
+    - '**/id_ed25519'
+    - '**/.htpasswd'

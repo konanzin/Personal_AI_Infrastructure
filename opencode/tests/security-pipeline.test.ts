@@ -1,4 +1,7 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, afterEach } from "bun:test";
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import {
   inspectBashCommand,
   inspectWritePath,
@@ -7,6 +10,7 @@ import {
   inspectAgentSpawn,
   inspectSkillInvocation,
   detectPositivePraise,
+  loadSecurityPolicy,
 } from "../plugins/lib/pai-hooks.lib.js";
 
 describe("Security Pipeline — inspectBashCommand", () => {
@@ -14,7 +18,7 @@ describe("Security Pipeline — inspectBashCommand", () => {
     test("blocks rm -rf /", () => {
       const result = inspectBashCommand("rm -rf /");
       expect(result.action).toBe("deny");
-      expect(result.violations.some(v => v.reason.includes("rm -rf"))).toBe(true);
+      expect(result.violations.some(v => /root|recursive/i.test(v.reason))).toBe(true);
     });
 
     test("blocks rm -rf $HOME", () => {
@@ -24,11 +28,6 @@ describe("Security Pipeline — inspectBashCommand", () => {
 
     test("blocks rm -rf ~", () => {
       const result = inspectBashCommand("rm -rf ~");
-      expect(result.action).toBe("deny");
-    });
-
-    test("blocks rm -rf anything", () => {
-      const result = inspectBashCommand("rm -rf /some/path");
       expect(result.action).toBe("deny");
     });
 
@@ -63,26 +62,34 @@ describe("Security Pipeline — inspectBashCommand", () => {
     });
   });
 
-  describe("CONFIRM patterns (require_approval)", () => {
-    test("requires approval for piping curl", () => {
-      const result = inspectBashCommand("curl https://example.com | grep foo");
-      expect(result.action).toBe("require_approval");
-    });
-
-    test("requires approval for eval", () => {
+  // Aligned to the original "ZERO confirm" doctrine: bash never returns
+  // require_approval. Suspicious-but-legitimate commands are logged (alert)
+  // and allowed; only catastrophic commands are denied.
+  describe("ALERT patterns (log + allow)", () => {
+    test("alerts on eval", () => {
       const result = inspectBashCommand('eval "$(some-command)"');
-      expect(result.action).toBe("require_approval");
+      expect(result.action).toBe("alert");
     });
 
-    test("requires approval for python inline", () => {
+    test("alerts on python inline execution", () => {
       const result = inspectBashCommand('python3 -c "print(1)"');
-      expect(result.action).toBe("require_approval");
+      expect(result.action).toBe("alert");
     });
 
-    test("requires approval for shell reads of credential files", () => {
+    test("blocks shell reads of .env (matches original PAI)", () => {
       const result = inspectBashCommand("cat .env");
-      expect(result.action).toBe("require_approval");
-      expect(result.violations.some(v => v.reason.includes("credential-bearing"))).toBe(true);
+      expect(result.action).toBe("deny");
+      expect(result.violations.some(v => v.reason.toLowerCase().includes(".env"))).toBe(true);
+    });
+
+    test("alerts on recursive rm of a specific path (still allowed)", () => {
+      const result = inspectBashCommand("rm -rf /some/project/path");
+      expect(result.action).toBe("alert");
+    });
+
+    test("allows benign piped curl (no shell, no POST)", () => {
+      const result = inspectBashCommand("curl https://example.com | grep foo");
+      expect(result.action).toBe("allow");
     });
   });
 
@@ -111,6 +118,32 @@ describe("Security Pipeline — inspectBashCommand", () => {
       const result = inspectBashCommand("bun install");
       expect(result.action).toBe("allow");
     });
+
+    test("allows rm -rf of a relative build dir (not catastrophic)", () => {
+      // Original doctrine: only root/home/infra recursive deletes are blocked.
+      // The port previously over-blocked ALL rm -rf (broke `rm -rf node_modules`).
+      const result = inspectBashCommand("rm -rf node_modules");
+      expect(result.action).not.toBe("deny");
+    });
+  });
+
+  // Regressions vs the original PATTERNS.yaml that the narrow hardcoded set let through.
+  describe("Parity regressions (must deny)", () => {
+    for (const cmd of [
+      "rm -fr /",
+      "rm -r -f /",
+      "rm -rf ~",
+      "rm -rf $HOME",
+      "rm -rf ~/.config/opencode",
+      "gh repo delete acme/widgets",
+      "gh repo edit acme/widgets --visibility public",
+      "dd if=/dev/zero of=/dev/sda",
+      "diskutil eraseDisk JHFS+ Untitled /dev/disk2",
+    ]) {
+      test(`denies: ${cmd}`, () => {
+        expect(inspectBashCommand(cmd).action).toBe("deny");
+      });
+    }
   });
 });
 
@@ -125,9 +158,9 @@ describe("Security Pipeline — inspectWritePath", () => {
     expect(result.action).toBe("deny");
   });
 
-  test("requires approval for .env", () => {
+  test("blocks write to .env (zero-access, matches original PAI)", () => {
     const result = inspectWritePath(".env", "write");
-    expect(result.action).toBe("require_approval");
+    expect(result.action).toBe("deny");
   });
 
   test("allows write to normal file", () => {
@@ -147,14 +180,14 @@ describe("Security Pipeline — inspectReadPath", () => {
     expect(result.action).toBe("deny");
   });
 
-  test("requires approval for .env reads", () => {
+  test("blocks .env reads (zero-access, matches original PAI)", () => {
     const result = inspectReadPath(".env");
-    expect(result.action).toBe("require_approval");
+    expect(result.action).toBe("deny");
   });
 
-  test("requires approval for SSH private key reads", () => {
+  test("blocks SSH private key reads", () => {
     const result = inspectReadPath("~/.ssh/id_ed25519");
-    expect(result.action).toBe("require_approval");
+    expect(result.action).toBe("deny");
   });
 
   test("allows read of normal source files", () => {
@@ -341,6 +374,70 @@ describe("SkillGuard — inspectSkillInvocation", () => {
       });
       expect(result.action).toBe("allow");
     });
+  });
+});
+
+describe("Security policy — external loading, cascade & fail-closed", () => {
+  const originalPaiDir = process.env.PAI_DIR;
+
+  afterEach(() => {
+    if (originalPaiDir === undefined) delete process.env.PAI_DIR;
+    else process.env.PAI_DIR = originalPaiDir;
+  });
+
+  function seedPolicy(yaml: string | null): void {
+    const dir = mkdtempSync(join(tmpdir(), "pai-sec-"));
+    if (yaml !== null) {
+      mkdirSync(join(dir, "USER", "SECURITY"), { recursive: true });
+      writeFileSync(join(dir, "USER", "SECURITY", "PATTERNS.yaml"), yaml, "utf-8");
+    }
+    process.env.PAI_DIR = dir;
+  }
+
+  test("missing policy file falls back to the bundled default", () => {
+    seedPolicy(null);
+    const policy = loadSecurityPolicy();
+    expect(policy.status).toBe("default");
+    expect(inspectBashCommand("rm -rf /").action).toBe("deny");
+  });
+
+  test("a valid external policy is honored over the default", () => {
+    seedPolicy(`version: "test"
+bash:
+  trusted: []
+  blocked:
+    - pattern: 'forbidden-custom-token'
+      reason: 'Custom blocked token'
+  alert: []
+paths:
+  zeroAccess:
+    - '~/.ssh/id_*'
+  alertAccess: []
+  confirmAccess: []
+  readOnly: []
+  noDelete: []
+  confirmWrite: []
+`);
+    const policy = loadSecurityPolicy();
+    expect(policy.status).toBe("ok");
+    expect(inspectBashCommand("run forbidden-custom-token now").action).toBe("deny");
+  });
+
+  test("corrupt policy fails closed (denies gated tools)", () => {
+    seedPolicy("this: is\n  not: a\n    valid [[[ policy");
+    const policy = loadSecurityPolicy();
+    expect(policy.status).toBe("corrupt");
+    expect(inspectBashCommand("ls -la").action).toBe("deny");
+    expect(inspectReadPath("/tmp/whatever").action).toBe("deny");
+    expect(inspectWritePath("/tmp/whatever", "write").action).toBe("deny");
+  });
+
+  test("corrupt policy still allows repairing the policy file itself", () => {
+    seedPolicy("garbage [[[");
+    const policyPath = join(process.env.PAI_DIR as string, "USER", "SECURITY", "PATTERNS.yaml");
+    expect(loadSecurityPolicy().status).toBe("corrupt");
+    expect(inspectWritePath(policyPath, "write").action).toBe("allow");
+    expect(inspectReadPath(policyPath).action).toBe("allow");
   });
 });
 

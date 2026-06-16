@@ -19,15 +19,22 @@ function run() {
     return;
   }
 
-  // rm -rf
-  const cmd = "rm -rf /tmp/test";
+  // Catastrophic recursive delete of system root must be denied
+  const cmd = "rm -rf /";
   const result = inspectBashCommand(cmd);
   if (result.action !== 'deny') {
-    console.log(`E2E_FAIL: rm -rf not denied, got ${result.action}`);
+    console.log(`E2E_FAIL: rm -rf / not denied, got ${result.action}`);
     process.exit(1);
   }
-  if (!result.violations.some(v => v.reason.includes('rm -rf'))) {
-    console.log('E2E_FAIL: Deny reason does not mention rm -rf');
+  if (!result.violations.some(v => /root|recursive/i.test(v.reason))) {
+    console.log('E2E_FAIL: Deny reason does not describe a recursive root delete');
+    process.exit(1);
+  }
+
+  // Flag-reordered variant (rm -fr /) must also be denied — the old narrow
+  // /rm -rf/ pattern let this through.
+  if (inspectBashCommand("rm -fr /").action !== 'deny') {
+    console.log('E2E_FAIL: rm -fr / not denied (flag-order bypass)');
     process.exit(1);
   }
 
