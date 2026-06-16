@@ -6,9 +6,9 @@
  * relying entirely on model-native self-selection from injected system context.
  *
  * Architecture:
- *   - Layer 1: Deterministic heuristic classifier (zero cost, zero latency)
- *   - Layer 2: (Future) External LLM classifier via pluggable provider interface
- *   - Fail-safe: ALGORITHM E3 when confidence is low or classifier errors
+ *   - Layer 1: LLM classifier via the local OpenCode CLI/model selector
+ *   - Layer 2: Deterministic heuristic path only when LLM is explicitly disabled
+ *   - Fail-safe: ALGORITHM E3 when the LLM classifier errors/timeouts
  *
  * Output contract:
  *   { mode: 'MINIMAL' | 'NATIVE' | 'ALGORITHM',
@@ -18,6 +18,8 @@
  *
  * @version 1.0.0
  */
+
+import { existsSync } from 'fs';
 
 const PAI_DEBUG_UI = process.env.PAI_DEBUG_UI === 'true';
 const console = PAI_DEBUG_UI
@@ -37,6 +39,8 @@ const OVERRIDE_PATTERN = /\/(e[1-5])\b/i;
 const MINIMAL_PATTERNS = [
   { pattern: /^(hi|hello|hey|ola|oi)\b/i, reason: 'Greeting' },
   { pattern: /^(ok|okay|thanks?|thx|bye|goodbye)\b/i, reason: 'Acknowledgment' },
+  { pattern: /^(valeu|obrigad[oa]|brigad[ao]|beleza|blz|show|perfeito|ótimo|otimo|massa)[!. ]*$/i, reason: 'Acknowledgment' },
+  { pattern: /^(valeu|obrigad[oa]|brigad[ao]),?\s+(ficou|est[aá]|foi)\s+(bom|boa|ótimo|otimo|excelente|perfeito)[!. ]*$/i, reason: 'Acknowledgment' },
   { pattern: /^\/?rate\s+\d/i, reason: 'Explicit rating' },
   { pattern: /^\d+\s*\/\s*10$/i, reason: 'Bare rating' },
   { pattern: /^\/?status\b/i, reason: 'Status check command' },
@@ -44,31 +48,48 @@ const MINIMAL_PATTERNS = [
 
 const NATIVE_PATTERNS = [
   { pattern: /^(what|who|when|where|why|how|is|are|does|can|will)\s+/i, reason: 'Single fact lookup' },
+  { pattern: /^(qual|quais|quem|quando|onde|por que|porque|como|o que|quanto|quantos|quantas)\s+/i, reason: 'Single fact lookup' },
   { pattern: /^(find|search|lookup|show|list|get|tell me)\s+/i, reason: 'Information retrieval' },
+  { pattern: /^(ache|busque|procure|mostre|liste|diga|me diga|conte|responda)\s+/i, reason: 'Information retrieval' },
   { pattern: /^(run|execute|run the command|what does this command do)\b/i, reason: 'Single command query' },
+  { pattern: /^(rode|execute|rode o comando|o que esse comando faz)\b/i, reason: 'Single command query' },
   { pattern: /^(cat|ls|pwd|echo|grep|head|tail)\s+/i, reason: 'Simple command explanation' },
   { pattern: /^(explain|define|describe)\s+\S+$/i, reason: 'Single concept explanation' },
+  { pattern: /^(explique|defina|descreva)\s+\S+$/i, reason: 'Single concept explanation' },
   { pattern: /^where is\s+/i, reason: 'Location lookup' },
+  { pattern: /^onde (est[aá]|fica)\s+/i, reason: 'Location lookup' },
   { pattern: /^(what is|what's)\s+\S+\?*$/i, reason: 'Single definition' },
+  { pattern: /^(o que [eé]|qual [eé])\s+\S+\?*$/i, reason: 'Single definition' },
 ];
 
 const ALGORITHM_INDICATORS = [
   { pattern: /\b(implement|build|create|write|develop|refactor|migrate|fix|debug|solve)\b.*\b(file|files|module|component|function|class|test|script|api|endpoint|route|schema|migration|database)\b/i, reason: 'Implementation work' },
+  { pattern: /\b(implemente|implementar|construa|construir|crie|criar|escreva|escrever|desenvolva|desenvolver|refatore|refatorar|migre|migrar|corrija|corrigir|debuge|debugar|resolva|resolver)\b.*\b(arquivo|arquivos|m[oó]dulo|componente|fun[cç][aã]o|classe|teste|script|api|endpoint|rota|schema|migra[cç][aã]o|banco de dados)\b/i, reason: 'Implementation work' },
   { pattern: /\b(refactor|rewrite|restructure|reorganize|redesign|extract|split|merge|rename|move)\b/i, reason: 'Refactoring' },
+  { pattern: /\b(refatore|refatorar|reescreva|reescrever|reestruture|reestruturar|reorganize|reorganizar|redesenhe|redesenhar|extraia|extrair|separe|separar|divida|dividir|mescle|mesclar|renomeie|renomear|mova|mover)\b/i, reason: 'Refactoring' },
   { pattern: /\b(multi-step|multi-file|multiple files|architecture|design|pattern|framework|system|subsystem|pipeline|workflow)\b/i, reason: 'Architecture/design' },
+  { pattern: /\b(multi-etapa|v[aá]rias etapas|m[uú]ltiplos arquivos|m[uú]ltiplas? arquivos|arquitetura|arquitetural|projete|projetar|desenhe|desenhar|padr[aã]o|framework|sistema|subsistema|pipeline|workflow)\b/i, reason: 'Architecture/design' },
   { pattern: /\b(add|implement|support|feature|integration|endpoint|handler|middleware|service|repository|controller|component)\b.*\b(new|new feature|to the|into|for)\b/i, reason: 'Feature addition' },
+  { pattern: /\b(adicione|adicionar|implemente|implementar|suporte|feature|integra[cç][aã]o|endpoint|handler|middleware|servi[cç]o|reposit[oó]rio|controller|componente)\b.*\b(novo|nova|para|no|na|em)\b/i, reason: 'Feature addition' },
   { pattern: /\b(plan|design|strategy|approach|structure|organize|arrange)\b/i, reason: 'Planning/design' },
+  { pattern: /\b(plano|planeje|planejar|estrat[eé]gia|abordagem|estruture|estruturar|organize|organizar)\b/i, reason: 'Planning/design' },
   { pattern: /\b(bug|error|issue|problem|broken|failing|crash|exception|regression|fix|repair|resolve)\b/i, reason: 'Debugging/repair' },
+  { pattern: /\b(erro|problema|quebrado|falhando|crash|exce[cç][aã]o|regress[aã]o|corrigir|consertar|resolver)\b/i, reason: 'Debugging/repair' },
   { pattern: /\b(test|testing|spec|jest|vitest|mocha|cypress|playwright|e2e|unit test|integration test)\b/i, reason: 'Testing work' },
   { pattern: /\b(docker|kubernetes|k8s|deploy|ci\/cd|pipeline|infrastructure|terraform|ansible|provision)\b/i, reason: 'DevOps/infrastructure' },
   { pattern: /\b(performance|optimize|speed|latency|memory|cpu|bottleneck|slow|cache|benchmark|profile)\b/i, reason: 'Performance optimization' },
   { pattern: /\b(security|vulnerability|auth|authentication|authorization|encrypt|sanitize|xss|csrf|sql injection)\b/i, reason: 'Security work' },
+  { pattern: /\b(seguran[cç]a|vulnerabilidade|autentica[cç][aã]o|autoriza[cç][aã]o|criptograf|sanitiz|inje[cç][aã]o sql|threat model|modelo de amea[cç]as|vetores de ataque|mitiga[cç][oõ]es)\b/i, reason: 'Security work' },
   { pattern: /\b(pai|algorithm|ideal state|isa|isc|telos|mission|goal|strategy|wisdom|belief|framework)\b/i, reason: 'PAI-affecting work' },
   { pattern: /\b(update|upgrade|migrate|version|dependency|package|npm|pip|cargo|gem|composer)\b/i, reason: 'Migration/upgrade' },
+  { pattern: /\b(atualize|atualizar|upgrade|migra[cç][aã]o|migrar|vers[aã]o|depend[eê]ncia|pacote)\b/i, reason: 'Migration/upgrade' },
   { pattern: /\b(documentation|readme|doc|changelog|guide|tutorial|example|diagram|flowchart)\b/i, reason: 'Documentation' },
   { pattern: /^(Quero que você|Please implement|Can you implement|Implement|Build|Create|Add|Fix|Refactor|Write|Develop)\s+/i, reason: 'Explicit implementation request' },
+  { pattern: /^(Quero que voc[eê]|Implemente|Construa|Crie|Adicione|Corrija|Refatore|Escreva|Desenvolva)\s+/i, reason: 'Explicit implementation request' },
   { pattern: /\b(compare|evaluate|assess|audit|review|analyze|investigate|research|study)\b.*\b(multiple|several|various|across|between|among)\b/i, reason: 'Multi-target analysis' },
+  { pattern: /\b(compare|avalie|audite|revise|analise|investigue|pesquise|estude)\b.*\b(m[uú]ltipl[oa]s|v[aá]ri[oa]s|divers[oa]s|entre|atrav[eé]s|ao longo)\b/i, reason: 'Multi-target analysis' },
   { pattern: /\b(integrate|connect|hook|wire|plugin|adapter|bridge|wrapper|client|sdk|api)\b/i, reason: 'Integration work' },
+  { pattern: /\b(integre|integrar|conecte|conectar|hook|plugin|adaptador|ponte|wrapper|cliente|sdk|api)\b/i, reason: 'Integration work' },
 ];
 
 const TIER_INDICATORS = {
@@ -135,8 +156,57 @@ function checkMinimal(prompt) {
   return null;
 }
 
+function hasObviousWorkRequest(prompt) {
+  return /\b(implement|build|create|write|develop|refactor|migrate|fix|debug|solve|add|update|upgrade|delete|remove|edit|modify|change|implemente|implementar|construa|construir|crie|criar|escreva|escrever|desenvolva|desenvolver|refatore|refatorar|migre|migrar|corrija|corrigir|adicione|adicionar|atualize|atualizar|delete|deletar|remova|remover|edite|editar|modifique|modificar|altere|alterar)\b/i.test(prompt);
+}
+
+function checkContextRecall(prompt) {
+  const trimmed = prompt.trim();
+  if (hasObviousWorkRequest(trimmed)) return null;
+
+  const asksFromContext = /\b(sem usar ferramentas|sem ler arquivos|contexto inicial|contexto atual|j[aá] tem no contexto|j[aá] sabe|lembra|lembre|recorde)\b/i.test(trimmed);
+  const contextSubject = /\b(da|identidade|telos|principal|prefer[eê]ncias?|marcadores?|sentinels?|ctx-[a-z0-9-]+|codinome|nome)\b/i.test(trimmed);
+  if (asksFromContext && contextSubject) {
+    return { mode: 'NATIVE', reason: 'Context recall without tool use', confidence: 0.9 };
+  }
+
+  if (/^\s*(sem usar ferramentas|sem ler arquivos):?\s*(qual|quais|quem|quando|onde|como|o que|diga|cite|responda)\b/i.test(trimmed)) {
+    return { mode: 'NATIVE', reason: 'Context-only answer requested', confidence: 0.9 };
+  }
+
+  return null;
+}
+
+function checkSimpleToolRequest(prompt) {
+  const trimmed = prompt.trim();
+  if (hasObviousWorkRequest(trimmed)) return null;
+
+  if (/\b(rode|execute|use)\s+um\s+comando\b.*\b(contar|conte|quantos|quantas|listar|liste|diga|responda)\b/i.test(trimmed)) {
+    return { mode: 'NATIVE', reason: 'Single command request', confidence: 0.88 };
+  }
+
+  if (/\bquantos?\s+arquivos?\b.*\b(comando|shell|contar|conte|rode|execute)\b/i.test(trimmed)) {
+    return { mode: 'NATIVE', reason: 'Single command request', confidence: 0.88 };
+  }
+
+  if (/\b(run|execute|use)\s+a\s+(single\s+)?(shell\s+)?command\b.*\b(count|list|find|show|tell)\b/i.test(trimmed)) {
+    return { mode: 'NATIVE', reason: 'Single command request', confidence: 0.88 };
+  }
+
+  return null;
+}
+
 function checkNative(prompt) {
   const trimmed = prompt.trim();
+
+  const contextRecall = checkContextRecall(trimmed);
+  if (contextRecall) return contextRecall;
+
+  const simpleTool = checkSimpleToolRequest(trimmed);
+  if (simpleTool) return simpleTool;
+
+  if (hasObviousWorkRequest(trimmed)) return null;
+
   // If it's a question but very short, it's native
   if (trimmed.length < 80) {
     for (const { pattern, reason } of NATIVE_PATTERNS) {
@@ -274,9 +344,9 @@ function estimateTier(prompt, confidence) {
  *
  * @param {string} prompt - Raw user prompt text
  * @param {object} options - Optional configuration
- * @param {string} options.defaultModel - Reserved for future LLM classifier
- * @param {string} options.fallbackModel - Reserved for future small-model fallback
- * @param {boolean} options.useLLM - Whether to use external LLM (future feature)
+ * @param {string} options.defaultModel - Reserved for caller-specific classifier model selection
+ * @param {string} options.fallbackModel - Reserved for caller-specific fallback model selection
+ * @param {boolean} options.useLLM - Whether to use the optional external LLM classifier
  * @returns {object} Classification result with mode, tier, reason, source
  */
 export function classifyPrompt(prompt, options = {}) {
@@ -478,12 +548,26 @@ function parseLLMResponse(text) {
  * Execute a subprocess to call opencode run with a model.
  * This uses the local opencode CLI to run the model.
  */
-async function execOpencodeRun(model, message, timeoutMs = 15000) {
+function resolveOpencodeBin() {
+  if (process.env.OPENCODE_BIN) return process.env.OPENCODE_BIN;
+  for (const candidate of ['/home/pai/.opencode/bin/opencode', '/home/pai/.local/bin/opencode']) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return 'opencode';
+}
+
+async function execOpencodeRun(model, message, timeoutMs = 25000) {
+  const bin = resolveOpencodeBin();
   const proc = Bun.spawn({
-    cmd: ['opencode', 'run', '--model', model, '--message', message],
+    cmd: [bin, 'run', '--pure', '--model', model, message],
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, OPENCODE: '1' },
+    env: {
+      ...process.env,
+      OPENCODE: '1',
+      PAI_CLASSIFIER_INTERNAL: 'true',
+      PAI_CLASSIFIER_USE_LLM: 'false',
+    },
   });
 
   // Set up timeout
@@ -512,8 +596,10 @@ async function execOpencodeRun(model, message, timeoutMs = 15000) {
 /**
  * Classify using an LLM via opencode run.
  * 
- * Uses `opencode run --model <model> --message <prompt>` to get classification.
- * Falls back to heuristic on any error or timeout.
+ * Uses `opencode run --pure --model <model> <prompt>` to get classification.
+ * Matches original PAI failure semantics by fail-safing to ALGORITHM E3 on
+ * error/timeout, unless providerConfig.fallback === 'heuristic' is explicitly
+ * set for offline/debug use.
  * 
  * @param {string} prompt - Raw user prompt text
  * @param {object} providerConfig - Optional: { model, timeoutMs }
@@ -537,7 +623,8 @@ export async function classifyPromptWithLLM(prompt, providerConfig = null) {
 
   const {
     model = 'opencode/deepseek-v4-flash-free',
-    timeoutMs = 8000,
+    timeoutMs = 25000,
+    fallback = process.env.PAI_CLASSIFIER_FALLBACK || 'fail-safe',
   } = providerConfig;
 
   // Build the classification prompt
@@ -585,13 +672,22 @@ export async function classifyPromptWithLLM(prompt, providerConfig = null) {
 
     return normalizeClassification(result);
   } catch (error) {
-    // Any error → fall back to heuristic
-    console.error(`[PAI Classifier] LLM error: ${error.message}. Falling back to heuristic.`);
-    const result = classifyPrompt(prompt);
+    console.error(`[PAI Classifier] LLM error: ${error.message}.`);
+    if (fallback === 'heuristic') {
+      const result = classifyPrompt(prompt);
+      return {
+        ...result,
+        reason: `${result.reason} (LLM fallback: ${error.message})`,
+        source: 'heuristic',
+        latencyMs: Math.round(performance.now() - startTime),
+      };
+    }
     return {
-      ...result,
-      reason: `${result.reason} (LLM fallback: ${error.message})`,
-      source: 'heuristic',
+      mode: 'ALGORITHM',
+      tier: 'E3',
+      reason: `LLM classifier failed — fail-safe to ALGORITHM E3: ${error.message}`,
+      source: 'fail-safe',
+      confidence: 1.0,
       latencyMs: Math.round(performance.now() - startTime),
     };
   }

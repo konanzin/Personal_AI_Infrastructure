@@ -40,6 +40,12 @@ describe("Mode Classifier — classifyPrompt", () => {
       const result = classifyPrompt("ok");
       expect(result.mode).toBe("MINIMAL");
     });
+
+    test("Portuguese acknowledgment → MINIMAL", () => {
+      const result = classifyPrompt("Valeu, ficou ótimo!");
+      expect(result.mode).toBe("MINIMAL");
+      expect(result.source).toBe("heuristic");
+    });
   });
 
   describe("NATIVE mode", () => {
@@ -62,6 +68,28 @@ describe("Mode Classifier — classifyPrompt", () => {
     test("single definition → NATIVE", () => {
       const result = classifyPrompt("what's TypeScript?");
       expect(result.mode).toBe("NATIVE");
+    });
+
+    test("Portuguese context recall without tools → NATIVE", () => {
+      const result = classifyPrompt("Sem usar ferramentas: qual é o nome da minha DA?");
+      expect(result.mode).toBe("NATIVE");
+      expect(result.source).toBe("heuristic");
+    });
+
+    test("TELOS marker recall from startup context → NATIVE", () => {
+      const result = classifyPrompt(
+        "Sem usar ferramentas nem ler arquivos: diga quais destes marcadores estão no seu contexto inicial e quais não estão: CTX-ID-EARLY-ALPHA, CTX-TELOS-TAIL-DELTA.",
+      );
+      expect(result.mode).toBe("NATIVE");
+      expect(result.source).toBe("heuristic");
+    });
+
+    test("Portuguese single shell command request → NATIVE", () => {
+      const result = classifyPrompt(
+        "Quantos arquivos TypeScript (.ts) existem a partir do diretório atual? Rode um comando de shell para contar e me diga o número.",
+      );
+      expect(result.mode).toBe("NATIVE");
+      expect(result.source).toBe("heuristic");
     });
   });
 
@@ -97,6 +125,14 @@ describe("Mode Classifier — classifyPrompt", () => {
       const prompt = "I need you to implement a complete user management system with authentication, authorization, password reset, email verification, and role-based access control. It should use JWT tokens, support OAuth2 providers, and have comprehensive unit and integration tests.";
       const result = classifyPrompt(prompt);
       expect(result.mode).toBe("ALGORITHM");
+    });
+
+    test("Portuguese architecture prompt → ALGORITHM via heuristic", () => {
+      const result = classifyPrompt(
+        "Projete a arquitetura de um app de notas local-first: stack, modelo de dados, estratégia de sincronização e principais trade-offs.",
+      );
+      expect(result.mode).toBe("ALGORITHM");
+      expect(result.source).toBe("heuristic");
     });
   });
 
@@ -250,11 +286,23 @@ describe("Mode Classifier — LLM Fallback", () => {
     expect(result.source).toBe("heuristic");
   });
 
-  test("classifyPromptWithLLM falls back on timeout", async () => {
+  test("classifyPromptWithLLM fail-safes on timeout by default", async () => {
     const { classifyPromptWithLLM } = await import("../plugins/lib/mode-classifier.lib.js");
     const result = await classifyPromptWithLLM("hi", {
       model: "opencode/deepseek-v4-flash-free",
       timeoutMs: 1,
+    });
+    expect(result.mode).toBe("ALGORITHM");
+    expect(result.tier).toBe("E3");
+    expect(result.source).toBe("fail-safe");
+  });
+
+  test("classifyPromptWithLLM supports explicit heuristic fallback for debug/offline", async () => {
+    const { classifyPromptWithLLM } = await import("../plugins/lib/mode-classifier.lib.js");
+    const result = await classifyPromptWithLLM("hi", {
+      model: "opencode/deepseek-v4-flash-free",
+      timeoutMs: 1,
+      fallback: "heuristic",
     });
     expect(result.mode).toBe("MINIMAL");
     expect(result.source).toBe("heuristic");

@@ -256,102 +256,263 @@ export function emitNotification({
 // PATTERN INSPECTOR (SecurityPipeline component)
 // ═══════════════════════════════════════════════════════════════
 
-// Dangerous bash patterns that should be BLOCKED
-const BLOCKED_PATTERNS = [
-  { pattern: /rm\s+-rf/, reason: 'rm -rf detected', severity: 'critical' },
-  { pattern: /curl\s+.*\|\s*bash/, reason: 'curl | bash detected', severity: 'critical' },
-  { pattern: /curl\s+.*\|\s*sh/, reason: 'curl | sh detected', severity: 'critical' },
-  { pattern: /wget\s+.*\|\s*bash/, reason: 'wget | bash detected', severity: 'critical' },
-  { pattern: /wget\s+.*\|\s*sh/, reason: 'wget | sh detected', severity: 'critical' },
-  { pattern: /:\(\)\s*\{\s*:\|:&\s*\};:/, reason: 'Fork bomb detected', severity: 'critical' },
-  { pattern: /mkfs\./, reason: 'mkfs filesystem wipe detected', severity: 'critical' },
-  { pattern: /dd\s+if=.*of=\/dev\/(sd|hd|nvme)/, reason: 'dd to disk device detected', severity: 'critical' },
-  { pattern: />\s*\/dev\/(sd|hd|nvme)/, reason: 'Redirect to disk device detected', severity: 'critical' },
-  { pattern: /chmod\s+-R\s+777\s+\//, reason: 'chmod 777 root detected', severity: 'high' },
-  { pattern: /chown\s+-R\s+.*\s+\//, reason: 'chown root detected', severity: 'high' },
-];
+// ───────────────────────────────────────────────────────────────
+// SECURITY POLICY (externalized — parity with original SecurityPipeline)
+//
+// The policy lives in PAI/USER/SECURITY/PATTERNS.yaml. Loading cascades:
+//   1. user file  → parse + compile
+//   2. file absent → bundled default below (canonical; mirrors the shipped
+//      PATTERNS.yaml so the plugin never bricks and tests run without install)
+//   3. file present but corrupt/invalid → FAIL-CLOSED (deny gated tools,
+//      except read/write to the policy file itself so it can be repaired)
+//
+// Bash tiers: trusted (fast-path allow) → blocked (deny) → alert (log+allow).
+// There is intentionally NO bash "confirm" tier (matches the original "ZERO
+// confirm" philosophy); confirmation survives only for path tiers, which the
+// runtime surfaces through OpenCode's native permission prompt.
+// ───────────────────────────────────────────────────────────────
 
-// Dangerous patterns that require CONFIRMATION
-const CONFIRM_PATTERNS = [
-  { pattern: /curl\s+.*\|/, reason: 'Piping curl output requires confirmation' },
-  { pattern: /wget\s+.*\|/, reason: 'Piping wget output requires confirmation' },
-  { pattern: /\b(cat|grep|rg|sed|awk|source)\b[^|;&]*(\.env\b|\.npmrc\b|\.pypirc\b|id_rsa\b|id_ed25519\b|id_ecdsa\b|\.aws\/credentials\b)/, reason: 'Shell read of credential-bearing file requires confirmation' },
-  { pattern: /eval\s*[\(`"']/, reason: 'eval usage requires confirmation' },
-  { pattern: /exec\s*\(/, reason: 'exec usage requires confirmation' },
-  { pattern: /spawn\s*\(/, reason: 'spawn usage requires confirmation' },
-  { pattern: /child_process/, reason: 'child_process usage requires confirmation' },
-  { pattern: /python3?\s+-c\s/, reason: 'Python inline execution requires confirmation' },
-  { pattern: /node\s+-e\s/, reason: 'Node inline execution requires confirmation' },
-  { pattern: /perl\s+-e\s/, reason: 'Perl inline execution requires confirmation' },
-];
+const DEFAULT_SECURITY_POLICY_OBJ = {
+  version: '3.1-opencode',
+  bash: {
+    trusted: [
+      { pattern: '^playwright-cli\\b', reason: 'Playwright CLI (Browser skill)' },
+      { pattern: '^bunx playwright\\b', reason: 'Playwright one-shot (Browser skill)' },
+      { pattern: '^agent-browser\\b', reason: 'agent-browser CLI (Browser skill)' },
+    ],
+    blocked: [
+      { pattern: 'rm\\s.*-\\w*r.*\\s+/(\\s|$)', reason: 'Recursive deletion of system root (/)' },
+      { pattern: 'rm\\s.*-\\w*r.*\\s+~/?(\\s|$|;|&&)', reason: 'Recursive deletion of home directory (~)' },
+      { pattern: 'rm\\s.*-\\w*r.*\\s+\\$\\{?HOME\\}?/?(\\s|$|;|&&)', reason: 'Recursive deletion of home directory ($HOME)' },
+      { pattern: 'rm\\s.*-\\w*r.*\\s(~|\\$\\{?HOME\\}?)/\\.config/opencode(/|\\s|$|;|&&)', reason: 'Recursive deletion of ~/.config/opencode (entire PAI infrastructure)' },
+      { pattern: 'rm\\s.*-\\w*r.*\\s+~/Projects/?(\\s|$|;|&&)', reason: 'Recursive deletion of ~/Projects' },
+      { pattern: 'rm\\s.*(PATTERNS\\.yaml|pai-hooks(\\.lib)?\\.js)', reason: 'Deletion of PAI security policy/plugin disables protection' },
+      { pattern: ':\\(\\)\\s*\\{\\s*:\\|:&\\s*\\};:', reason: 'Fork bomb' },
+      { pattern: 'mkfs(\\.|\\b)', reason: 'Filesystem format/wipe (mkfs)' },
+      { pattern: 'dd\\s+if=/dev/zero', reason: 'Disk overwrite with zeros (dd if=/dev/zero)' },
+      { pattern: 'dd\\s+if=.*of=/dev/(sd|hd|nvme)', reason: 'dd to disk device' },
+      { pattern: '>\\s*/dev/(sd|hd|nvme)', reason: 'Redirect to disk device' },
+      { pattern: 'diskutil\\s+(eraseDisk|zeroDisk|apfs\\s+(deleteContainer|eraseVolume))', reason: 'Disk/volume destruction (diskutil)' },
+      { pattern: 'chmod\\s+-R\\s+777\\s+/', reason: 'chmod 777 on root' },
+      { pattern: 'chown\\s+-R\\s+.*\\s+/(\\s|$)', reason: 'chown -R on root' },
+      { pattern: 'gh\\s+repo\\s+delete', reason: 'GitHub repository deletion' },
+      { pattern: 'gh\\s+repo\\s+edit\\b.*--visibility\\s+public', reason: 'Repository visibility changed to public' },
+      { pattern: '(curl|wget|fetch|aria2c|httpie)\\s+[^|]*\\|\\s*(sh|bash|zsh)\\b', reason: 'Piping HTTP downloader output to shell interpreter' },
+      { pattern: '\\b(cat|grep|rg|sed|awk|source|less|head|tail)\\b[^|;&]*\\.env\\b', reason: 'Reading .env via shell (use Read tool or secrets utility)' },
+    ],
+    alert: [
+      { pattern: 'rm\\s+.*-\\w*[rR]', reason: 'Recursive rm (logged for audit)' },
+      { pattern: 'git\\s+push\\b.*(--force|\\s-f\\b)', reason: 'Force push (audit)' },
+      { pattern: 'git\\s+reset\\s+--hard', reason: 'Hard reset (audit)' },
+      { pattern: '\\bDROP\\s+(DATABASE|TABLE)\\b', reason: 'Destructive SQL (audit)' },
+      { pattern: '\\bTRUNCATE\\b', reason: 'Table truncate (audit)' },
+      { pattern: 'terraform\\s+destroy', reason: 'Infrastructure destruction (audit)' },
+      { pattern: '\\b(nc|ncat|socat)\\s', reason: 'Netcat/socat usage (exfil risk, audit)' },
+      { pattern: '\\bsendmail\\b', reason: 'Direct sendmail usage (exfil risk, audit)' },
+      { pattern: '(curl|wget)\\b.*(-X\\s*POST|--data|--post-data|--post-file|\\s-d\\s)', reason: 'Outbound HTTP POST (audit)' },
+      { pattern: '^(printenv|env)\\s*$', reason: 'Full environment dump (audit)' },
+      { pattern: '^set\\s*$', reason: 'Shell variable dump (audit)' },
+      { pattern: 'eval\\s*[\\(`"]', reason: 'eval usage (audit)' },
+      { pattern: 'python3?\\s+-c\\s', reason: 'Python inline execution (audit)' },
+      { pattern: 'node\\s+-e\\s', reason: 'Node inline execution (audit)' },
+      { pattern: 'ruby\\s+-e\\s', reason: 'Ruby inline execution (audit)' },
+      { pattern: 'perl\\s+-e\\s', reason: 'Perl inline execution (audit)' },
+      { pattern: 'npm\\s+.*--unsafe-perm', reason: 'npm --unsafe-perm (audit)' },
+    ],
+  },
+  paths: {
+    // block read + write + delete
+    zeroAccess: [
+      '~/.ssh/id_*', '~/.ssh/*.pem', '~/.aws/credentials', '~/.gnupg/**',
+      '**/service-account*.json', '/etc/shadow', '/etc/gshadow', '/proc/kcore',
+      '**/.env', '**/.env.*',
+    ],
+    // log + allow on read/write (empty: .env reads are denied above, matching original PAI)
+    alertAccess: [],
+    // require approval (native prompt) on read/write
+    confirmAccess: ['~/.config/opencode/.mcp.json'],
+    // block write + delete (reads allowed)
+    readOnly: [
+      '/etc/**',
+      '~/.config/opencode/PAI/USER/SECURITY/PATTERNS.yaml',
+      '~/.config/opencode/plugins/pai-hooks.js',
+      '~/.config/opencode/plugins/lib/**',
+    ],
+    // block delete only
+    noDelete: ['~/.config/opencode/PAI/**', '~/.config/opencode/plugins/**', '**/.git/**'],
+    // require approval on write
+    confirmWrite: ['**/.npmrc', '**/.pypirc', '**/id_rsa', '**/id_ed25519', '**/.htpasswd'],
+  },
+};
 
-// Alert patterns (logged but allowed)
-const ALERT_PATTERNS = [
-  { pattern: /npm\s+.*--unsafe-perm/, reason: 'npm --unsafe-perm detected' },
-  { pattern: /process\.exit\s*\(/, reason: 'process.exit detected' },
-];
+// Minimal indentation-based parser for the constrained PATTERNS.yaml subset:
+// top-level scalars, two-level maps, sequences of `- key: value` items and
+// sequences of scalar strings. Anything outside this shape throws (→ fail-closed).
+function parseSecurityYaml(text) {
+  const lines = [];
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    const line = rawLine.replace(/\t/g, '  ');
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === '---' || trimmed.startsWith('#')) continue;
+    const indent = line.match(/^ */)[0].length;
+    lines.push({ indent, content: line.slice(indent).replace(/\s+$/, '') });
+  }
+  let pos = 0;
 
-// Sensitive paths that should be blocked for writes
-const ZERO_ACCESS_PATHS = [
-  '/etc/passwd',
-  '/etc/shadow',
-  '/etc/sudoers',
-  '/etc/hosts',
-  '/etc/resolv.conf',
-];
+  const unquote = (v) => {
+    const s = v.trim();
+    if (s.length >= 2 && ((s[0] === "'" && s.endsWith("'")) || (s[0] === '"' && s.endsWith('"')))) {
+      return s.slice(1, -1);
+    }
+    return s;
+  };
 
-const READ_ONLY_PATHS = [
-  join(homedir(), '.ssh'),
-  join(homedir(), '.gnupg'),
-  join(homedir(), '.aws'),
-];
+  const parseNode = (indent) => {
+    if (pos >= lines.length) return null;
+    return lines[pos].content.startsWith('- ') ? parseSeq(indent) : parseMap(indent);
+  };
 
-const CONFIRM_WRITE_PATHS = [
-  '.env',
-  '.env.',
-  '.npmrc',
-  '.pypirc',
-  'id_rsa',
-  'id_ed25519',
-  '.htpasswd',
-  'shadow',
-  'passwd',
-  'sudoers',
-];
+  function parseMap(indent) {
+    const map = {};
+    while (pos < lines.length) {
+      const { indent: ind, content } = lines[pos];
+      if (ind < indent) break;
+      if (ind > indent) { pos++; continue; }
+      if (content.startsWith('- ')) break;
+      const m = content.match(/^([\w.-]+):\s*(.*)$/);
+      if (!m) { pos++; continue; }
+      const key = m[1];
+      const val = m[2];
+      pos++;
+      if (val === '') {
+        const childIndent = pos < lines.length ? lines[pos].indent : indent + 2;
+        map[key] = childIndent > indent ? parseNode(childIndent) : null;
+      } else if (val === '[]') {
+        map[key] = [];
+      } else {
+        map[key] = unquote(val);
+      }
+    }
+    return map;
+  }
 
-const ZERO_READ_PATHS = [
-  '/etc/shadow',
-  '/etc/gshadow',
-  '/etc/sudoers',
-  '/proc/kcore',
-];
+  function parseSeq(indent) {
+    const arr = [];
+    while (pos < lines.length) {
+      const { indent: ind, content } = lines[pos];
+      if (ind < indent) break;
+      if (ind > indent) { pos++; continue; }
+      if (!content.startsWith('- ')) break;
+      const rest = content.slice(2);
+      if (/^[\w.-]+:(\s|$)/.test(rest)) {
+        // inline map item: re-anchor as a map line at indent+2 and parse a map
+        lines[pos] = { indent: ind + 2, content: rest };
+        arr.push(parseMap(ind + 2));
+      } else {
+        arr.push(unquote(rest));
+        pos++;
+      }
+    }
+    return arr;
+  }
 
-const CONFIRM_READ_PATHS = [
-  '.env',
-  '.env.',
-  '.npmrc',
-  '.pypirc',
-  '.netrc',
-  '.htpasswd',
-  'id_rsa',
-  'id_ed25519',
-  'id_ecdsa',
-  'id_dsa',
-  'private_key',
-  'credentials',
-  'credential',
-  'secrets',
-  'secret',
-  'tokens',
-  'token',
-  'PAI_CONFIG.yaml',
-  join(homedir(), '.ssh'),
-  join(homedir(), '.gnupg'),
-  join(homedir(), '.aws'),
-  join(homedir(), '.config', 'gcloud'),
-  join(homedir(), '.azure'),
-  join(homedir(), '.docker', 'config.json'),
-];
+  return parseNode(0);
+}
+
+function compileSecurityPolicy(obj, source) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('policy root is not a map');
+  const bash = obj.bash || {};
+  const paths = obj.paths || {};
+  const rules = (list, severity) => {
+    const out = [];
+    for (const item of Array.isArray(list) ? list : []) {
+      const pattern = item && item.pattern;
+      if (typeof pattern !== 'string' || !pattern) throw new Error('bash rule missing pattern');
+      out.push({ re: new RegExp(pattern, 'i'), reason: (typeof item.reason === 'string' && item.reason) ? item.reason : pattern, severity });
+    }
+    return out;
+  };
+  const globs = (list, label) => {
+    const out = [];
+    for (const g of Array.isArray(list) ? list : []) {
+      if (typeof g !== 'string' || !g) throw new Error('path rule is not a string');
+      out.push({ glob: g, reason: `${label}: ${g}` });
+    }
+    return out;
+  };
+  const policy = {
+    status: 'ok',
+    source,
+    reason: null,
+    bash: {
+      trusted: rules(bash.trusted, 'low'),
+      blocked: rules(bash.blocked, 'critical'),
+      alert: rules(bash.alert, 'low'),
+    },
+    paths: {
+      zeroAccess: globs(paths.zeroAccess, 'Zero-access path'),
+      alertAccess: globs(paths.alertAccess, 'Sensitive path'),
+      confirmAccess: globs(paths.confirmAccess, 'Protected path'),
+      readOnly: globs(paths.readOnly, 'Read-only path'),
+      noDelete: globs(paths.noDelete, 'Protected from deletion'),
+      confirmWrite: globs(paths.confirmWrite, 'Protected file'),
+    },
+  };
+  // Corruption guards: a structurally-valid but empty policy must NOT silently disarm.
+  if (policy.bash.blocked.length === 0) throw new Error('policy defines no blocked bash patterns');
+  if (policy.paths.zeroAccess.length === 0) throw new Error('policy defines no zero-access paths');
+  return policy;
+}
+
+const _emptyTiers = () => ({ zeroAccess: [], alertAccess: [], confirmAccess: [], readOnly: [], noDelete: [], confirmWrite: [] });
+const _corruptPolicy = (source, reason) => ({ status: 'corrupt', source, reason, bash: { trusted: [], blocked: [], alert: [] }, paths: _emptyTiers() });
+
+function securityPolicyPath() {
+  return join(process.env.PAI_DIR || PAI_DIR, 'USER', 'SECURITY', 'PATTERNS.yaml');
+}
+
+export function isSecurityPolicyPath(filePath) {
+  try {
+    return resolve(expandTilde(String(filePath || ''))) === resolve(securityPolicyPath());
+  } catch {
+    return false;
+  }
+}
+
+let _policyCache = null;
+
+export function loadSecurityPolicy() {
+  const path = securityPolicyPath();
+  let exists = false;
+  let mtimeMs = null;
+  try {
+    if (existsSync(path)) { exists = true; mtimeMs = statSync(path).mtimeMs; }
+  } catch { exists = false; }
+
+  const cacheKey = exists ? `file:${mtimeMs}` : 'default';
+  if (_policyCache && _policyCache.path === path && _policyCache.key === cacheKey) return _policyCache.policy;
+
+  let policy;
+  if (exists) {
+    try {
+      policy = compileSecurityPolicy(parseSecurityYaml(readFileSync(path, 'utf-8')), path);
+    } catch (e) {
+      console.error(`[PAI] 🛡️ Security policy ${path} is corrupt — failing closed: ${e.message}`);
+      policy = _corruptPolicy(path, e.message);
+    }
+  } else {
+    try {
+      policy = compileSecurityPolicy(DEFAULT_SECURITY_POLICY_OBJ, 'bundled-default');
+      policy.status = 'default';
+      console.warn(`[PAI] 🛡️ Security policy ${path} not found — using bundled default policy`);
+    } catch (e) {
+      policy = _corruptPolicy('bundled-default', e.message);
+    }
+  }
+
+  _policyCache = { path, key: cacheKey, policy };
+  return policy;
+}
 
 const HIGH_CONFIDENCE_SECRET_CONTENT = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
@@ -412,110 +573,87 @@ function matchesPathPattern(filePath, pattern) {
     normalizedPath.startsWith(expandedPattern.endsWith('/') ? expandedPattern : expandedPattern + '/');
 }
 
+function matchGlobs(filePath, list) {
+  const out = [];
+  for (const entry of list) {
+    if (matchesPathPattern(filePath, entry.glob)) out.push(entry);
+  }
+  return out;
+}
+
 export function inspectBashCommand(command) {
-  const normalized = stripEnvVarPrefix(command);
+  const policy = loadSecurityPolicy();
+  const normalized = stripEnvVarPrefix(String(command || ''));
   if (!normalized) return { action: 'allow', violations: [] };
 
+  if (policy.status === 'corrupt') {
+    return {
+      action: 'deny',
+      violations: [{ action: 'deny', reason: `Security policy unavailable — failing closed (${policy.reason || 'corrupt'})`, severity: 'critical', type: 'fail-closed' }],
+    };
+  }
+
+  // Trusted fast-path — skip all further checks
+  for (const t of policy.bash.trusted) {
+    if (t.re.test(normalized)) return { action: 'allow', violations: [] };
+  }
+
   const violations = [];
-
-  // Check blocked patterns
-  for (const { pattern, reason, severity } of BLOCKED_PATTERNS) {
-    if (pattern.test(normalized)) {
-      violations.push({ action: 'deny', reason, severity, type: 'blocked' });
-    }
+  for (const b of policy.bash.blocked) {
+    if (b.re.test(normalized)) violations.push({ action: 'deny', reason: b.reason, severity: b.severity, type: 'blocked' });
+  }
+  for (const a of policy.bash.alert) {
+    if (a.re.test(normalized)) violations.push({ action: 'alert', reason: a.reason, severity: a.severity, type: 'alert' });
   }
 
-  // Check confirm patterns
-  for (const { pattern, reason } of CONFIRM_PATTERNS) {
-    if (pattern.test(normalized)) {
-      violations.push({ action: 'require_approval', reason, severity: 'medium', type: 'confirm' });
-    }
+  // Priority: deny > alert (no bash "confirm" tier — matches original doctrine)
+  if (violations.some(v => v.action === 'deny')) {
+    return { action: 'deny', violations: violations.filter(v => v.action === 'deny') };
   }
-
-  // Check alert patterns
-  for (const { pattern, reason } of ALERT_PATTERNS) {
-    if (pattern.test(normalized)) {
-      violations.push({ action: 'alert', reason, severity: 'low', type: 'alert' });
-    }
-  }
-
-  if (violations.length === 0) return { action: 'allow', violations: [] };
-
-  // Priority: deny > require_approval > alert
-  const hasDeny = violations.some(v => v.action === 'deny');
-  if (hasDeny) {
-    const critical = violations.filter(v => v.action === 'deny');
-    return { action: 'deny', violations: critical };
-  }
-
-  const hasConfirm = violations.some(v => v.action === 'require_approval');
-  if (hasConfirm) {
-    const confirms = violations.filter(v => v.action === 'require_approval');
-    return { action: 'require_approval', violations: confirms };
-  }
-
-  return { action: 'alert', violations };
+  if (violations.length > 0) return { action: 'alert', violations };
+  return { action: 'allow', violations: [] };
 }
 
 export function inspectWritePath(filePath, action = 'write') {
-  const normalized = resolve(expandTilde(filePath));
-  const violations = [];
-
-  // Zero access paths
-  for (const p of ZERO_ACCESS_PATHS) {
-    if (matchesPathPattern(normalized, p)) {
-      violations.push({ action: 'deny', reason: `Zero access path: ${p}` });
-    }
+  const policy = loadSecurityPolicy();
+  if (policy.status === 'corrupt') {
+    if (isSecurityPolicyPath(filePath)) return { action: 'allow', violations: [] };
+    return { action: 'deny', violations: [{ action: 'deny', reason: 'Security policy unavailable — failing closed', severity: 'critical', type: 'fail-closed' }] };
   }
 
-  if (action === 'write' || action === 'delete') {
-    // Read-only paths
-    for (const p of READ_ONLY_PATHS) {
-      if (matchesPathPattern(normalized, p)) {
-        violations.push({ action: 'deny', reason: `Read-only path: ${p}` });
-      }
-    }
+  const violations = [];
 
-    // Confirm write paths
-    for (const p of CONFIRM_WRITE_PATHS) {
-      if (normalized.toLowerCase().includes(p.toLowerCase())) {
-        violations.push({ action: 'require_approval', reason: `Writing to protected file: ${p}` });
-      }
-    }
+  // Zero-access paths: blocked for read, write, and delete
+  for (const v of matchGlobs(filePath, policy.paths.zeroAccess)) violations.push({ action: 'deny', reason: v.reason });
+
+  if (action === 'write' || action === 'delete') {
+    for (const v of matchGlobs(filePath, policy.paths.readOnly)) violations.push({ action: 'deny', reason: v.reason });
+    for (const v of matchGlobs(filePath, policy.paths.confirmWrite)) violations.push({ action: 'require_approval', reason: v.reason });
+    for (const v of matchGlobs(filePath, policy.paths.confirmAccess)) violations.push({ action: 'require_approval', reason: v.reason });
+    for (const v of matchGlobs(filePath, policy.paths.alertAccess)) violations.push({ action: 'alert', reason: v.reason });
   }
 
   if (action === 'delete') {
+    for (const v of matchGlobs(filePath, policy.paths.noDelete)) violations.push({ action: 'deny', reason: v.reason });
     violations.push({ action: 'require_approval', reason: 'Delete operation requires confirmation' });
   }
 
-  if (violations.length === 0) return { action: 'allow', violations: [] };
-
-  const hasDeny = violations.some(v => v.action === 'deny');
-  if (hasDeny) return { action: 'deny', violations: violations.filter(v => v.action === 'deny') };
-
-  const hasConfirm = violations.some(v => v.action === 'require_approval');
-  if (hasConfirm) return { action: 'require_approval', violations: violations.filter(v => v.action === 'require_approval') };
-
-  return { action: 'alert', violations };
+  return highestPriorityResult(violations);
 }
 
 export function inspectReadPath(filePath) {
   if (!filePath || typeof filePath !== 'string') return { action: 'allow', violations: [] };
 
-  const normalized = resolve(expandTilde(filePath));
+  const policy = loadSecurityPolicy();
+  if (policy.status === 'corrupt') {
+    if (isSecurityPolicyPath(filePath)) return { action: 'allow', violations: [] };
+    return { action: 'deny', violations: [{ action: 'deny', reason: 'Security policy unavailable — failing closed', severity: 'critical', type: 'fail-closed' }] };
+  }
+
   const violations = [];
-
-  for (const p of ZERO_READ_PATHS) {
-    if (matchesPathPattern(normalized, p)) {
-      violations.push({ action: 'deny', reason: `Zero access read path: ${p}`, severity: 'critical' });
-    }
-  }
-
-  for (const p of CONFIRM_READ_PATHS) {
-    if (matchesPathPattern(normalized, p) || normalized.toLowerCase().includes(String(p).toLowerCase())) {
-      violations.push({ action: 'require_approval', reason: `Reading protected file: ${p}`, severity: 'medium' });
-    }
-  }
+  for (const v of matchGlobs(filePath, policy.paths.zeroAccess)) violations.push({ action: 'deny', reason: v.reason, severity: 'critical' });
+  for (const v of matchGlobs(filePath, policy.paths.confirmAccess)) violations.push({ action: 'require_approval', reason: v.reason, severity: 'medium' });
+  for (const v of matchGlobs(filePath, policy.paths.alertAccess)) violations.push({ action: 'alert', reason: v.reason, severity: 'low' });
 
   return highestPriorityResult(violations);
 }
@@ -553,6 +691,266 @@ export function inspectWriteContent(filePath, content = '') {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// RELATIONSHIP MEMORY CAPTURE (conservative port of RelationshipMemory.hook.ts)
+//
+// Original inferred World/Biographical/Opinion notes on every session end.
+// We keep it deliberately low-noise: one Biographical (B) note per COMPLETED,
+// non-trivial work session, appended to the daily relationship file. This is
+// the feeder for RelationshipReflect.ts; sentiment inference is left out to
+// avoid the original's noise.
+// ═══════════════════════════════════════════════════════════════
+
+export function captureRelationshipNote({ sessionId, title, category }) {
+  try {
+    if (!title || typeof title !== 'string' || title.trim().length < 5) return { captured: false, reason: 'no_title' };
+    const { ymd, ym, hhmm } = toRelationshipStamp();
+    const dir = join(MEMORY_DIR, 'RELATIONSHIP', ym);
+    ensureDir(dir);
+    const file = join(dir, `${ymd}.md`);
+    const header = existsSync(file) ? '' : `# Relationship notes — ${ymd}\n\n`;
+    const note = `## ${hhmm}\n- B @da: completed work — ${title.trim()}${category ? ` (${category})` : ''}\n\n`;
+    appendFileSync(file, `${header}${note}`, 'utf-8');
+    return { captured: true, file };
+  } catch (e) {
+    return { captured: false, reason: 'error', error: e.message };
+  }
+}
+
+function toRelationshipStamp() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const ym = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+  const hhmm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return { ymd, ym, hhmm };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REPEAT DETECTION (ported from RepeatDetection.hook.ts)
+//
+// Original ran on UserPromptSubmit (could block via exit 2). OpenCode's
+// message.updated fires after the message is in flight, so this is advisory
+// (alert only). Faithful algorithm: trigram+bigram Jaccard similarity vs the
+// previous prompt in the SAME session, persisted per session.
+// ═══════════════════════════════════════════════════════════════
+
+function repeatTokens(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
+}
+
+function ngrams(tokens, n) {
+  const out = new Set();
+  for (let i = 0; i + n <= tokens.length; i++) out.add(tokens.slice(i, i + n).join(' '));
+  return out;
+}
+
+function jaccard(a, b) {
+  if (a.size === 0 && b.size === 0) return 0;
+  let inter = 0;
+  for (const x of a) if (b.has(x)) inter++;
+  const union = a.size + b.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+export function detectRepeatPrompt(sessionId, content, threshold = 0.6) {
+  const result = { similarity: 0, isRepeat: false };
+  try {
+    const text = String(content || '');
+    if (text.length < 20) return result;
+    const statePath = join(STATE_DIR, `last-prompt-${sessionId}.json`);
+    const prev = safeReadJson(statePath, null);
+    const tokens = repeatTokens(text);
+    const grams = new Set([...ngrams(tokens, 3), ...ngrams(tokens, 2)]);
+
+    if (prev && Array.isArray(prev.grams) && prev.grams.length > 0) {
+      result.similarity = jaccard(grams, new Set(prev.grams));
+      result.isRepeat = result.similarity >= threshold;
+    }
+    safeWriteJson(statePath, { grams: [...grams], at: getISOTimestamp() });
+  } catch {
+    // best-effort
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TELOS SUMMARY SYNC (ported from TelosSummarySync.hook.ts)
+//
+// Original fired on PostToolUse when a USER/TELOS source file was written and
+// spawned GenerateTelosSummary.ts. OpenCode equivalent: call from
+// tool.execute.after for write/edit. Fail-soft; no-op unless the edited file is
+// a TELOS source (not PRINCIPAL_TELOS.md / Backups) and the tool is installed.
+// ═══════════════════════════════════════════════════════════════
+
+export function maybeSyncTelosSummary(filePath) {
+  try {
+    if (!filePath || typeof filePath !== 'string') return { synced: false, reason: 'no_path' };
+    const norm = resolve(expandTilde(filePath));
+    const telosDir = resolve(join(PAI_DIR, 'USER', 'TELOS'));
+    if (!norm.startsWith(`${telosDir}/`)) return { synced: false, reason: 'not_telos' };
+    if (norm.endsWith('/PRINCIPAL_TELOS.md') || norm.includes('/Backups/')) {
+      return { synced: false, reason: 'excluded' };
+    }
+    const tool = join(PAI_DIR, 'TOOLS', 'GenerateTelosSummary.ts');
+    if (!existsSync(tool)) return { synced: false, reason: 'tool_absent' };
+    execFileSync('bun', [tool], { timeout: 5000, stdio: 'ignore' });
+    return { synced: true };
+  } catch (e) {
+    return { synced: false, reason: 'error', error: e.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INTEGRITY TELEMETRY (session-end — fuses DocIntegrity + IntegrityCheck)
+//
+// Faithful-but-conservative port: when PAI system files changed during the
+// session, throttled by a cooldown, run the existing validators in fail-soft
+// mode and log the outcome. Telemetry only — NEVER auto-edits docs (deliberate
+// deviation from the original's surgical edits). No spawn happens unless PAI
+// files actually changed AND the installed validators exist, so it is inert in
+// tests and on plain sessions.
+// ═══════════════════════════════════════════════════════════════
+
+export function detectChangedPaiSystemFiles(sessionId, toolActivityPath) {
+  try {
+    if (!existsSync(toolActivityPath)) return [];
+    const lines = readFileSync(toolActivityPath, 'utf-8').trim().split('\n').filter(Boolean);
+    const changed = new Set();
+    const paiRoot = resolve(PAI_DIR);
+    for (const line of lines) {
+      let entry;
+      try { entry = JSON.parse(line); } catch { continue; }
+      if (entry.session_id !== sessionId) continue;
+      if (!['write', 'edit', 'multiedit'].includes(entry.tool_name)) continue;
+      const fp = entry.ground_truth?.file_path;
+      if (!fp) continue;
+      const norm = resolve(expandTilde(fp));
+      if (norm.startsWith(`${paiRoot}/`) || /pai-hooks|\/DOCUMENTATION\/|\/ALGORITHM\//.test(norm)) {
+        changed.add(norm);
+      }
+    }
+    return [...changed];
+  } catch {
+    return [];
+  }
+}
+
+export function runIntegrityTelemetry({ sessionId, changedFiles, cooldownMs = 5 * 60 * 1000 }) {
+  const result = { ran: false, skipped: null };
+  try {
+    if (!changedFiles || changedFiles.length === 0) { result.skipped = 'no_pai_changes'; return result; }
+
+    const statePath = join(STATE_DIR, 'integrity-state.json');
+    const state = safeReadJson(statePath, {});
+    const now = Date.now();
+    if (state.lastRunAt && (now - state.lastRunAt) < cooldownMs) { result.skipped = 'cooldown'; return result; }
+
+    const binDir = join(PAI_DIR, 'bin');
+    const validators = [
+      ['doc', join(binDir, 'validate-doc-integrity.js'), ['--json'], 'bun'],
+      ['promise', join(binDir, 'validate-promise-integrity.sh'), [], 'bash'],
+      ['tools', join(binDir, 'validate-tools-manifest.js'), ['--json'], 'bun'],
+    ];
+    const outcomes = {};
+    let anyFail = false;
+    let anyRan = false;
+    for (const [name, path, args, cmd] of validators) {
+      if (!existsSync(path)) { outcomes[name] = 'absent'; continue; }
+      anyRan = true;
+      try {
+        execFileSync(cmd, [path, ...args], { timeout: 20000, stdio: 'ignore' });
+        outcomes[name] = 'pass';
+      } catch {
+        outcomes[name] = 'fail';
+        anyFail = true;
+      }
+    }
+
+    if (!anyRan) { result.skipped = 'no_validators'; return result; }
+
+    result.ran = true;
+    result.outcomes = outcomes;
+    appendJsonL(join(OBSERVABILITY_DIR, 'integrity.jsonl'), {
+      timestamp: getISOTimestamp(),
+      event: 'integrity_check',
+      session_id: sessionId,
+      changed_files: changedFiles.length,
+      outcomes,
+      drift: anyFail,
+    });
+    state.lastRunAt = now;
+    state.lastSession = sessionId;
+    safeWriteJson(statePath, state);
+    if (anyFail) {
+      emitNotification({ event: 'integrity_drift', sessionId, data: { outcomes } });
+    }
+  } catch (e) {
+    result.error = e.message;
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SMART APPROVER (deterministic permission assistance — ported from
+// SmartApprover.hook.ts). Faithful port: trusted-path fast-path + a
+// read-allow cache, NO LLM. The optional LLM RulesInspector
+// (SECURITY_RULES.md + classifier) is intentionally NOT implemented here.
+//
+// OpenCode adaptation: the plugin cannot observe the user's eventual
+// permission decision, so the cache only remembers low-risk read allows
+// (for telemetry/consistency); writes are never auto-allowed unless they
+// fall under a trusted prefix.
+// ═══════════════════════════════════════════════════════════════
+
+const TRUSTED_PREFIXES = [
+  PAI_DIR,
+  join(homedir(), 'Projects'),
+  '/tmp',
+];
+
+export function isTrustedPath(target) {
+  if (!target || typeof target !== 'string') return false;
+  try {
+    const normalized = resolve(expandTilde(target));
+    return TRUSTED_PREFIXES.some((root) => {
+      const r = resolve(root);
+      return normalized === r || normalized.startsWith(`${r}/`);
+    });
+  } catch {
+    return false;
+  }
+}
+
+function permissionCachePath() {
+  return join(STATE_DIR, 'permission-cache.json');
+}
+
+export function permissionCacheGet(tool, target) {
+  const cache = safeReadJson(permissionCachePath(), {});
+  return cache[`${tool}:${String(target).slice(0, 100)}`] || null;
+}
+
+export function permissionCacheAllowRead(tool, target) {
+  try {
+    const path = permissionCachePath();
+    const cache = safeReadJson(path, {});
+    const keys = Object.keys(cache);
+    // Bound the cache to avoid unbounded growth (drop oldest insertion).
+    if (keys.length > 500 && !cache[`${tool}:${String(target).slice(0, 100)}`]) {
+      delete cache[keys[0]];
+    }
+    cache[`${tool}:${String(target).slice(0, 100)}`] = 'allow';
+    safeWriteJson(path, cache);
+  } catch {
+    // Cache is best-effort; never break the permission flow.
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // EGRESS INSPECTOR (SecurityPipeline component)
 // ═══════════════════════════════════════════════════════════════
 
@@ -571,6 +969,11 @@ const PIPE_TO_SHELL = /\|\s*(sh|bash|zsh)\b/i;
 
 export function inspectEgress(command) {
   if (!command) return { action: 'allow', violations: [] };
+
+  const policy = loadSecurityPolicy();
+  if (policy.status === 'corrupt') {
+    return { action: 'deny', violations: [{ action: 'deny', reason: 'Security policy unavailable — failing closed', severity: 'critical', type: 'fail-closed' }] };
+  }
 
   const violations = [];
 

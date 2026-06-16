@@ -36,6 +36,7 @@ import {
   getSessionId, findStateFile, truncate, hashString,
   logSecurityEvent,
   inspectBashCommand, inspectWritePath, inspectReadPath, inspectWriteContent, inspectEgress,
+  isTrustedPath, permissionCacheAllowRead,
   inspectPrompt, inspectContent,
   inspectAgentSpawn, inspectSkillInvocation,
   parseExplicitRating, isSystemText, detectPositivePraise,
@@ -46,12 +47,15 @@ import {
   parseFrontmatter, writeFrontmatterField,
   getRecentWorkSessions,
   isISAArtifactPath, extractISAState, syncISAToWorkRegistry, recordISCCheckpointsFromISA,
+  detectChangedPaiSystemFiles, runIntegrityTelemetry, maybeSyncTelosSummary, detectRepeatPrompt,
+  captureRelationshipNote,
   emitNotification,
   normalizeNotificationLanguage,
 } from './lib/pai-hooks.lib.js';
 
 import {
   classifyPrompt,
+  classifyPromptWithLLM,
   normalizeClassification,
   formatClassificationContext,
   getEffortLabel,
@@ -72,6 +76,21 @@ const console = PAI_DEBUG_UI
 
 const PLUGIN_VERSION = '2.13.0';
 const MIN_PROMPT_LENGTH = 3;
+const STARTUP_IDENTITY_CONTEXT_MAX_CHARS = parseInt(process.env.PAI_STARTUP_IDENTITY_CONTEXT_MAX_CHARS || '8000', 10);
+
+function envFlag(name, defaultValue = false) {
+  const value = process.env[name];
+  if (value === undefined || value === '') return defaultValue;
+  return !/^(0|false|no|off)$/i.test(String(value).trim());
+}
+
+function defaultClassifierModel() {
+  if (process.env.PAI_CLASSIFIER_MODEL) return process.env.PAI_CLASSIFIER_MODEL;
+  if (process.env.PAI_OPENCODE_PROVIDER && process.env.PAI_OPENCODE_MODEL) {
+    return `${process.env.PAI_OPENCODE_PROVIDER}/${process.env.PAI_OPENCODE_MODEL}`;
+  }
+  return 'opencode/deepseek-v4-flash-free';
+}
 
 function readText(path, maxChars = 3000) {
   try {
@@ -148,11 +167,30 @@ function buildIdentityContext() {
 
   return identityFiles
     .map(([label, path]) => {
-      const content = readText(path, 4000);
+      const content = readText(path, STARTUP_IDENTITY_CONTEXT_MAX_CHARS);
       return content ? `## ${label}\n${content}` : null;
     })
     .filter(Boolean)
     .join('\n\n');
+}
+
+// RestoreContext (ported from RestoreContext.hook.ts): the original ran on
+// PostCompact to re-inject context lost to compaction. OpenCode has no post-
+// compaction event, so we inject proactively here (during compaction). Tier 1
+// = configured full files; Tier 2 = DA identity critical sections.
+function buildRestoreContext() {
+  const parts = [];
+  const configured = (process.env.PAI_RESTORE_FULLFILES || 'USER/PROJECTS/PROJECTS.md')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const rel of configured) {
+    const content = readText(join(PAI_DIR, rel), 2000);
+    if (content) parts.push(`### ${rel}\n${content}`);
+  }
+  const daIdentity = readText(join(PAI_DIR, 'USER', 'DA_IDENTITY.md'), 1500);
+  if (daIdentity) parts.push(`### DA Identity (critical sections)\n${daIdentity}`);
+  return parts.length ? `## Restored Context (preserved across compaction)\n${parts.join('\n\n')}` : '';
 }
 
 function readStoredClassification(sessionId) {
@@ -320,11 +358,11 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
 
   // Classifier configuration
   const classifierConfig = {
-    useLLM: process.env.PAI_CLASSIFIER_USE_LLM === 'true',
+    useLLM: envFlag('PAI_CLASSIFIER_USE_LLM', true),
     endpoint: process.env.PAI_CLASSIFIER_API_URL || null,
     apiKey: process.env.PAI_CLASSIFIER_API_KEY || null,
-    model: process.env.PAI_CLASSIFIER_MODEL || 'opencode/deepseek-v4-flash-free',
-    timeoutMs: parseInt(process.env.PAI_CLASSIFIER_TIMEOUT_MS || '8000', 10),
+    model: defaultClassifierModel(),
+    timeoutMs: parseInt(process.env.PAI_CLASSIFIER_TIMEOUT_MS || '25000', 10),
   };
 
   // Structured logging helper
@@ -613,6 +651,10 @@ You are operating inside PAI (Personal AI Infrastructure). Key rules:
 - /e1–/e5 forces tier; unsure → ALGORITHM E3
 
 ${activeWork}`);
+
+      // RestoreContext: re-inject Tier-1 files + DA identity so they survive compaction.
+      const restored = buildRestoreContext();
+      if (restored) output.context.push(restored);
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -711,6 +753,10 @@ ${activeWork}`);
           return;
         }
 
+        // SmartApprover: the read passed inspection (not sensitive). Auto-allow
+        // low-risk reads to reduce friction, matching the original SmartApprover,
+        // and remember the decision for telemetry/consistency.
+        permissionCacheAllowRead(toolName, filePath || '.');
         output.status = 'allow';
       }
 
@@ -745,6 +791,14 @@ ${activeWork}`);
             sessionId,
             data: { tool: toolName, reason, target: truncate(filePath, 200) },
           });
+          return;
+        }
+
+        // SmartApprover fast-path: auto-allow writes under trusted roots
+        // (PAI dir, ~/Projects, /tmp) once they pass inspection. Non-trusted
+        // writes are left to OpenCode's native permission prompt ("ask").
+        if (result.action === 'allow' && isTrustedPath(filePath)) {
+          output.status = 'allow';
         }
       }
     },
@@ -1269,6 +1323,15 @@ ${activeWork}`);
           const gs = gitSnapshot(process.cwd());
           if (gs) gt.git = gs;
           groundTruth = gt;
+
+          // TelosSummarySync: regenerate PRINCIPAL_TELOS.md when a TELOS source
+          // file was edited. No-op (fail-soft) for non-TELOS writes.
+          try {
+            const sync = maybeSyncTelosSummary(args.filePath);
+            if (sync.synced) console.log('[PAI] 🧭 Regenerated PRINCIPAL_TELOS.md after TELOS edit');
+          } catch (e) {
+            // Non-fatal
+          }
         }
 
         if (tool === 'bash' && args.command) {
@@ -1653,21 +1716,20 @@ ${activeWork}`);
           }
         }
 
-        // Check for high repetition (basic repeat detection)
-        if (content.length > 100) {
-          const words = content.split(/\s+/).filter(w => w.length > 0);
-          const uniqueWords = new Set(words.map(w => w.toLowerCase()));
-          const repetitionRatio = words.length > 0 ? uniqueWords.size / words.length : 1;
-
-          if (repetitionRatio < 0.3) {
-            console.warn(`[PAI] 🔄 PromptGuard: High repetition detected (ratio: ${repetitionRatio.toFixed(2)})`);
-
+        // RepeatDetection: trigram+bigram Jaccard similarity vs the previous
+        // prompt in this session. Advisory only (message.updated cannot block).
+        if (isUserMessage) {
+          const repeat = detectRepeatPrompt(sessionId, content);
+          if (repeat.isRepeat) {
+            console.warn(`[PAI] 🔄 RepeatDetection: prompt ~${(repeat.similarity * 100).toFixed(0)}% similar to the previous one`);
             logSecurityEvent({
               sessionId,
-              eventType: 'high_repetition_prompt',
-              inspector: 'PromptGuard',
-              repetitionRatio,
-              timestamp: getISOTimestamp(),
+              eventType: 'repeat_prompt',
+              inspector: 'RepeatDetection',
+              tool: 'UserPrompt',
+              target: truncate(content, 200),
+              reason: `Prompt is ${(repeat.similarity * 100).toFixed(0)}% similar to the previous prompt in this session`,
+              actionTaken: 'Alert logged (advisory — message.updated cannot block)',
             });
           }
         }
@@ -2089,6 +2151,13 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
                 duration,
                 filesChanged: workMeta.lineage?.files_changed?.length || 0,
               });
+
+              // RelationshipMemory (conservative): one B-note per completed work.
+              try {
+                captureRelationshipNote({ sessionId, title: workMeta.title, category });
+              } catch (e) {
+                // Non-fatal
+              }
             } else {
               console.log('[PAI] 🧠 Trivial work session, skipping learning capture');
             }
@@ -2165,6 +2234,16 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
           await notifyPulse('Session complete', { voice_enabled: false });
         } catch (e) {
           // Pulse not available
+        }
+
+        // 7. Integrity telemetry (DocIntegrity + IntegrityCheck): if PAI system
+        // files changed this session, run validators fail-soft (throttled). Inert
+        // on plain sessions — no spawn unless PAI files actually changed.
+        try {
+          const changedPai = detectChangedPaiSystemFiles(sessionId, toolActivityPath);
+          runIntegrityTelemetry({ sessionId, changedFiles: changedPai });
+        } catch (e) {
+          console.error(`[PAI] Integrity telemetry error: ${e.message}`);
         }
 
         // Session event telemetry

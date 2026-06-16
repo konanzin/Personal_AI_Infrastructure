@@ -70,13 +70,13 @@ describe("Plugin Integration — Hook Registration", () => {
 });
 
 describe("Plugin Integration — Security Blocking", () => {
-  test("tool.execute.before blocks rm -rf with explicit error", async () => {
+  test("tool.execute.before blocks catastrophic rm -rf with explicit error", async () => {
     const plugin = await loadPlugin();
     const hook = plugin["tool.execute.before"];
 
     const input = {
       tool: "bash",
-      args: { command: "rm -rf /tmp/test" },
+      args: { command: "rm -rf /" },
       sessionID: "test-session",
     };
     const output = {};
@@ -84,7 +84,7 @@ describe("Plugin Integration — Security Blocking", () => {
     // Should throw with explicit PAI SECURITY message
     expect(async () => {
       await hook(input, output);
-    }).toThrow(/PAI SECURITY.*BLOCKED.*rm -rf/);
+    }).toThrow(/PAI SECURITY.*BLOCKED/);
   });
 
   test("tool.execute.before blocks curl | bash", async () => {
