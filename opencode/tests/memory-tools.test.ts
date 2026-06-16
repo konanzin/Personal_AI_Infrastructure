@@ -58,8 +58,10 @@ function runTool(path: string, root: string, args: string[]) {
 }
 
 function jsonOutput(result: ReturnType<typeof runTool>) {
-  const output = `${result.stdout.toString()}${result.stderr.toString()}`;
-  return JSON.parse(output);
+  // Parse stdout ONLY; treat stderr output as a failure signal, not noise.
+  const stderr = result.stderr.toString().trim();
+  if (stderr) throw new Error(`tool wrote to stderr: ${stderr}`);
+  return JSON.parse(result.stdout.toString().trim());
 }
 
 describe("Memory runtime tools", () => {

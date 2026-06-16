@@ -27,8 +27,11 @@ function runTool(path: string, paiDir: string, args: string[]) {
 }
 
 function json(result: ReturnType<typeof runTool>) {
-  const text = `${result.stdout.toString()}${result.stderr.toString()}`.trim();
-  return JSON.parse(text);
+  // Parse stdout ONLY. A tool that writes to stderr (warnings, stack traces)
+  // is a signal, not noise to absorb — surface it instead of hiding it.
+  const stderr = result.stderr.toString().trim();
+  if (stderr) throw new Error(`tool wrote to stderr: ${stderr}`);
+  return JSON.parse(result.stdout.toString().trim());
 }
 
 describe("SessionHarvester", () => {
@@ -80,6 +83,28 @@ describe("SessionHarvester", () => {
     const output = json(result);
     expect(output.written.length).toBe(1);
     expect(existsSync(output.written[0])).toBe(true);
+  });
+
+  test("detects corrections in OpenCode-shaped transcripts (type=message, top-level role)", () => {
+    // OpenCode transcript entries label the turn with `type: "message"` and put
+    // the real role under `role`. Reading `type` first would mislabel and skip
+    // correction detection entirely — this guards that regression fix.
+    const paiDir = tempPaiDir();
+    const sessionsDir = join(paiDir, "sessions");
+    write(join(sessionsDir, "oc-session.jsonl"), [
+      JSON.stringify({
+        type: "message",
+        role: "user",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        content: "Actually, that approach is wrong — let me clarify the requirement here.",
+      }),
+    ].join("\n"));
+
+    const result = runTool(sessionHarvester, paiDir, ["--sessions-dir", sessionsDir, "--dry-run", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    const output = json(result);
+    expect(output.learnings.some((l: any) => l.type === "correction")).toBe(true);
   });
 });
 

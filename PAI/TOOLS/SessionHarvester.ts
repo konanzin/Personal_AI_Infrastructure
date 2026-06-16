@@ -156,7 +156,12 @@ function extractText(content: unknown): string {
 }
 
 function textFromEntry(entry: any): { role: string; text: string; timestamp: string } | null {
-  const role = entry?.type || entry?.role || entry?.message?.role || "unknown";
+  // Prefer explicit role fields; fall back to `type` only as a last resort.
+  // OpenCode transcripts use type="message"/"system" with the real role under
+  // `role`/`message.role`, so reading `type` first mislabels every turn and
+  // silently skips correction/error/insight detection.
+  const rawRole = entry?.role ?? entry?.message?.role ?? entry?.type ?? "unknown";
+  const role = rawRole === "human" ? "user" : rawRole;
   const content = entry?.message?.content ?? entry?.content ?? entry?.text;
   const text = extractText(content).trim();
   if (!text || text.length < 20) return null;
