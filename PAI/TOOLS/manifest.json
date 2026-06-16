@@ -80,23 +80,48 @@
       "contract": "Maintains MEMORY/KNOWLEDGE with status, validate, index, contradictions, and conservative harvest from review queue/work/research sources.",
       "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/KnowledgeHarvester.ts status --json"]
     },
+    "LearningPatternSynthesis.ts": {
+      "status": "implemented",
+      "layer": "B",
+      "required_by": ["Learning synthesis", "periodic reflection"],
+      "contract": "Aggregates LEARNING/SIGNALS/ratings.jsonl into frustration/success pattern reports. Returns unavailable (no ratings source) or no_data (<5 ratings); supports --week/--month/--all/--dry-run/--json.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/LearningPatternSynthesis.ts --json"]
+    },
+    "RelationshipReflect.ts": {
+      "status": "implemented",
+      "layer": "B",
+      "required_by": ["Relationship memory reflection"],
+      "contract": "Aggregates recent relationship notes + ratings into OPINIONS.md confidence deltas and OUR_STORY milestones. Returns unavailable when sources are absent; supports --opinions-only/--milestones-only/--dry-run/--json.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/RelationshipReflect.ts --json --dry-run"]
+    },
+    "GenerateTelosSummary.ts": {
+      "status": "implemented",
+      "layer": "B",
+      "required_by": ["TelosSummarySync", "System context (PRINCIPAL_TELOS)"],
+      "contract": "Heuristically compresses USER/TELOS/* into PRINCIPAL_TELOS.md. Returns structured unavailable when core sources (MISSION/GOALS/PROBLEMS) are absent; supports --dry-run.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/GenerateTelosSummary.ts --json"]
+    },
     "RemoveBg.ts": {
-      "status": "optional",
+      "status": "implemented",
       "layer": "C",
       "required_by": ["Art workflows"],
-      "fallback": "Art workflows verify the wrapper exists, then use local rembg directly or report background removal unavailable."
+      "contract": "Local rembg wrapper (no API). Exits with a clear error when the rembg binary is absent; --help works without it.",
+      "external_dependencies": ["rembg binary (REMBG_BIN or ~/.local/bin/rembg)"],
+      "smoke": ["bun PAI/TOOLS/RemoveBg.ts --help"]
     },
     "MigrateScan.ts": {
-      "status": "optional",
+      "status": "implemented",
       "layer": "C",
       "required_by": ["Migrate skill"],
-      "fallback": "Migrate skill stops automated migration and offers manual one-chunk fallback."
+      "contract": "Scans markdown/text into classified migration proposals queued under MEMORY/MIGRATION. Pure; supports --source/--json/--dry-run.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bash -lc 'printf \"## A\\nbody\\n\" > $PAI_DIR/n.md; bun PAI/TOOLS/MigrateScan.ts --source $PAI_DIR/n.md --json'"]
     },
     "MigrateApprove.ts": {
-      "status": "optional",
+      "status": "implemented",
       "layer": "C",
       "required_by": ["Migrate skill"],
-      "fallback": "Migrate skill stops automated migration and offers manual one-chunk fallback."
+      "contract": "Reviews/approves/modifies MigrateScan proposals and routes content into PAI targets with provenance. Pure; --review lists the queue.",
+      "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/MigrateApprove.ts --review"]
     }
   }
 }
