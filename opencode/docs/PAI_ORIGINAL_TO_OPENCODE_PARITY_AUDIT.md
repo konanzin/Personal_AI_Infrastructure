@@ -12,7 +12,7 @@ Baseline auditado:
 
 Validacao atual:
 
-- Repo: `bun test` -> 200/200.
+- Repo: `bun test` -> 234/234 (inclui seguranca adversarial/fail-closed e os hooks/tools de paridade).
 - Repo docs/promises/tools: doc integrity, promise integrity e tools manifest -> PASS.
 - Instalado: 226/226 checks (109 structural + 106 behavioral + 11 E2E).
 - `opencode/install.sh --check` -> PASS.
@@ -34,13 +34,14 @@ O core operacional do port agora esta forte. Mobile/broker/notifications, plugin
 
 O port **nao** busca paridade linha-a-linha com o PAI original. A decisao correta foi adaptar o runtime para OpenCode e retirar superficies desktop/Claude-Code-specific: Kitty tabs, MenuBar macOS, PAI-Install GUI, Pulse dashboard completo, KV sync, MCP amplo e grande parte dos 86 tools originais.
 
-Os gaps restantes que ainda importam sao menores e mais definidos:
+Estado dos gaps (a maioria fechada nesta rodada de paridade):
 
-1. **Security policy configuravel**: runtime ainda usa padroes hardcoded; falta `PATTERNS.yaml`/SmartApprover LLM/cacheado se isso for requisito.
-2. **Runtime hooks secundarios**: RelationshipMemory, TelosSummarySync, DocIntegrity-on-Stop, ContextReduction, TaskGovernance/TeammateIdle/Elicitation ainda nao tem equivalentes completos.
-3. **ISA skill CLIs**: workflows existem como markdown, mas `skills/ISA/Tools/*.ts` continuam ausentes/deferidos.
-4. **Helpers opcionais de skills**: `RemoveBg.ts`, `MigrateScan.ts`, `MigrateApprove.ts` ainda sao opcionais; outras ferramentas long tail do original nao foram portadas.
-5. **Pulse desktop avancado**: dashboard/VoiceServer/MenuBar/Observability UI do original permanecem fora de escopo; broker opcional e o caminho atual.
+1. **Security policy configuravel** — **RESOLVIDO**: politica externalizada em `PAI/USER/SECURITY/PATTERNS.yaml` (cascata + fail-closed), cobertura restaurada do original v3.1.
+2. **Runtime hooks secundarios** — **RESOLVIDO em sua maioria**: SmartApprover (trusted fast-path + cache), DocIntegrity/IntegrityCheck (telemetry fail-soft no session-end), RelationshipMemory (captura + `RelationshipReflect`), TelosSummarySync (`tool.execute.after` + `GenerateTelosSummary`), RepeatDetection (Jaccard), RestoreContext (injecao na compactacao) portados.
+3. **Platform-blocked** — `ContextReduction` e `ElicitationHandler` exigem ganchos que o OpenCode nao expoe; nao fechaveis hoje.
+4. **ISA skill CLIs** — **nao e gap de paridade**: o ISA original e markdown-only; CLIs seriam extensao nova.
+5. **Long-tail tools** — `RemoveBg`/`MigrateScan`/`MigrateApprove`/`GenerateTelosSummary`/`LearningPatternSynthesis`/`RelationshipReflect` agora **implementados**; restam helpers de interview/wisdom sob demanda.
+6. **Pulse desktop avancado** — dashboard/VoiceServer/MenuBar/Observability UI permanecem fora de escopo; broker e o caminho atual.
 
 ## Inventario De/Para por Superficie
 
@@ -53,7 +54,7 @@ Os gaps restantes que ainda importam sao menores e mais definidos:
 | Config de permissao | Claude Code permissions em `settings.json` | OpenCode `permission` config + `permission.ask` + security plugin | Adaptado/parcial | Boa cobertura; sem SmartApprover LLM/cache completo. |
 | MCP | `.mcp.json` vazio no baseline | Sem MCP obrigatorio | Equivalente | Nada relevante a portar. |
 | Hooks | 69 arquivos em `.claude/hooks` | 1 plugin + libs + event bridge | Adaptado/parcial | Core consolidado; varios hooks secundarios nao portados. |
-| Mode/tier | `PromptProcessing.hook.ts` UserPromptSubmit, modelo Sonnet | `chat.message` + `mode-classifier.lib.js`; heuristico default, LLM opcional | Parcial | Diverge em prompts ambiguos; testado e fail-safe E3. |
+| Mode/tier | `PromptProcessing.hook.ts` UserPromptSubmit, modelo Sonnet | `chat.message` + `mode-classifier.lib.js`; LLM-first por default; erro vira ALGORITHM E3 fail-safe | Adaptado | Mais proximo do original: classificador externo antes do executor; provider/model configuravel. |
 | Algorithm | v6.x com promessas de hooks/tools Claude Code | `LATEST=v6.3.2` OpenCode-coerente | Adaptado/parcial | Core ajustado; ISA skill CLIs ainda nao. |
 | ISA state | `ISASync.hook.ts`, kitty/status updates | `syncISAToWorkRegistry()` em `tool.execute.after` | Adaptado | Work registry/headless OK; sem Kitty tab. |
 | CheckpointPerISC | Hook TS em PostToolUse, allowlist, sidecar | `recordISCCheckpointsFromISA()` no plugin + `Checkpoint.ts` CLI | Adaptado | Allowlist-only, idempotente, rollback preview-only, testado. |
@@ -69,7 +70,7 @@ Os gaps restantes que ainda importam sao menores e mais definidos:
 | Pulse | 311 arquivos dashboard/VoiceServer/MenuBar/Observability | `PULSE.toml`, `PULSE/README.md`, optional `opencode/broker` | Fora de escopo/adaptado | Broker/mobile substitui Pulse desktop completo. |
 | Voice | `VoiceCompletion.hook.ts`, `/notify`, ElevenLabs | `pai_notify`, notifications JSONL, broker/renderers | Adaptado | Mais adequado a mobile/headless. |
 | Observability | Pulse visual + hook logs | JSONL schemas: classifier, guards, sessions, failures, traces, notifications | Adaptado | Uma das areas mais coerentes. |
-| Security | Pipeline modular, SmartApprover, inspectors, containment zones | rule-based inspectors, ReadGuard, containment minimo, AgentGuard/SkillGuard | Parcial | Falta config externa/LLM approval/cache. |
+| Security | Pipeline modular, SmartApprover, inspectors, containment zones | policy-driven inspectors (`PATTERNS.yaml` + fail-closed), ReadGuard, containment minimo, AgentGuard/SkillGuard | Adaptado | Cobertura de bloqueio/alerta restaurada ao nivel do original; falta apenas LLM approval/cache. |
 | KV/cloud sync | `KVSync.hook.ts` | nenhum | Fora de escopo | Cloudflare KV nao faz parte do produto atual. |
 | Desktop chrome | Kitty tabs, MenuBar macOS, statusline | nenhum | Fora de escopo | OpenCode/headless/mobile nao deve herdar isso. |
 | Validacao | Sem produto OpenCode | install/check, behavioral, E2E, doc/promise/tools manifests | Adaptado | Cobertura forte do runtime atual. |
@@ -78,12 +79,12 @@ Os gaps restantes que ainda importam sao menores e mais definidos:
 
 | Hook original | Para no OpenCode | Status | Gap atual |
 |---|---|---|---|
-| `SecurityPipeline.hook.ts` | `tool.execute.before` + `permission.ask` | Parcial | Bash/write/read/egress/containment minimo OK; policy externa ausente. |
+| `SecurityPipeline.hook.ts` | `tool.execute.before` + `permission.ask` | Adaptado | Bash/write/read/egress/containment OK; policy externa `PATTERNS.yaml` com cascata e fail-closed. Filosofia "ZERO confirm" do original restaurada (bash so deny/alert). |
 | `PromptGuard.hook.ts` | `chat.message` pre-sanitize + `message.updated` post-check | Parcial | Pre-sanitize bloqueia prompt perigoso; post-check e advisory. |
-| `PromptProcessing.hook.ts` | `chat.message` classifier | Parcial | Heuristico default; LLM opcional, nao Sonnet obrigatorio. |
-| `RepeatDetection.hook.ts` | trecho em `message.updated` | Parcial | Sinal simples, nao full hook original. |
+| `PromptProcessing.hook.ts` | `chat.message` classifier | Adaptado | LLM-first por default; usa `opencode run --pure` para evitar recursao de plugin; timeout/erro vira ALGORITHM E3 fail-safe. |
+| `RepeatDetection.hook.ts` | `message.updated` Jaccard trigram vs prompt anterior | Adaptado | Algoritmo do original (Jaccard tri/bigrama + estado por sessao); advisory (message.updated nao bloqueia). |
 | `SatisfactionCapture.hook.ts` | `message.updated` | Adaptado | Ratings/praise em JSONL. |
-| `ContextReduction.hook.sh` | nenhum | Ausente | OpenCode compaction existe, mas nao ha reducao RTK de tool output. |
+| `ContextReduction.hook.sh` | nenhum | Platform-blocked | Exige rewrite de input pre-execucao; OpenCode `tool.execute.before` nao altera args. Sem equivalente de plataforma. |
 | `ContentScanner.hook.ts` | `tool.execute.after` web scan | Parcial | Detecta e loga; nao injeta alerta no mesmo formato. |
 | SkillGuard HTTP | `inspectSkillInvocation` | Adaptado | Nativo no plugin. |
 | AgentGuard HTTP | `inspectAgentSpawn` | Adaptado | Nativo no plugin. |
@@ -91,17 +92,17 @@ Os gaps restantes que ainda importam sao menores e mais definidos:
 | `ToolFailureTracker.hook.ts` | `tool.execute.after` | Adaptado | `tool-failures.jsonl` + notification threshold. |
 | `ISASync.hook.ts` | `syncISAToWorkRegistry()` | Adaptado | Sem Kitty/statusline. |
 | `CheckpointPerISC.hook.ts` | `recordISCCheckpointsFromISA()` | Adaptado | Allowlist-only, sidecar, rollback preview. |
-| `SmartApprover.hook.ts` | rule-based `permission.ask` | Parcial | Sem LLM/cache/policy learning. |
-| `ContainmentGuard.hook.ts` | `inspectWriteContent()` minimo | Parcial | Bloqueia segredos fortes; sem zones completas/config. |
+| `SmartApprover.hook.ts` | `permission.asked` trusted fast-path + read cache | Adaptado | Port deterministico fiel (o original tambem nao usa LLM aqui); auto-allow de paths confiaveis + cache de read. RulesInspector LLM opcional declarado, nao implementado. |
+| `ContainmentGuard.hook.ts` | `inspectWriteContent()` + path tiers da policy | Parcial | Bloqueia segredos fortes e tiers de path (zeroAccess/readOnly/noDelete/confirm) via `PATTERNS.yaml`; sem zones completas LLM. |
 | `PreCompact.hook.ts` | `experimental.session.compacting` | Adaptado | Injeta PAI context/recent work. |
 | `LoadContext.hook.ts` | `session.created` + system transform | Adaptado | Contexto real via transform. |
-| `RestoreContext.hook.ts` | recent work/current-work parcial | Parcial | Sem resume detection completa. |
+| `RestoreContext.hook.ts` | `experimental.session.compacting` (Tier-1 fullFiles + DA identity) | Adaptado | Injecao proativa na compactacao (vs. restauracao reativa pos-compact do original); carrega fullFiles configuraveis + secoes do DA_IDENTITY. |
 | `SessionCleanup.hook.ts` | `session.deleted` | Adaptado | Cleanup em delete/event bridge. |
-| `WorkCompletionLearning.hook.ts` | `session.deleted` learning | Parcial | Basico; sem relationship/pattern synthesis. |
-| `RelationshipMemory.hook.ts` | nenhum | Ausente | OUR_STORY/relationship memory nao atualiza automaticamente. |
-| `TelosSummarySync.hook.ts` | nenhum | Ausente | TELOS edits nao regeneram summary. |
-| `DocIntegrity.hook.ts` | validators manuais/install | Parcial | Nao roda automaticamente no Stop. |
-| `IntegrityCheck.hook.ts` | validators shell | Parcial | Forte em install/check; nao runtime Stop. |
+| `WorkCompletionLearning.hook.ts` | `session.deleted` learning + relationship capture | Adaptado | Learning signals + nota B por trabalho; synthesis via `LearningPatternSynthesis.ts`. |
+| `RelationshipMemory.hook.ts` | `session.deleted` captura conservadora + `RelationshipReflect.ts` | Adaptado | Nota B por trabalho concluido alimenta reflexao (confidence/milestones) via tool. |
+| `TelosSummarySync.hook.ts` | `tool.execute.after` + `GenerateTelosSummary.ts` | Adaptado | Edit em USER/TELOS regenera PRINCIPAL_TELOS.md (fail-soft). |
+| `DocIntegrity.hook.ts` | `session.deleted` integrity telemetry | Adaptado | Roda validadores fail-soft quando arquivos PAI mudam (telemetry-only, sem auto-edit). |
+| `IntegrityCheck.hook.ts` | fundido em integrity-on-session-end (cooldown) | Adaptado | Cooldown 5min + change-detection via tool-activity; loga em OBSERVABILITY/integrity.jsonl. |
 | `UpdateCounts.hook.ts` | `counts.json` basico | Parcial | Sem mesmo painel/metrica original. |
 | `LastResponseCache.hook.ts` | `last-response.txt` | Adaptado | Usado para rating/learning. |
 | `QuestionAnswered.hook.ts` | nenhum especifico | Ausente | Baixo impacto sem AskUserQuestion UI parity. |
@@ -109,7 +110,8 @@ Os gaps restantes que ainda importam sao menores e mais definidos:
 | `VoiceCompletion.hook.ts` | `pai_notify` + notifications/broker | Adaptado | Tool explicit > parsing texto final. |
 | `KVSync.hook.ts` | nenhum | Fora de escopo | Cloud sync removido. |
 | `ConfigAudit.hook.ts` | install/check validators | Parcial | Nao hook runtime. |
-| `TaskGovernance`, `TeammateIdle`, `ElicitationHandler`, `StopFailureHandler` | guardas/traces parciais | Parcial/ausente | Ainda nao replica swarm/session governance original. |
+| `ElicitationHandler.hook.ts` | nenhum | Platform-blocked | Exige eventos MCP elicitation que o OpenCode nao expoe. Sem equivalente de plataforma. |
+| `TaskGovernance`, `TeammateIdle`, `StopFailureHandler` | guardas/traces parciais | Parcial/ausente | Ainda nao replica swarm/session governance original. |
 
 ## Agents
 
@@ -140,9 +142,9 @@ Os gaps restantes que ainda importam sao menores e mais definidos:
 |---|---|---|---|---|
 | Diretorios | 45 | 46 (`Lib` novo) | Adaptado | Nomes originais preservados; `Lib` centraliza helpers. |
 | Knowledge | dependia de MemoryRetriever/Graph/Harvesters | todos os quatro tools core existem | Adaptado | `contradictions` implementado por tag-overlap para review. |
-| ISA | workflows markdown + promessa de Tools | workflows existem; Tools CLI ausentes | Parcial | Proximo gap core se ISA automation virar foco. |
-| Art | workflows + media helpers | helper `RemoveBg.ts` opcional | Opcional/parcial | Deve checar arquivo antes de chamar. |
-| Migrate | `MigrateScan/Approve` | helpers opcionais | Opcional/parcial | Fallback manual necessario. |
+| ISA | workflows markdown (sem Tools no original) | workflows existem | Equivalente | **Correcao:** o ISA original e markdown-only — nao existem `skills/ISA/Tools/*.ts`. Implementa-los seria extensao nova, nao paridade. |
+| Art | workflows + media helpers | `RemoveBg.ts` implementado | Adaptado | Wrapper rembg presente; reporta indisponivel sem binario. |
+| Migrate | `MigrateScan/Approve` | ambos implementados | Adaptado | Scan→queue→approve funcional end-to-end. |
 | PAIUpgrade | usa sources/transcripts/config helpers herdados | parte ainda herdada | Parcial | Precisa pass dedicado se virar prioridade. |
 | Interceptor/Browser/Research/etc. | preservados/adaptados | preservados | Adaptado | Validadores tratam stale installed skills. |
 
@@ -162,26 +164,23 @@ Port core implementado:
 | `MemoryRetriever.ts` | Implementado | BM25-lite read-only em Knowledge. |
 | `KnowledgeGraph.ts` | Implementado | stats/find/related/traverse. |
 | `Checkpoint.ts` | Implementado | list/show/rollback preview/record; sem rollback destrutivo. |
-| `SessionHarvester.ts` | Implementado | transcript mining dry-run/review-queue-first. |
+| `SessionHarvester.ts` | Implementado | transcript mining dry-run/review-queue-first; le formato de role do OpenCode. |
 | `KnowledgeHarvester.ts` | Implementado | status/validate/index/contradictions/harvest conservador. |
-
-Opcionais declarados:
-
-| Tool | Status | Consumidor |
-|---|---|---|
-| `RemoveBg.ts` | Opcional | Art workflows. |
-| `MigrateScan.ts` | Opcional | Migrate skill. |
-| `MigrateApprove.ts` | Opcional | Migrate skill. |
+| `GenerateTelosSummary.ts` | Implementado | Compressao heuristica TELOS→PRINCIPAL_TELOS.md; `unavailable` sem fontes core. |
+| `LearningPatternSynthesis.ts` | Implementado | Agrega ratings.jsonl em padroes; `unavailable`/`no_data`. |
+| `RelationshipReflect.ts` | Implementado | Confidence deltas (OPINIONS) + milestones (OUR_STORY); `unavailable` sem fontes. |
+| `RemoveBg.ts` | Implementado | Wrapper rembg; erro claro sem binario. |
+| `MigrateScan.ts` | Implementado | Markdown→propostas de migracao classificadas. |
+| `MigrateApprove.ts` | Implementado | Review/approve/route com proveniencia. |
 
 Long tail nao portado por grupo:
 
 | Grupo original | Exemplos | Status | Racional |
 |---|---|---|---|
 | Pulse/monitoring/cost | `CostTracker`, `ComputeGap`, `HealthSnapshot`, `PipelineMonitor`, UI Vite | Fora de escopo/parcial | Broker/headless substitui dashboard/monitor completo. |
-| Telos/identity/interview | `GenerateTelosSummary`, `DAInterview`, `DAGrowth`, `InterviewScan` | Parcial | TELOS bootstrap existe; automacao nao. |
-| Learning/wisdom/relationship | `LearningPatternSynthesis`, `RelationshipReflect`, `Wisdom*` | Parcial/ausente | Knowledge minimo existe; synthesis avancado nao. |
+| Telos/identity/interview | `DAInterview`, `DAGrowth`, `InterviewScan` | Parcial | `GenerateTelosSummary` portado; interview/growth ainda nao. |
+| Learning/wisdom/relationship | `Wisdom*`, synthesis avancado | Parcial | `LearningPatternSynthesis`/`RelationshipReflect` portados; wisdom avancado nao. |
 | Media/transcription | `SplitAndTranscribe`, `YouTubeApi`, `AddBg`, banners | Fora/opcional | Skills devem prover fallback ou portar sob demanda. |
-| Migration | `MigrateScan`, `MigrateApprove` | Opcional | Declarado, nao core. |
 | CLI/internal PAI | `pai.ts`, `algorithm.ts`, `IntegrityMaintenance`, `DocCheck` | Adaptado | Validadores/install substituem parte do papel. |
 
 ## Memory, Learning, Knowledge
@@ -201,13 +200,13 @@ Long tail nao portado por grupo:
 
 | Area | Original | Port atual | Status | Proximo passo se necessario |
 |---|---|---|---|---|
-| Dangerous bash | SecurityPipeline/PatternInspector | hardcoded block/confirm patterns | Adaptado | Externalizar policy se quiser paridade. |
-| Sensitive writes | path inspectors/containment | path guard + secret-content containment minimo | Parcial | Full containment zones. |
-| Sensitive reads | SecurityPipeline Read hook | ReadGuard em permission/tool path | Adaptado | Ampliar payload coverage se OpenCode expuser mais shapes. |
+| Dangerous bash | SecurityPipeline/PatternInspector | `PATTERNS.yaml` blocked/alert/trusted (cascata + fail-closed) | Adaptado | Cobertura restaurada do v3.1 original: variantes de `rm` (`-fr`, `-r -f`), home/`$HOME`/`~/.config/opencode`/`~/Projects`, `gh repo delete`/`--visibility public`, `dd if=/dev/zero`, `diskutil`. Catastrofico → deny; `rm` recursivo de subpath → alert (corrige over-block de `rm -rf node_modules`). |
+| Sensitive writes | path inspectors/containment | tiers da policy (zeroAccess/readOnly/noDelete/confirmWrite) + secret-content | Adaptado | Glob-based; sem false positives de substring. Full containment zones LLM ainda fora. |
+| Sensitive reads | SecurityPipeline Read hook | tiers zeroAccess/confirmAccess/alertAccess via policy | Adaptado | Chaves SSH/PEM/credenciais → deny; `.env` → alert. |
 | Prompt injection | PromptGuard/PromptInspector | chat pre-sanitize + content scanner | Parcial | LLM semantic layer opcional. |
-| Smart approval | SmartApprover LLM/cache | rule-based approval/notification | Parcial | Implementar cache/LLM/policy file. |
+| Smart approval | SmartApprover LLM/cache | rule-based + native permission prompt | Parcial | `require_approval` agora so para tiers de path (prompt nativo); bash segue "ZERO confirm" do original. Falta cache/LLM. |
 | Agent/Skill guard | HTTP hooks | native plugin inspectors | Adaptado | Boa cobertura atual. |
-| Egress | EgressInspector | command egress checks | Parcial | Mais protocolos/casos se necessario. |
+| Egress | EgressInspector | command egress checks + alert tier (`nc`/`socat`/POST/env dump) | Adaptado | Fail-closed sob policy corrompida. |
 
 ## Pulse, Voice e Mobile
 
@@ -234,27 +233,29 @@ Long tail nao portado por grupo:
 
 ### P0 - Se quiser fechar comportamento divergente ainda ativo
 
-1. **Security policy externalizada**: `PATTERNS.yaml`/rules config + tests; ou declarar oficialmente hardcoded.
+1. ~~**Security policy externalizada**~~ **FEITO**: `PAI/USER/SECURITY/PATTERNS.yaml` com parser dedicado, cascata (user → bundled default → fail-closed), carve-out anti-lockout para o proprio arquivo, e cobertura adversarial em `security-pipeline.test.ts`. Regressao de cobertura vs original v3.1 corrigida; `require_approval` de bash removido (filosofia "ZERO confirm").
 2. **SmartApprover v2**: cache, LLM/policy reasoner, explicacao estruturada.
 3. **DocIntegrity runtime**: rodar no equivalente de Stop/session.deleted como telemetry/fail-soft.
 
-### P1 - Se ISA automation virar foco
+As regressoes de seguranca e os hooks/tools secundarios de paridade foram fechados (ver
+tabelas De/Para acima). Restam:
 
-1. Implementar `skills/ISA/Tools/*.ts` para scaffold/check/reconcile/append.
-2. Expandir CheckpointPerISC para project ISA com state em `MEMORY/STATE/checkpoints` ja preparado.
-3. Testar fluxo end-to-end de ISA skill + checkpoint + work registry.
+### Platform-blocked (sem equivalente no OpenCode hoje)
 
-### P2 - Se LifeOS/memoria profunda virar foco
+1. **ContextReduction** — exige rewrite de input pre-execucao; `tool.execute.before` nao altera args.
+2. **ElicitationHandler** — exige eventos MCP elicitation que o OpenCode nao expoe.
 
-1. RelationshipMemory / OUR_STORY.
-2. LearningPatternSynthesis.
-3. TelosSummarySync / GenerateTelosSummary.
+Reabrir apenas se o OpenCode ganhar esses ganchos. Nao sao gaps de implementacao.
 
-### P3 - Se skills long-tail virarem produto
+### Extensao (nao existe no original — decisao de produto, nao paridade)
 
-1. `RemoveBg.ts` para Art.
-2. `MigrateScan.ts`/`MigrateApprove.ts` para Migrate.
-3. PAIUpgrade transcript/config helpers.
+1. `skills/ISA/Tools/*.ts` — o ISA original e markdown-only. Implementar CLIs seria feature nova.
+
+### Opcional / sob demanda
+
+1. SmartApprover RulesInspector LLM (`SECURITY_RULES.md` + classifier) — gancho declarado, fail-open, desligado.
+2. DocIntegrity com surgical edits (hoje telemetry-only por decisao conservadora).
+3. PAIUpgrade transcript/config helpers; `DAInterview`/`DAGrowth`; wisdom synthesis avancado.
 
 ### Fora de Escopo Mantido
 

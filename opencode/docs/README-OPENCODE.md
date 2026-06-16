@@ -54,19 +54,19 @@ The port now uses a **two-tier classification approach**:
 
 The classifier is **provider-agnostic** with two tiers:
 
-1. **Heuristic classifier** (default): deterministic, zero cost, zero latency. Runs locally without external dependencies.
-2. **LLM classifier** (optional): can be enabled via environment variables to use any model available via `opencode run`. Default target model is `opencode/deepseek-v4-flash-free` (free tier, ~4-5s response). Falls back to heuristic on any error or timeout.
+1. **LLM classifier** (default): uses a model available via `opencode run`, matching original PAI's model-first classifier shape. Defaults to `PAI_CLASSIFIER_MODEL`, then the configured OpenCode bench model (`PAI_OPENCODE_PROVIDER/PAI_OPENCODE_MODEL`), then `opencode/deepseek-v4-flash-free`.
+2. **Heuristic classifier** (offline/debug path): deterministic, zero cost, zero latency. Used only when the LLM classifier is explicitly disabled. LLM errors/timeouts fail-safe to `ALGORITHM E3`, matching original PAI.
 
 Configuration via environment variables:
 ```bash
-PAI_CLASSIFIER_USE_LLM=true              # Enable LLM classifier
-PAI_CLASSIFIER_MODEL=opencode/deepseek-v4-flash-free  # Model name (default)
-PAI_CLASSIFIER_TIMEOUT_MS=8000           # Timeout (default: 8s)
+PAI_CLASSIFIER_USE_LLM=true              # Default. Set false only for offline/debug runs.
+PAI_CLASSIFIER_MODEL=openai/gpt-5.5      # Optional dedicated classifier model.
+PAI_CLASSIFIER_TIMEOUT_MS=25000          # Timeout (default: 25s, matching original PAI shape)
 ```
 
-The LLM classifier uses `opencode run --model <model>` internally and includes LRU caching (100 entries, 5min TTL) to avoid redundant calls for identical prompts. Default model is `opencode/deepseek-v4-flash-free` (~4-5s response time).
+The LLM classifier uses `opencode run --pure --model <model>` internally and includes LRU caching (100 entries, 5min TTL) to avoid redundant calls for identical prompts. `--pure` prevents recursive plugin execution during classification.
 
-**Fail-safe:** any classifier error or low-confidence result defaults to `ALGORITHM E3`. Under-escalation is worse than over-escalation in PAI doctrine.
+**Fail-safe:** any LLM classifier error/timeout defaults to `ALGORITHM E3`. Under-escalation is worse than over-escalation in PAI doctrine. Set `PAI_CLASSIFIER_USE_LLM=false` only for offline/debug runs.
 
 `/pai` remains as an explicit manual shortcut, but it is not the primary path.
 
@@ -183,7 +183,7 @@ PAI_AGENTGUARD_DENY_CONFIDENCE=true      # Enable deny on high-confidence agent 
 
 ## Known Platform Gaps
 
-- ~~Claude Code's Sonnet-based `UserPromptSubmit` classifier is not yet ported~~ — **RESTORED in v2.6.0** via explicit heuristic classifier with provider-agnostic interface. LLM-backed classification is a future enhancement.
+- ~~Claude Code's Sonnet-based `UserPromptSubmit` classifier is not yet ported~~ — **RESTORED** as an OpenCode-native LLM-first classifier with provider/model selection and deterministic heuristic fallback.
 - Claude Code's persistent statusline/sidebar is represented as commands and logs.
 - Voice remains external-only via Pulse notifications.
 - The upstream desktop Pulse daemon remains out of scope. This branch ships a lean optional Pulse Broker on port 31337 (`PAI/broker/`) for notifications and renderer fan-out, but a running broker is not part of install success criteria.
