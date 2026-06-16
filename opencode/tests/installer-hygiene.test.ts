@@ -71,6 +71,7 @@ async function seedCleanInstall(home: string) {
   write(join(paiDir, "bin/validate-tools-manifest.js"), await Bun.file(join(opencodeRoot, "bin/validate-tools-manifest.js")).text());
   chmodSync(join(paiDir, "bin/validate-tools-manifest.js"), 0o755);
   write(join(paiDir, "TOOLS/manifest.json"), JSON.stringify({ version: 1, runtime: "opencode", tools: {} }, null, 2));
+  write(join(paiDir, "USER/SECURITY/PATTERNS.yaml"), "version: \"test\"\n");
 }
 
 function runCheck(home: string) {

@@ -418,7 +418,17 @@ install_pai_core() {
             fi
         done
     fi
-    
+
+    # Seed the active security policy from the versioned template if the user
+    # has none. PATTERNS.yaml itself is user-owned (gitignored); the template
+    # lives in DOCUMENTATION and is the canonical seed. Never clobber an
+    # existing user policy. If absent, the plugin falls back to its bundled
+    # default, so this seed is a convenience, not a safety requirement.
+    if [ -f "${REPO_DIR}/PAI/DOCUMENTATION/Security/Patterns.example.yaml" ] && [ ! -f "$PAI_DIR/USER/SECURITY/PATTERNS.yaml" ]; then
+        mkdir -p "$PAI_DIR/USER/SECURITY"
+        cp -f "${REPO_DIR}/PAI/DOCUMENTATION/Security/Patterns.example.yaml" "$PAI_DIR/USER/SECURITY/PATTERNS.yaml"
+    fi
+
     # Create runtime directories that shouldn't be vendored
     mkdir -p "$PAI_DIR/MEMORY"/{STATE,WORK,KNOWLEDGE,LEARNING,RESEARCH,OBSERVABILITY}
     mkdir -p "$PAI_DIR/logs"
@@ -730,6 +740,12 @@ check_runtime_contracts() {
         record_check_pass "OpenCode observability contract docs installed"
     else
         record_check_failure "OpenCode observability contract docs missing"
+    fi
+
+    if [ -f "$PAI_DIR/USER/SECURITY/PATTERNS.yaml" ]; then
+        record_check_pass "Security policy (PATTERNS.yaml) installed"
+    else
+        record_check_failure "Security policy (PATTERNS.yaml) missing — plugin runs on bundled default"
     fi
 }
 

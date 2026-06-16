@@ -486,8 +486,8 @@ check_plugins() {
     fi
     checks=$((checks + 1))
 
-    # Check rm -rf is in BLOCKED_PATTERNS (explicit model-visible block)
-    if grep -q 'rm -rf detected' "${OPENCODE_DIR}/plugins/lib/pai-hooks.lib.js"; then
+    # Check rm -rf is in BLOCKED_PATTERNS (policy-driven deny, model-visible reason)
+    if grep -q 'Recursive deletion of system root' "${OPENCODE_DIR}/plugins/lib/pai-hooks.lib.js"; then
         pass "rm -rf in BLOCKED_PATTERNS (explicit fail)"
         passed=$((passed + 1))
     else

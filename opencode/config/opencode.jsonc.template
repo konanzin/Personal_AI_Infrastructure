@@ -2,12 +2,14 @@
   "$schema": "https://opencode.ai/config.json",
   "plugin": ["./plugins/pai-hooks.js"],
   "model": "kimi-for-coding/k2p6",
-  // PAI Mode/Tier Classifier Configuration (optional)
-  // Set these environment variables to enable LLM-based classification:
-  //   PAI_CLASSIFIER_USE_LLM=true        — Enable LLM classifier (default: heuristic only)
-  //   PAI_CLASSIFIER_MODEL=<model>       — Model name (default: opencode/deepseek-v4-flash-free)
-  //   PAI_CLASSIFIER_TIMEOUT_MS=8000     — Timeout in milliseconds (default: 8000)
-  // When LLM is not configured or fails, the heuristic classifier is used as fallback.
+  // PAI Mode/Tier Classifier Configuration.
+  // LLM classification is ON by default, matching original PAI's model-first
+  // classifier. Set PAI_CLASSIFIER_USE_LLM=false only for offline/debug runs.
+  //   PAI_CLASSIFIER_MODEL=<provider/model>  — default: current OpenCode bench
+  //                                           model env, else opencode/deepseek-v4-flash-free
+  //   PAI_CLASSIFIER_TIMEOUT_MS=25000        — Timeout in milliseconds
+  // If the LLM classifier fails/timeouts, fail-safe is ALGORITHM E3 (matching
+  // original PAI). The heuristic path is used only when LLM is explicitly off.
   "default_agent": "build",
   "skills": {
     "paths": ["~/.config/opencode/skills"]

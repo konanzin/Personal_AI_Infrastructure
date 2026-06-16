@@ -321,8 +321,8 @@ const catEnv = inspectBashCommand('cat .env');
 const leak = inspectWriteContent('public/leak.txt', '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----');
 console.log(
   shadow.action === 'deny' &&
-  env.action === 'require_approval' &&
-  catEnv.action === 'require_approval' &&
+  env.action === 'deny' &&
+  catEnv.action === 'deny' &&
   leak.action === 'deny'
   ? 'PASS' : 'FAIL'
 );
