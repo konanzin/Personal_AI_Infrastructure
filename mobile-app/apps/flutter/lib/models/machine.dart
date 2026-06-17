@@ -85,6 +85,16 @@ class Machine {
   final String password;
   final int requestTimeoutSeconds;
   final String? defaultDirectory;
+
+  /// Prompt-classifier model for this machine's OpenCode server (e.g.
+  /// `openai/gpt-5.5`). Null = let the server use its own default. Pushed to
+  /// `~/.config/opencode/PAI/USER/Config/classifier.json` over SSH on save.
+  final String? classifierModel;
+
+  /// Whether the server should run the LLM classifier. Null = leave the
+  /// server's existing setting untouched.
+  final bool? classifierUseLlm;
+
   final SshConfig? ssh;
   final DateTime? lastConnected;
 
@@ -96,6 +106,8 @@ class Machine {
     required this.password,
     this.requestTimeoutSeconds = 30,
     this.defaultDirectory,
+    this.classifierModel,
+    this.classifierUseLlm,
     this.ssh,
     this.lastConnected,
   });
@@ -109,6 +121,8 @@ class Machine {
       password: json['password'] as String,
       requestTimeoutSeconds: json['requestTimeoutSeconds'] as int? ?? 30,
       defaultDirectory: json['defaultDirectory'] as String?,
+      classifierModel: json['classifierModel'] as String?,
+      classifierUseLlm: json['classifierUseLlm'] as bool?,
       ssh: json['ssh'] != null
           ? SshConfig.fromJson(json['ssh'] as Map<String, dynamic>)
           : null,
@@ -126,6 +140,8 @@ class Machine {
         'password': password,
         'requestTimeoutSeconds': requestTimeoutSeconds,
         if (defaultDirectory != null) 'defaultDirectory': defaultDirectory,
+        if (classifierModel != null) 'classifierModel': classifierModel,
+        if (classifierUseLlm != null) 'classifierUseLlm': classifierUseLlm,
         if (ssh != null) 'ssh': ssh!.toJson(),
         if (lastConnected != null)
           'lastConnected': lastConnected!.millisecondsSinceEpoch,
@@ -139,6 +155,8 @@ class Machine {
     String? password,
     int? requestTimeoutSeconds,
     Object? defaultDirectory = _sentinel,
+    Object? classifierModel = _sentinel,
+    Object? classifierUseLlm = _sentinel,
     Object? ssh = _sentinel,
     DateTime? lastConnected,
   }) {
@@ -153,6 +171,12 @@ class Machine {
       defaultDirectory: defaultDirectory == _sentinel
           ? this.defaultDirectory
           : defaultDirectory as String?,
+      classifierModel: classifierModel == _sentinel
+          ? this.classifierModel
+          : classifierModel as String?,
+      classifierUseLlm: classifierUseLlm == _sentinel
+          ? this.classifierUseLlm
+          : classifierUseLlm as bool?,
       ssh: ssh == _sentinel ? this.ssh : ssh as SshConfig?,
       lastConnected: lastConnected ?? this.lastConnected,
     );

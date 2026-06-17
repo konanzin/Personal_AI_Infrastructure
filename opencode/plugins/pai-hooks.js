@@ -59,6 +59,7 @@ import {
   normalizeClassification,
   formatClassificationContext,
   getEffortLabel,
+  resolveClassifierConfig,
 } from './lib/mode-classifier.lib.js';
 
 const PAI_DEBUG_UI = process.env.PAI_DEBUG_UI === 'true';
@@ -84,12 +85,27 @@ function envFlag(name, defaultValue = false) {
   return !/^(0|false|no|off)$/i.test(String(value).trim());
 }
 
-function defaultClassifierModel() {
-  if (process.env.PAI_CLASSIFIER_MODEL) return process.env.PAI_CLASSIFIER_MODEL;
-  if (process.env.PAI_OPENCODE_PROVIDER && process.env.PAI_OPENCODE_MODEL) {
-    return `${process.env.PAI_OPENCODE_PROVIDER}/${process.env.PAI_OPENCODE_MODEL}`;
+// Persistent classifier config written by the /interview setup step or by the
+// mobile app (per-machine, via SSH). Read with an mtime cache so changes are
+// picked up hot — no server restart — at negligible I/O cost.
+const CLASSIFIER_CONFIG_PATH = join(PAI_DIR, 'USER', 'Config', 'classifier.json');
+let _classifierFileCache = { mtimeMs: -1, data: {} };
+
+function readClassifierConfigFile() {
+  try {
+    const { mtimeMs } = statSync(CLASSIFIER_CONFIG_PATH);
+    if (mtimeMs !== _classifierFileCache.mtimeMs) {
+      const raw = JSON.parse(readFileSync(CLASSIFIER_CONFIG_PATH, 'utf-8'));
+      _classifierFileCache = {
+        mtimeMs,
+        data: raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {},
+      };
+    }
+  } catch {
+    // Missing/invalid file → keep last good cache (tolerant, like auth.json).
+    // First-ever miss leaves the {} default, preserving legacy behavior.
   }
-  return 'opencode/deepseek-v4-flash-free';
+  return _classifierFileCache.data;
 }
 
 function readText(path, maxChars = 3000) {
@@ -356,14 +372,9 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   const consecutiveToolFailures = new Map(); // sessionId -> Map(tool -> count)
   const TOOL_FAILING_THRESHOLD = 3;
 
-  // Classifier configuration
-  const classifierConfig = {
-    useLLM: envFlag('PAI_CLASSIFIER_USE_LLM', true),
-    endpoint: process.env.PAI_CLASSIFIER_API_URL || null,
-    apiKey: process.env.PAI_CLASSIFIER_API_KEY || null,
-    model: defaultClassifierModel(),
-    timeoutMs: parseInt(process.env.PAI_CLASSIFIER_TIMEOUT_MS || '25000', 10),
-  };
+  // Classifier configuration is resolved per-classification via
+  // resolveClassifierConfig() so file edits (setup / mobile) apply without a
+  // server restart.
 
   // Structured logging helper
   const logStructured = async (level, message, extra = {}) => {
@@ -510,6 +521,9 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
       try {
         let classification;
 
+        // Resolve fresh each time so classifier.json edits apply without restart
+        const classifierConfig = resolveClassifierConfig(readClassifierConfigFile(), process.env);
+
         // Try LLM classifier if enabled and configured
         if (classifierConfig.useLLM) {
           try {
@@ -526,7 +540,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
             classification = normalizeClassification(rawClassification);
           }
         } else {
-          // Use heuristic classifier (default, zero latency)
+          // LLM disabled (PAI_CLASSIFIER_USE_LLM=false): heuristic classifier, zero latency
           const rawClassification = classifyPrompt(content);
           classification = normalizeClassification(rawClassification);
         }

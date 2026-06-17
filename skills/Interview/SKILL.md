@@ -114,6 +114,16 @@ After foundational changes, regenerate the startup summary so future sessions pi
 bun ~/.config/opencode/PAI/TOOLS/TelosRenderer.ts 2>/dev/null || true
 ```
 
+### Step 6 — Prompt-classifier model (optional, runtime)
+
+A light closing step during onboarding: offer to pick which model PAI uses to classify
+each prompt's mode/tier. Skip it on routine TELOS reviews.
+
+Follow the **Classifier** skill for the procedure (discover models with `opencode
+models`, ask model + LLM/heuristic, write `classifier.json`) — it is the single source
+of truth, the same flow `/classifier` runs. Don't duplicate the steps here; just tell
+the principal they can re-run it anytime with `/classifier`.
+
 ## Rules
 
 - **One question at a time.** Never dump all prompts at once.

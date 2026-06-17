@@ -461,11 +461,13 @@ check_plugins() {
     fi
     checks=$((checks + 1))
 
-    if grep -q 'deepseek-v4-flash-free' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
-        pass "Plugin uses deepseek as default LLM"
+    # Default classifier model lives in the resolver (mode-classifier.lib.js),
+    # not pai-hooks.js, since classifier config resolution was centralized there.
+    if grep -q 'deepseek-v4-flash-free' "${OPENCODE_DIR}/plugins/lib/mode-classifier.lib.js"; then
+        pass "Classifier uses deepseek as default LLM"
         passed=$((passed + 1))
     else
-        fail "Plugin does not use deepseek"
+        fail "Classifier does not use deepseek default"
     fi
     checks=$((checks + 1))
 

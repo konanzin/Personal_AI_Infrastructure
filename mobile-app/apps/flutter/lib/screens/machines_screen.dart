@@ -9,6 +9,7 @@ import '../models/machine.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/machine_store.dart';
 import '../theme.dart';
+import '../services/classifier_config_service.dart';
 import '../services/machine_bootstrap_service.dart';
 import '../services/network_policy.dart';
 import '../services/opencode_client.dart';
@@ -179,6 +180,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   late final TextEditingController _passCtrl;
   late final TextEditingController _timeoutCtrl;
   late final TextEditingController _defaultDirCtrl;
+  late final TextEditingController _classifierModelCtrl;
+  late bool _classifierUseLlm;
   // SSH
   late final TextEditingController _sshHostCtrl;
   late final TextEditingController _sshPortCtrl;
@@ -213,6 +216,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         _passCtrl,
         _timeoutCtrl,
         _defaultDirCtrl,
+        _classifierModelCtrl,
         _sshHostCtrl,
         _sshPortCtrl,
         _sshUserCtrl,
@@ -231,6 +235,9 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     _timeoutCtrl =
         TextEditingController(text: '${m?.requestTimeoutSeconds ?? 30}');
     _defaultDirCtrl = TextEditingController(text: m?.defaultDirectory ?? '');
+    _classifierModelCtrl =
+        TextEditingController(text: m?.classifierModel ?? '');
+    _classifierUseLlm = m?.classifierUseLlm ?? true;
     _sshHostCtrl = TextEditingController(text: m?.ssh?.host ?? '');
     _sshPortCtrl = TextEditingController(text: '${m?.ssh?.port ?? 22}');
     _sshUserCtrl = TextEditingController(text: m?.ssh?.username ?? '');
@@ -253,6 +260,7 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     _passCtrl.dispose();
     _timeoutCtrl.dispose();
     _defaultDirCtrl.dispose();
+    _classifierModelCtrl.dispose();
     _sshHostCtrl.dispose();
     _sshPortCtrl.dispose();
     _sshUserCtrl.dispose();
@@ -273,6 +281,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
           _urlCtrl.text.trim().isNotEmpty ||
           _passCtrl.text.isNotEmpty ||
           _defaultDirCtrl.text.trim().isNotEmpty ||
+          _classifierModelCtrl.text.trim().isNotEmpty ||
+          !_classifierUseLlm ||
           _sshHostCtrl.text.trim().isNotEmpty ||
           _sshUserCtrl.text.trim().isNotEmpty ||
           _sshKeyCtrl.text.trim().isNotEmpty ||
@@ -290,6 +300,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         (int.tryParse(_timeoutCtrl.text) ?? 30) !=
             machine.requestTimeoutSeconds ||
         _defaultDirCtrl.text.trim() != (machine.defaultDirectory ?? '') ||
+        _classifierModelCtrl.text.trim() != (machine.classifierModel ?? '') ||
+        _classifierUseLlm != (machine.classifierUseLlm ?? true) ||
         _sshHostCtrl.text.trim() != (machine.ssh?.host ?? '') ||
         (int.tryParse(_sshPortCtrl.text) ?? 22) != (machine.ssh?.port ?? 22) ||
         _sshUserCtrl.text.trim() != (machine.ssh?.username ?? '') ||
@@ -711,6 +723,69 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     }
   }
 
+  /// Pushes the per-machine classifier config to the server's
+  /// classifier.json over SSH. Best-effort: a failure here surfaces a snackbar
+  /// but does not block saving the machine. No-op when no model is set.
+  Future<void> _pushClassifierConfigViaSsh() async {
+    final model = _classifierModelCtrl.text.trim();
+    if (model.isEmpty) return;
+    final l10n = AppLocalizations.of(context)!;
+    final cfg = _buildSshConfig();
+    if (cfg == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.classifierNeedsSsh),
+            backgroundColor: Theme.of(context).semanticColors.warning,
+          ),
+        );
+      }
+      return;
+    }
+    final ssh = SshService();
+    try {
+      await ssh.connect(
+        host: cfg.host,
+        port: cfg.port,
+        username: cfg.username,
+        privateKeyPem: cfg.privateKey,
+        password: cfg.password,
+        expectedHostKeyFingerprint: cfg.hostKeyFingerprint,
+      );
+      String currentJson;
+      try {
+        currentJson = await ssh.execute('cat $classifierConfigPath');
+      } on SshCommandException {
+        currentJson = '{}';
+      }
+      final data = mergeClassifierConfigJson(
+        currentJson: currentJson,
+        model: model,
+        useLlm: _classifierUseLlm,
+      );
+      await ssh.execute(buildClassifierConfigWriteCommand(data));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.classifierConfigUpdated),
+            backgroundColor: Theme.of(context).semanticColors.success,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.classifierConfigPushFailed),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      ssh.disconnect();
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -744,11 +819,14 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         // the password.
         await _provisionKeyIfPasswordOnly();
       }
+      // Push the per-machine classifier config (best-effort; no-op if unset).
+      await _pushClassifierConfigViaSsh();
     } finally {
       if (mounted) setState(() => _saving = false);
     }
 
     final defaultDir = _defaultDirCtrl.text.trim();
+    final classifierModel = _classifierModelCtrl.text.trim();
     // Prefer a stable identity derived from the host key over a timestamp,
     // so the same machine maps to the same ID across reinstalls.
     final newMachineId = _capturedHostKeyFingerprint != null
@@ -762,6 +840,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       password: _effectiveOpenCodePassword(),
       requestTimeoutSeconds: int.tryParse(_timeoutCtrl.text) ?? 30,
       defaultDirectory: defaultDir.isNotEmpty ? defaultDir : null,
+      classifierModel: classifierModel.isNotEmpty ? classifierModel : null,
+      classifierUseLlm: classifierModel.isNotEmpty ? _classifierUseLlm : null,
       ssh: _buildSshConfigForSave(),
       lastConnected: widget.machine?.lastConnected,
     );
@@ -824,6 +904,37 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                     prefixIcon: const Icon(Icons.folder_outlined),
                     border: const OutlineInputBorder(),
                   ),
+                ),
+
+                // ── Prompt classifier ──
+                const SizedBox(height: 16),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(l10n.classifierSetup),
+                  subtitle: Text(l10n.classifierSetupSubtitle),
+                  leading: const Icon(Icons.category_outlined),
+                  children: [
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _classifierModelCtrl,
+                      decoration: InputDecoration(
+                        labelText: l10n.classifierModelLabel,
+                        hintText: 'openai/gpt-5.5',
+                        helperText: l10n.classifierModelHelper,
+                        prefixIcon: const Icon(Icons.psychology_outlined),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(l10n.classifierUseLlmLabel),
+                      subtitle: Text(l10n.classifierUseLlmSubtitle),
+                      value: _classifierUseLlm,
+                      onChanged: (v) => setState(() => _classifierUseLlm = v),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                 ),
 
                 // ── SSH ──

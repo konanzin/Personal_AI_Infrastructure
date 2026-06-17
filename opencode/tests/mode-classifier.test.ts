@@ -5,6 +5,7 @@ import {
   formatClassificationContext,
   getEffortLabel,
   isAlgorithmMode,
+  resolveClassifierConfig,
 } from "../plugins/lib/mode-classifier.lib.js";
 
 describe("Mode Classifier — classifyPrompt", () => {
@@ -315,5 +316,81 @@ describe("Mode Classifier — LLM Fallback", () => {
     expect(result.tier).toBeDefined();
     expect(result.reason).toBeDefined();
     expect(result.source).toBe("heuristic");
+  });
+});
+
+describe("resolveClassifierConfig — precedence", () => {
+  test("empty file + empty env → hardcoded defaults (legacy behavior)", () => {
+    const cfg = resolveClassifierConfig({}, {});
+    expect(cfg.model).toBe("opencode/deepseek-v4-flash-free");
+    expect(cfg.useLLM).toBe(true);
+    expect(cfg.timeoutMs).toBe(25000);
+    expect(cfg.endpoint).toBeNull();
+    expect(cfg.apiKey).toBeNull();
+  });
+
+  test("file-only values win over hardcoded defaults", () => {
+    const cfg = resolveClassifierConfig(
+      { model: "openai/gpt-5.5", useLLM: false, timeoutMs: 8000 },
+      {},
+    );
+    expect(cfg.model).toBe("openai/gpt-5.5");
+    expect(cfg.useLLM).toBe(false);
+    expect(cfg.timeoutMs).toBe(8000);
+  });
+
+  test("env var overrides the file (debug escape hatch)", () => {
+    const cfg = resolveClassifierConfig(
+      { model: "openai/gpt-5.5", useLLM: true },
+      { PAI_CLASSIFIER_MODEL: "anthropic/claude-opus", PAI_CLASSIFIER_USE_LLM: "false" },
+    );
+    expect(cfg.model).toBe("anthropic/claude-opus");
+    expect(cfg.useLLM).toBe(false);
+  });
+
+  test("PAI_OPENCODE_PROVIDER/MODEL compose into model when PAI_CLASSIFIER_MODEL absent", () => {
+    const cfg = resolveClassifierConfig(
+      { model: "file/model" },
+      { PAI_OPENCODE_PROVIDER: "kimi-for-coding", PAI_OPENCODE_MODEL: "k2p6" },
+    );
+    expect(cfg.model).toBe("kimi-for-coding/k2p6");
+  });
+
+  test("PAI_CLASSIFIER_MODEL beats PAI_OPENCODE_* composite", () => {
+    const cfg = resolveClassifierConfig(
+      {},
+      {
+        PAI_CLASSIFIER_MODEL: "explicit/model",
+        PAI_OPENCODE_PROVIDER: "kimi-for-coding",
+        PAI_OPENCODE_MODEL: "k2p6",
+      },
+    );
+    expect(cfg.model).toBe("explicit/model");
+  });
+
+  test("empty-string env var does not override file (treated as unset)", () => {
+    const cfg = resolveClassifierConfig(
+      { model: "file/model", useLLM: false },
+      { PAI_CLASSIFIER_MODEL: "", PAI_CLASSIFIER_USE_LLM: "" },
+    );
+    expect(cfg.model).toBe("file/model");
+    expect(cfg.useLLM).toBe(false);
+  });
+
+  test("invalid file shape (array/null) falls back to defaults, no throw", () => {
+    expect(resolveClassifierConfig([], {}).model).toBe("opencode/deepseek-v4-flash-free");
+    expect(resolveClassifierConfig(null as any, {}).useLLM).toBe(true);
+  });
+
+  test("env useLLM accepts 0/no/off as false", () => {
+    for (const v of ["0", "no", "off", "FALSE"]) {
+      expect(resolveClassifierConfig({}, { PAI_CLASSIFIER_USE_LLM: v }).useLLM).toBe(false);
+    }
+    expect(resolveClassifierConfig({}, { PAI_CLASSIFIER_USE_LLM: "1" }).useLLM).toBe(true);
+  });
+
+  test("file useLLM only honored when boolean (non-boolean → default true)", () => {
+    expect(resolveClassifierConfig({ useLLM: "false" as any }, {}).useLLM).toBe(true);
+    expect(resolveClassifierConfig({ useLLM: false }, {}).useLLM).toBe(false);
   });
 });

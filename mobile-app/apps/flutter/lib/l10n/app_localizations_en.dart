@@ -336,6 +336,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeDirectoryOnServer => 'Home directory on the server';
 
   @override
+  String get classifierSetup => 'Prompt classifier';
+
+  @override
+  String get classifierSetupSubtitle =>
+      'Choose the model that classifies your prompts on this server';
+
+  @override
+  String get classifierModelLabel => 'Classifier model';
+
+  @override
+  String get classifierModelHelper =>
+      'Format provider/model. Empty = server default.';
+
+  @override
+  String get classifierUseLlmLabel => 'Use LLM classifier';
+
+  @override
+  String get classifierUseLlmSubtitle =>
+      'Off: local heuristic, no cost or latency';
+
+  @override
+  String get classifierConfigUpdated => 'Classifier updated on the server';
+
+  @override
+  String get classifierConfigPushFailed =>
+      'Failed to update classifier over SSH';
+
+  @override
+  String get classifierNeedsSsh => 'Configure SSH to change the classifier';
+
+  @override
   String get sshSetup => 'SSH Setup';
 
   @override

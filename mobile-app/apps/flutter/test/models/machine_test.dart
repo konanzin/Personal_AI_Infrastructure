@@ -71,6 +71,62 @@ void main() {
       expect(renamed.name, 'n2');
     });
 
+    test('round-trips classifier fields through JSON', () {
+      const machine = Machine(
+        id: 'm1',
+        name: 'n',
+        serverUrl: 'http://h:4096',
+        username: 'u',
+        password: 'p',
+        classifierModel: 'openai/gpt-5.5',
+        classifierUseLlm: false,
+      );
+      final restored = Machine.fromJson(machine.toJson());
+      expect(restored.classifierModel, 'openai/gpt-5.5');
+      expect(restored.classifierUseLlm, false);
+    });
+
+    test('omits classifier fields from JSON when null', () {
+      const machine = Machine(
+        id: 'm1',
+        name: 'n',
+        serverUrl: 'http://h:4096',
+        username: 'u',
+        password: 'p',
+      );
+      final json = machine.toJson();
+      expect(json.containsKey('classifierModel'), isFalse);
+      expect(json.containsKey('classifierUseLlm'), isFalse);
+    });
+
+    test('copyWith(classifierModel: null) clears the value', () {
+      const machine = Machine(
+        id: 'm1',
+        name: 'n',
+        serverUrl: 'http://h:4096',
+        username: 'u',
+        password: 'p',
+        classifierModel: 'openai/gpt-5.5',
+        classifierUseLlm: true,
+      );
+      final cleared = machine.copyWith(classifierModel: null);
+      expect(cleared.classifierModel, isNull);
+      // Untouched field survives.
+      expect(cleared.classifierUseLlm, true);
+    });
+
+    test('tolerates legacy JSON without classifier fields', () {
+      final machine = Machine.fromJson({
+        'id': 'm1',
+        'name': 'n',
+        'serverUrl': 'http://h:4096',
+        'username': 'u',
+        'password': 'p',
+      });
+      expect(machine.classifierModel, isNull);
+      expect(machine.classifierUseLlm, isNull);
+    });
+
     test('ignores legacy paiAgentUrl in persisted JSON', () {
       final machine = Machine.fromJson({
         'id': 'm1',

@@ -698,6 +698,60 @@ abstract class AppLocalizations {
   /// **'Diretório inicial no servidor'**
   String get homeDirectoryOnServer;
 
+  /// No description provided for @classifierSetup.
+  ///
+  /// In pt, this message translates to:
+  /// **'Classificador de prompts'**
+  String get classifierSetup;
+
+  /// No description provided for @classifierSetupSubtitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Escolha o modelo que classifica seus prompts neste servidor'**
+  String get classifierSetupSubtitle;
+
+  /// No description provided for @classifierModelLabel.
+  ///
+  /// In pt, this message translates to:
+  /// **'Modelo do classificador'**
+  String get classifierModelLabel;
+
+  /// No description provided for @classifierModelHelper.
+  ///
+  /// In pt, this message translates to:
+  /// **'Formato provider/model. Vazio = padrão do servidor.'**
+  String get classifierModelHelper;
+
+  /// No description provided for @classifierUseLlmLabel.
+  ///
+  /// In pt, this message translates to:
+  /// **'Usar classificador LLM'**
+  String get classifierUseLlmLabel;
+
+  /// No description provided for @classifierUseLlmSubtitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Desligado: heurística local, sem custo nem latência'**
+  String get classifierUseLlmSubtitle;
+
+  /// No description provided for @classifierConfigUpdated.
+  ///
+  /// In pt, this message translates to:
+  /// **'Classificador atualizado no servidor'**
+  String get classifierConfigUpdated;
+
+  /// No description provided for @classifierConfigPushFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'Falha ao atualizar o classificador via SSH'**
+  String get classifierConfigPushFailed;
+
+  /// No description provided for @classifierNeedsSsh.
+  ///
+  /// In pt, this message translates to:
+  /// **'Configure SSH para alterar o classificador'**
+  String get classifierNeedsSsh;
+
   /// No description provided for @sshSetup.
   ///
   /// In pt, this message translates to:

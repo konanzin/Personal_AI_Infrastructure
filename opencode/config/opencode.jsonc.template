@@ -99,8 +99,13 @@
       "agent": "build"
     },
     "interview": {
-      "template": "Begin the PAI onboarding or refresh interview. Capture TELOS, ideal state, preferences, identity, and missing context.",
+      "template": "Begin the PAI onboarding or refresh interview. Capture TELOS, ideal state, preferences, identity, missing context, and the prompt-classifier model.",
       "description": "Run PAI onboarding interview",
+      "agent": "build"
+    },
+    "classifier": {
+      "template": "Set or update the prompt-classifier model for this machine. Discover the real available models, ask which to use and whether to run the LLM classifier, then write the classifier config.",
+      "description": "Set the prompt-classifier model",
       "agent": "build"
     },
     "pulse": {

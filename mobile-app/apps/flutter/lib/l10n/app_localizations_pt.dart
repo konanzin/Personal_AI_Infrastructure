@@ -339,6 +339,37 @@ class AppLocalizationsPt extends AppLocalizations {
   String get homeDirectoryOnServer => 'Diretório inicial no servidor';
 
   @override
+  String get classifierSetup => 'Classificador de prompts';
+
+  @override
+  String get classifierSetupSubtitle =>
+      'Escolha o modelo que classifica seus prompts neste servidor';
+
+  @override
+  String get classifierModelLabel => 'Modelo do classificador';
+
+  @override
+  String get classifierModelHelper =>
+      'Formato provider/model. Vazio = padrão do servidor.';
+
+  @override
+  String get classifierUseLlmLabel => 'Usar classificador LLM';
+
+  @override
+  String get classifierUseLlmSubtitle =>
+      'Desligado: heurística local, sem custo nem latência';
+
+  @override
+  String get classifierConfigUpdated => 'Classificador atualizado no servidor';
+
+  @override
+  String get classifierConfigPushFailed =>
+      'Falha ao atualizar o classificador via SSH';
+
+  @override
+  String get classifierNeedsSsh => 'Configure SSH para alterar o classificador';
+
+  @override
   String get sshSetup => 'Configuração SSH';
 
   @override

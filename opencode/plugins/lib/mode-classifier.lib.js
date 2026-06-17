@@ -694,6 +694,51 @@ export async function classifyPromptWithLLM(prompt, providerConfig = null) {
 }
 
 /**
+ * Resolve the effective classifier config from a persistent config file and the
+ * process environment. Pure (no I/O) so the precedence policy is unit-testable;
+ * the caller supplies the parsed file contents and an env map.
+ *
+ * Precedence per field: env var (debug escape hatch) > config file (persistent
+ * user choice, written by setup / mobile) > hardcoded default. A missing or
+ * empty file therefore reproduces the legacy env-only behavior exactly.
+ *
+ * @param {object} fileData - Parsed classifier.json ({ model, useLLM, timeoutMs })
+ * @param {object} env - Environment map (typically process.env)
+ * @returns {{useLLM: boolean, model: string, timeoutMs: number, endpoint: ?string, apiKey: ?string}}
+ */
+export function resolveClassifierConfig(fileData = {}, env = {}) {
+  const file = fileData && typeof fileData === 'object' && !Array.isArray(fileData) ? fileData : {};
+
+  const envModel =
+    env.PAI_CLASSIFIER_MODEL ||
+    (env.PAI_OPENCODE_PROVIDER && env.PAI_OPENCODE_MODEL
+      ? `${env.PAI_OPENCODE_PROVIDER}/${env.PAI_OPENCODE_MODEL}`
+      : null);
+  const model =
+    envModel ||
+    (typeof file.model === 'string' && file.model ? file.model : null) ||
+    'opencode/deepseek-v4-flash-free';
+
+  const envUseLLM = env.PAI_CLASSIFIER_USE_LLM;
+  const useLLM =
+    envUseLLM !== undefined && envUseLLM !== ''
+      ? !/^(0|false|no|off)$/i.test(String(envUseLLM).trim())
+      : typeof file.useLLM === 'boolean'
+        ? file.useLLM
+        : true;
+
+  const timeoutMs = parseInt(env.PAI_CLASSIFIER_TIMEOUT_MS || file.timeoutMs || '25000', 10);
+
+  return {
+    useLLM,
+    model,
+    timeoutMs,
+    endpoint: env.PAI_CLASSIFIER_API_URL || null,
+    apiKey: env.PAI_CLASSIFIER_API_KEY || null,
+  };
+}
+
+/**
  * Normalize a classification result to ensure it always has the expected shape.
  *
  * @param {object} result - Raw classification result
