@@ -116,7 +116,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectModel => 'Select Model';
 
   @override
-  String get defaultServerModel => 'Default (server)';
+  String get defaultServerModel => 'Server default (no fixed model)';
 
   @override
   String failedLoadModels(String error) {
@@ -367,6 +367,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get classifierNeedsSsh => 'Configure SSH to change the classifier';
 
   @override
+  String get chooseModel => 'Choose model';
+
+  @override
+  String get couldNotLoadModels => 'Could not load models from the server';
+
+  @override
+  String get noModelsFound => 'No models available on the server';
+
+  @override
+  String get loadFromServer => 'Load from server';
+
+  @override
+  String get classifierFromServer => 'Loaded from server';
+
+  @override
+  String get classifierNotOnServer => 'No classifier set on the server';
+
+  @override
+  String get classifierServerReadFailed => 'Could not read from the server';
+
+  @override
   String get sshSetup => 'SSH Setup';
 
   @override
@@ -401,6 +422,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupOpenCodeViaSsh => 'Setup PAI/OpenCode via SSH';
+
+  @override
+  String get updatePaiSetup => 'Update PAI on this machine';
+
+  @override
+  String get updatingPai => 'Updating PAI (install.sh --update)...';
+
+  @override
+  String get paiUpdated =>
+      'PAI updated. Reconnect/restart OpenCode to load code changes.';
+
+  @override
+  String get paiUpdateFailed => 'Failed to update PAI';
 
   @override
   String get directOpenCodeServer => 'Direct OpenCode Server (optional)';

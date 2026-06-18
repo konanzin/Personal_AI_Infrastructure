@@ -87,6 +87,44 @@ void main() {
     });
   });
 
+  group('parseClassifierConfigJson', () {
+    test('reads model and useLLM from a populated file', () {
+      final result = parseClassifierConfigJson(
+          '{"model":"kimi-for-coding/k2p6","useLLM":true}');
+      expect(result.model, 'kimi-for-coding/k2p6');
+      expect(result.useLlm, true);
+    });
+
+    test('empty / absent file → nulls (server default)', () {
+      expect(parseClassifierConfigJson('').model, isNull);
+      expect(parseClassifierConfigJson('').useLlm, isNull);
+    });
+
+    test('invalid JSON → nulls', () {
+      final result = parseClassifierConfigJson('not json');
+      expect(result.model, isNull);
+      expect(result.useLlm, isNull);
+    });
+
+    test('non-object JSON (array) → nulls', () {
+      expect(parseClassifierConfigJson('[1,2,3]').model, isNull);
+    });
+
+    test('empty model string treated as null', () {
+      expect(parseClassifierConfigJson('{"model":""}').model, isNull);
+    });
+
+    test('non-boolean useLLM treated as null', () {
+      expect(parseClassifierConfigJson('{"useLLM":"true"}').useLlm, isNull);
+    });
+
+    test('partial file: model only', () {
+      final result = parseClassifierConfigJson('{"model":"openai/gpt-5.5"}');
+      expect(result.model, 'openai/gpt-5.5');
+      expect(result.useLlm, isNull);
+    });
+  });
+
   group('buildClassifierConfigWriteCommand', () {
     test('produces heredoc targeting the classifier config path', () {
       final cmd = buildClassifierConfigWriteCommand({

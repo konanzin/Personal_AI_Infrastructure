@@ -194,6 +194,62 @@ class MachineBootstrapService {
     }
   }
 
+  /// Updates the PAI setup on an already-provisioned machine — equivalent to
+  /// running `opencode/install.sh --update` on the server. Reuses the
+  /// idempotent ecosystem command, which fetches the latest repo and runs the
+  /// installer in update mode (a backup is taken server-side by the installer).
+  ///
+  /// Does not restart the OpenCode service: matching `--update` semantics, it
+  /// refreshes files on disk; a reconnect/restart is what loads new plugin code.
+  /// Always ends with a [BootstrapDoneEvent].
+  Stream<BootstrapEvent> updatePai({required SshConfig ssh}) async* {
+    final sshService = _sshFactory();
+    String? fingerprint;
+    var connected = false;
+
+    try {
+      yield const BootstrapStepEvent(BootstrapStep.connecting);
+      await sshService.connect(
+        host: ssh.host,
+        port: ssh.port,
+        username: ssh.username,
+        privateKeyPem: ssh.privateKey,
+        password: ssh.password,
+        expectedHostKeyFingerprint: ssh.hostKeyFingerprint,
+      );
+      connected = true;
+      fingerprint = sshService.hostKeyFingerprint;
+
+      yield const BootstrapStepEvent(BootstrapStep.installingPaiEcosystem);
+      final output = await sshService.execute(installPaiEcosystemCommand());
+
+      yield BootstrapDoneEvent(BootstrapOutcome(
+        success: true,
+        message: output,
+        hostKeyFingerprint: fingerprint,
+      ));
+    } on SshCommandException catch (e) {
+      yield BootstrapDoneEvent(BootstrapOutcome(
+        success: false,
+        message: e.stderr,
+        failure: BootstrapFailureKind.remoteCommandFailed,
+        exitCode: e.exitCode,
+        hostKeyFingerprint: fingerprint,
+      ));
+    } catch (e) {
+      yield BootstrapDoneEvent(BootstrapOutcome(
+        success: false,
+        message: e.toString(),
+        failure: connected
+            ? BootstrapFailureKind.remoteCommandFailed
+            : BootstrapFailureKind.sshConnectFailed,
+        hostKeyFingerprint: fingerprint,
+      ));
+    } finally {
+      sshService.disconnect();
+    }
+  }
+
   Future<ConnectionCheckResult> _checkHttp(
     String baseUrl,
     String username,

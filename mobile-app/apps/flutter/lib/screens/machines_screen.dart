@@ -182,6 +182,8 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   late final TextEditingController _defaultDirCtrl;
   late final TextEditingController _classifierModelCtrl;
   late bool _classifierUseLlm;
+  bool _loadingClassifier = false;
+  String? _classifierServerStatus;
   // SSH
   late final TextEditingController _sshHostCtrl;
   late final TextEditingController _sshPortCtrl;
@@ -697,6 +699,91 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     return result.success;
   }
 
+  /// Runs `install.sh --update` on the machine over SSH (via the idempotent
+  /// ecosystem command), showing progress and the result. Updates files on
+  /// disk; a reconnect/restart is what loads new plugin code.
+  Future<void> _updatePaiViaSsh() async {
+    final l10n = AppLocalizations.of(context)!;
+    final sshConfig = _buildSshConfig();
+    if (sshConfig == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.fillSshCredentials),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _testingSsh = true);
+    final progress = ValueNotifier<String>(l10n.connectingOverSsh);
+    var dialogOpen = true;
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text(l10n.updatePaiSetup),
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ValueListenableBuilder<String>(
+                  valueListenable: progress,
+                  builder: (_, value, __) => Text(value),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).whenComplete(() => dialogOpen = false));
+
+    BootstrapOutcome? outcome;
+    try {
+      await for (final event
+          in MachineBootstrapService().updatePai(ssh: sshConfig)) {
+        switch (event) {
+          case BootstrapStepEvent e:
+            progress.value = e.step == BootstrapStep.connecting
+                ? l10n.connectingOverSsh
+                : l10n.updatingPai;
+          case BootstrapDoneEvent e:
+            outcome = e.outcome;
+        }
+      }
+    } finally {
+      if (dialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      progress.dispose();
+      if (mounted) setState(() => _testingSsh = false);
+    }
+
+    final result = outcome;
+    if (result == null || !mounted) return;
+    if (result.hostKeyFingerprint != null) {
+      _capturedHostKeyFingerprint = result.hostKeyFingerprint;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.success
+            ? l10n.paiUpdated
+            : _remoteSetupFailureMessage(result)),
+        backgroundColor: result.success
+            ? Theme.of(context).semanticColors.success
+            : Theme.of(context).colorScheme.error,
+        duration: const Duration(seconds: 6),
+      ),
+    );
+  }
+
   /// When SSH is configured with only a password (no key yet), opens a short
   /// connection to provision a dedicated key. Best-effort: failure here does
   /// not block saving (the password path still works as a fallback).
@@ -720,6 +807,121 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       // Leave the password path in place if provisioning fails.
     } finally {
       ssh.disconnect();
+    }
+  }
+
+  /// Opens a picker of the models actually available on the server (fetched
+  /// over HTTP via the editor's current URL/credentials) and fills the model
+  /// field. Free-text entry stays available as a fallback for custom models.
+  Future<void> _pickClassifierModel() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (!_cleartextGuard()) return;
+    final client = OpenCodeClient(ClientConfig(
+      baseUrl: _effectiveServerUrl(),
+      username: _effectiveOpenCodeUsername(),
+      password: _effectiveOpenCodePassword(),
+      requestTimeoutSeconds: int.tryParse(_timeoutCtrl.text) ?? 30,
+    ));
+
+    List<String> models;
+    try {
+      models = (await client.getProviderRegistry()).modelIds;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(l10n.couldNotLoadModels),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ));
+      }
+      return;
+    } finally {
+      client.close();
+    }
+    if (!mounted) return;
+
+    final current = _classifierModelCtrl.text.trim();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.settings_backup_restore),
+              title: Text(l10n.defaultServerModel),
+              selected: current.isEmpty,
+              onTap: () => Navigator.pop(sheetContext, ''),
+            ),
+            if (models.isEmpty)
+              ListTile(
+                enabled: false,
+                title: Text(l10n.noModelsFound),
+              ),
+            ...models.map((m) => ListTile(
+                  leading: const Icon(Icons.psychology_outlined),
+                  title: Text(m),
+                  selected: m == current,
+                  trailing: m == current ? const Icon(Icons.check) : null,
+                  onTap: () => Navigator.pop(sheetContext, m),
+                )),
+          ],
+        ),
+      ),
+    );
+
+    if (picked != null && mounted) {
+      setState(() => _classifierModelCtrl.text = picked);
+    }
+  }
+
+  /// Reads the machine's actual classifier.json over SSH and reflects it in the
+  /// editor, so the app shows the real server state instead of a stale local
+  /// copy. Resolves drift between device and machine on demand.
+  Future<void> _loadClassifierFromServer() async {
+    final l10n = AppLocalizations.of(context)!;
+    final cfg = _buildSshConfig();
+    if (cfg == null) {
+      setState(() => _classifierServerStatus = l10n.classifierNeedsSsh);
+      return;
+    }
+
+    setState(() => _loadingClassifier = true);
+    final ssh = SshService();
+    try {
+      await ssh.connect(
+        host: cfg.host,
+        port: cfg.port,
+        username: cfg.username,
+        privateKeyPem: cfg.privateKey,
+        password: cfg.password,
+        expectedHostKeyFingerprint: cfg.hostKeyFingerprint,
+      );
+      String currentJson;
+      try {
+        currentJson = await ssh.execute('cat $classifierConfigPath');
+      } on SshCommandException {
+        currentJson = '';
+      }
+      final remote = parseClassifierConfigJson(currentJson);
+      if (!mounted) return;
+      setState(() {
+        if (remote.model != null) {
+          _classifierModelCtrl.text = remote.model!;
+          _classifierUseLlm = remote.useLlm ?? _classifierUseLlm;
+          _classifierServerStatus = l10n.classifierFromServer;
+        } else {
+          _classifierServerStatus = l10n.classifierNotOnServer;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _classifierServerStatus = l10n.classifierServerReadFailed);
+      }
+    } finally {
+      ssh.disconnect();
+      if (mounted) setState(() => _loadingClassifier = false);
     }
   }
 
@@ -922,6 +1124,11 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                         hintText: 'openai/gpt-5.5',
                         helperText: l10n.classifierModelHelper,
                         prefixIcon: const Icon(Icons.psychology_outlined),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.arrow_drop_down),
+                          tooltip: l10n.chooseModel,
+                          onPressed: _busy ? null : _pickClassifierModel,
+                        ),
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -932,6 +1139,34 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                       subtitle: Text(l10n.classifierUseLlmSubtitle),
                       value: _classifierUseLlm,
                       onChanged: (v) => setState(() => _classifierUseLlm = v),
+                    ),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: (_busy || _loadingClassifier)
+                              ? null
+                              : _loadClassifierFromServer,
+                          icon: _loadingClassifier
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.cloud_download_outlined,
+                                  size: 18),
+                          label: Text(l10n.loadFromServer),
+                        ),
+                        if (_classifierServerStatus != null)
+                          Expanded(
+                            child: Text(
+                              _classifierServerStatus!,
+                              style: Theme.of(context).textTheme.bodySmall,
+                              textAlign: TextAlign.end,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -1031,6 +1266,12 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
                             )
                           : const Icon(Icons.play_arrow),
                       label: Text(l10n.setupOpenCodeViaSsh),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _updatePaiViaSsh,
+                      icon: const Icon(Icons.system_update_alt),
+                      label: Text(l10n.updatePaiSetup),
                     ),
                     const SizedBox(height: 8),
                   ],

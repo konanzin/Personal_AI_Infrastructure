@@ -193,6 +193,55 @@ class OpenCodeProviderRegistry {
   const OpenCodeProviderRegistry(this.raw);
 
   Iterable<String> get providerIds => raw.keys;
+
+  /// Flat, sorted list of `provider/model` identifiers across all providers —
+  /// the same shape `opencode models` prints and that classifier.json expects.
+  ///
+  /// Defensive about the response shape: `/config/providers` returns
+  /// `{providers: [{id, models: {..}|[..]}, ...]}`, while older/`/provider`
+  /// shapes may be a flat `id -> data` map. `models` may be a map keyed by
+  /// model id or a list of ids / `{id|name}` objects.
+  List<String> get modelIds {
+    final providers = <Map<String, dynamic>>[];
+    final declared = raw['providers'];
+    if (declared is List) {
+      providers.addAll(
+          declared.whereType<Map>().map((m) => Map<String, dynamic>.from(m)));
+    } else {
+      for (final entry in raw.entries) {
+        if (entry.value is Map) {
+          providers.add({
+            'id': entry.key,
+            ...Map<String, dynamic>.from(entry.value as Map),
+          });
+        }
+      }
+    }
+
+    final ids = <String>{};
+    for (final provider in providers) {
+      final providerId = provider['id']?.toString();
+      if (providerId == null || providerId.isEmpty) continue;
+      final models = provider['models'];
+      if (models is Map) {
+        for (final key in models.keys) {
+          ids.add('$providerId/$key');
+        }
+      } else if (models is List) {
+        for (final model in models) {
+          final modelId = model is Map
+              ? (model['id'] ?? model['name'])?.toString()
+              : model?.toString();
+          if (modelId != null && modelId.isNotEmpty) {
+            ids.add('$providerId/$modelId');
+          }
+        }
+      }
+    }
+
+    final sorted = ids.toList()..sort();
+    return sorted;
+  }
 }
 
 /// Unified API client for the OpenCode Server.

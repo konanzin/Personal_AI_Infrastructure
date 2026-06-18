@@ -165,4 +165,67 @@ void main() {
     expect(done.outcome.success, isFalse);
     expect(done.outcome.failure, BootstrapFailureKind.sshConnectFailed);
   });
+
+  group('updatePai', () {
+    test('runs install.sh --update via the ecosystem command and succeeds',
+        () async {
+      final ssh = _FakeSsh();
+      final events =
+          await service(ssh).updatePai(ssh: sshConfig).toList();
+
+      final steps =
+          events.whereType<BootstrapStepEvent>().map((e) => e.step).toList();
+      expect(
+          steps,
+          containsAllInOrder([
+            BootstrapStep.connecting,
+            BootstrapStep.installingPaiEcosystem,
+          ]));
+      // The ecosystem command is exactly what carries `install.sh --update`.
+      expect(ssh.executed, contains(installPaiEcosystemCommand()));
+      expect(installPaiEcosystemCommand(), contains('install.sh'));
+
+      final done = events.last as BootstrapDoneEvent;
+      expect(done.outcome.success, isTrue);
+      expect(ssh.disconnected, isTrue);
+    });
+
+    test('does not provision keys or restart the OpenCode service', () async {
+      final ssh = _FakeSsh();
+      await service(ssh).updatePai(ssh: sshConfig).toList();
+
+      expect(ssh.executed.any((c) => c.contains('authorized_keys')), isFalse);
+      expect(ssh.executed.any((c) => c.contains('pulse-broker.service')),
+          isFalse);
+      expect(ssh.executed, [installPaiEcosystemCommand()]);
+    });
+
+    test('installer failure maps to remoteCommandFailed with exit code',
+        () async {
+      final ssh = _FakeSsh()
+        ..executeError = (command) => command == installPaiEcosystemCommand()
+            ? SshCommandException(command, 74, 'installer failed')
+            : null;
+
+      final events =
+          await service(ssh).updatePai(ssh: sshConfig).toList();
+
+      final done = events.last as BootstrapDoneEvent;
+      expect(done.outcome.success, isFalse);
+      expect(done.outcome.failure, BootstrapFailureKind.remoteCommandFailed);
+      expect(done.outcome.exitCode, 74);
+      expect(ssh.disconnected, isTrue);
+    });
+
+    test('connect failure maps to sshConnectFailed', () async {
+      final ssh = _FakeSsh()..connectError = Exception('refused');
+
+      final events =
+          await service(ssh).updatePai(ssh: sshConfig).toList();
+
+      final done = events.last as BootstrapDoneEvent;
+      expect(done.outcome.success, isFalse);
+      expect(done.outcome.failure, BootstrapFailureKind.sshConnectFailed);
+    });
+  });
 }

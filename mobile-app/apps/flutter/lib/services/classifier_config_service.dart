@@ -33,6 +33,28 @@ Map<String, dynamic> mergeClassifierConfigJson({
   return data;
 }
 
+/// Parses classifier.json content read from the server into its fields.
+///
+/// Tolerant of an empty/absent/invalid file (returns nulls), so the caller can
+/// treat "no config" as "server uses its built-in default". `useLlm` is only
+/// returned when the stored value is an actual boolean.
+({String? model, bool? useLlm}) parseClassifierConfigJson(String currentJson) {
+  try {
+    final decoded = jsonDecode(currentJson);
+    if (decoded is Map<String, dynamic>) {
+      final model = decoded['model'];
+      final useLlm = decoded['useLLM'];
+      return (
+        model: model is String && model.isNotEmpty ? model : null,
+        useLlm: useLlm is bool ? useLlm : null,
+      );
+    }
+  } catch (_) {
+    // Empty / not JSON / not an object → treat as no config.
+  }
+  return (model: null, useLlm: null);
+}
+
 /// Builds the SSH command to write [data] to the classifier config file using
 /// a heredoc with a unique delimiter to avoid content injection.
 String buildClassifierConfigWriteCommand(Map<String, dynamic> data) {

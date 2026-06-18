@@ -299,7 +299,7 @@ abstract class AppLocalizations {
   /// No description provided for @defaultServerModel.
   ///
   /// In pt, this message translates to:
-  /// **'Padrão (servidor)'**
+  /// **'Padrão do servidor (sem modelo fixo)'**
   String get defaultServerModel;
 
   /// No description provided for @failedLoadModels.
@@ -752,6 +752,48 @@ abstract class AppLocalizations {
   /// **'Configure SSH para alterar o classificador'**
   String get classifierNeedsSsh;
 
+  /// No description provided for @chooseModel.
+  ///
+  /// In pt, this message translates to:
+  /// **'Escolher modelo'**
+  String get chooseModel;
+
+  /// No description provided for @couldNotLoadModels.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível carregar os modelos do servidor'**
+  String get couldNotLoadModels;
+
+  /// No description provided for @noModelsFound.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nenhum modelo disponível no servidor'**
+  String get noModelsFound;
+
+  /// No description provided for @loadFromServer.
+  ///
+  /// In pt, this message translates to:
+  /// **'Carregar do servidor'**
+  String get loadFromServer;
+
+  /// No description provided for @classifierFromServer.
+  ///
+  /// In pt, this message translates to:
+  /// **'Carregado do servidor'**
+  String get classifierFromServer;
+
+  /// No description provided for @classifierNotOnServer.
+  ///
+  /// In pt, this message translates to:
+  /// **'Sem classificador definido no servidor'**
+  String get classifierNotOnServer;
+
+  /// No description provided for @classifierServerReadFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível ler do servidor'**
+  String get classifierServerReadFailed;
+
   /// No description provided for @sshSetup.
   ///
   /// In pt, this message translates to:
@@ -817,6 +859,30 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Configurar PAI/OpenCode via SSH'**
   String get setupOpenCodeViaSsh;
+
+  /// No description provided for @updatePaiSetup.
+  ///
+  /// In pt, this message translates to:
+  /// **'Atualizar PAI nesta máquina'**
+  String get updatePaiSetup;
+
+  /// No description provided for @updatingPai.
+  ///
+  /// In pt, this message translates to:
+  /// **'Atualizando PAI (install.sh --update)...'**
+  String get updatingPai;
+
+  /// No description provided for @paiUpdated.
+  ///
+  /// In pt, this message translates to:
+  /// **'PAI atualizado. Reconecte/reinicie o OpenCode para aplicar mudanças de código.'**
+  String get paiUpdated;
+
+  /// No description provided for @paiUpdateFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'Falha ao atualizar o PAI'**
+  String get paiUpdateFailed;
 
   /// No description provided for @directOpenCodeServer.
   ///
