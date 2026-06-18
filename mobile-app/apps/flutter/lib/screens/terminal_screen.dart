@@ -10,6 +10,7 @@ import '../providers/opencode_provider.dart';
 import '../services/ssh_gate_service.dart';
 import '../services/ssh_service.dart';
 import '../services/terminal_connection_service.dart';
+import '../services/terminal_keys.dart';
 
 class TerminalScreen extends StatefulWidget {
   const TerminalScreen({super.key});
@@ -30,6 +31,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
   Timer? _blinkTimer;
   bool _cursorVisible = true;
 
+  // ── Accessory key bar: sticky Ctrl/Alt modifiers applied to the next input,
+  // Termux-style. _emittingSpecial guards re-entrancy when keyInput() emits
+  // through the same onOutput sink we wrap below. ──
+  bool _ctrl = false;
+  bool _alt = false;
+  bool _emittingSpecial = false;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +57,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
     _terminal.onOutput = (data) {
       _restartBlink();
+      // Soft-keyboard text: apply any armed sticky modifiers, then clear them.
+      // Special keys routed via _sendKey set _emittingSpecial so their re-entrant
+      // emission here is forwarded verbatim (keyInput already applied modifiers).
+      if (!_emittingSpecial && (_ctrl || _alt)) {
+        final out = applyTerminalModifiers(data, ctrl: _ctrl, alt: _alt);
+        _clearModifiers();
+        _connection.writeInput(out);
+        return;
+      }
       _connection.writeInput(data);
     };
     _terminal.onResize = (w, h, _, __) => _connection.resize(w, h);
@@ -181,6 +198,30 @@ class _TerminalScreenState extends State<TerminalScreen> {
     if (mounted) Navigator.pop(context);
   }
 
+  // ── Accessory key bar handlers ──────────────────────────────────────────
+
+  void _clearModifiers() {
+    if (_ctrl || _alt) setState(() => _ctrl = _alt = false);
+  }
+
+  /// Sends a special key (Tab, Esc, arrows, Home/End/PgUp/PgDn) through xterm,
+  /// which generates the right sequence for the terminal's current mode and
+  /// honors the armed Ctrl/Alt modifiers. Then disarms the modifiers.
+  void _sendKey(TerminalKey key) {
+    _emittingSpecial = true;
+    _terminal.keyInput(key, ctrl: _ctrl, alt: _alt);
+    _emittingSpecial = false;
+    _restartBlink();
+    _clearModifiers();
+  }
+
+  /// Sends a literal character (e.g. `/`, `-`) with any armed modifiers applied.
+  void _sendChar(String ch) {
+    _connection.writeInput(applyTerminalModifiers(ch, ctrl: _ctrl, alt: _alt));
+    _restartBlink();
+    _clearModifiers();
+  }
+
   void _reconnect() {
     _connection.disposeTransport();
     setState(() {
@@ -262,20 +303,102 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
       );
     }
+    // The accessory key bar only makes sense while typing, so show it only
+    // when the soft keyboard is up; it then sits flush above the keyboard.
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return SafeArea(
       top: false,
-      child: TerminalView(
-        _terminal,
-        focusNode: _focusNode,
-        autofocus: true,
-        // visiblePassword stops the soft keyboard from composing text
-        // (predictive input); composing renders a local preview ahead of the
-        // real cursor, which reads as "the cursor lags behind what I type".
-        keyboardType: TextInputType.visiblePassword,
-        theme: _cursorVisible ? _kTerminalTheme : _kTerminalThemeCursorOff,
-        textStyle: const TerminalStyle(
-          fontFamily: 'JetBrainsMonoNerdFont',
-          fontSize: 13,
+      child: Column(
+        children: [
+          Expanded(
+            child: TerminalView(
+              _terminal,
+              focusNode: _focusNode,
+              autofocus: true,
+              // visiblePassword stops the soft keyboard from composing text
+              // (predictive input); composing renders a local preview ahead of
+              // the real cursor, which reads as "the cursor lags behind what I
+              // type".
+              keyboardType: TextInputType.visiblePassword,
+              theme:
+                  _cursorVisible ? _kTerminalTheme : _kTerminalThemeCursorOff,
+              textStyle: const TerminalStyle(
+                fontFamily: 'JetBrainsMonoNerdFont',
+                fontSize: 13,
+              ),
+            ),
+          ),
+          if (keyboardOpen) _buildAccessoryBar(),
+        ],
+      ),
+    );
+  }
+
+  // ── Accessory key bar (Termux-style, two fixed rows) ─────────────────────
+
+  Widget _buildAccessoryBar() {
+    // ExcludeFocus keeps taps from stealing focus from the terminal, so the
+    // soft keyboard stays open while using the bar.
+    return ExcludeFocus(
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  _accessoryKey('ESC', () => _sendKey(TerminalKey.escape)),
+                  _accessoryKey('/', () => _sendChar('/')),
+                  _accessoryKey('—', () => _sendChar('-')),
+                  _accessoryKey('HOME', () => _sendKey(TerminalKey.home)),
+                  _accessoryKey('↑', () => _sendKey(TerminalKey.arrowUp)),
+                  _accessoryKey('END', () => _sendKey(TerminalKey.end)),
+                  _accessoryKey('PGUP', () => _sendKey(TerminalKey.pageUp)),
+                ],
+              ),
+              Row(
+                children: [
+                  _accessoryKey('TAB', () => _sendKey(TerminalKey.tab)),
+                  _accessoryKey('CTRL', () => setState(() => _ctrl = !_ctrl),
+                      active: _ctrl),
+                  _accessoryKey('ALT', () => setState(() => _alt = !_alt),
+                      active: _alt),
+                  _accessoryKey('←', () => _sendKey(TerminalKey.arrowLeft)),
+                  _accessoryKey('↓', () => _sendKey(TerminalKey.arrowDown)),
+                  _accessoryKey('→', () => _sendKey(TerminalKey.arrowRight)),
+                  _accessoryKey('PGDN', () => _sendKey(TerminalKey.pageDown)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _accessoryKey(String label, VoidCallback onTap, {bool active = false}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? scheme.primary : scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: active ? scheme.onPrimary : scheme.onSurface,
+            ),
+          ),
         ),
       ),
     );
