@@ -124,7 +124,12 @@ class ChatInputBar extends StatelessWidget {
                         focusNode: focusNode,
                         decoration: InputDecoration(
                           hintText: AppLocalizations.of(context)!.askPaiHint,
+                          // Explicitly drop borders for every state so the
+                          // global inputDecorationTheme outline never shows
+                          // inside the rounded input pill.
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 14),
                         ),
@@ -141,28 +146,39 @@ class ChatInputBar extends StatelessWidget {
                         valueListenable: controller,
                         builder: (context, value, child) {
                           final hasText = value.text.trim().isNotEmpty;
-                          return hasText
-                              ? IconButton(
-                                  onPressed: onSend,
-                                  icon: const Icon(Icons.arrow_upward),
-                                  iconSize: 20,
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: theme.colorScheme.primary,
-                                    foregroundColor:
-                                        theme.colorScheme.onPrimary,
-                                    minimumSize: const Size(36, 36),
-                                    padding: EdgeInsets.zero,
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, anim) => ScaleTransition(
+                              scale: anim,
+                              child: FadeTransition(
+                                  opacity: anim, child: child),
+                            ),
+                            child: hasText
+                                ? IconButton(
+                                    key: const ValueKey('send'),
+                                    onPressed: onSend,
+                                    icon: const Icon(Icons.arrow_upward),
+                                    iconSize: 20,
+                                    style: IconButton.styleFrom(
+                                      backgroundColor:
+                                          theme.colorScheme.primary,
+                                      foregroundColor:
+                                          theme.colorScheme.onPrimary,
+                                      minimumSize: const Size(36, 36),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                  )
+                                : SizedBox(
+                                    key: const ValueKey('voice'),
+                                    width: 40,
+                                    height: 40,
+                                    child: VoiceFab(
+                                      voiceService: voiceService,
+                                      onSpeechResult: onVoiceResult,
+                                      compact: true,
+                                    ),
                                   ),
-                                )
-                              : SizedBox(
-                                  width: 40,
-                                  height: 40,
-                                  child: VoiceFab(
-                                    voiceService: voiceService,
-                                    onSpeechResult: onVoiceResult,
-                                    compact: true,
-                                  ),
-                                );
+                          );
                         },
                       ),
                     ),

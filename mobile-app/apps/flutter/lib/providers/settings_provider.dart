@@ -376,4 +376,27 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setBool('show_thinking', value);
     notifyListeners();
   }
+
+  // ── Display name (home-screen greeting) ───────────────────────────────
+  String _displayName = '';
+
+  /// Friendly name shown in the home greeting; empty means greet without a name.
+  String get displayName => _displayName;
+
+  Future<void> loadDisplayName() async {
+    final prefs = await SharedPreferences.getInstance();
+    _displayName = prefs.getString('display_name') ?? '';
+    notifyListeners();
+  }
+
+  Future<void> setDisplayName(String value) async {
+    _displayName = value.trim();
+    final prefs = await SharedPreferences.getInstance();
+    if (_displayName.isEmpty) {
+      await prefs.remove('display_name');
+    } else {
+      await prefs.setString('display_name', _displayName);
+    }
+    notifyListeners();
+  }
 }

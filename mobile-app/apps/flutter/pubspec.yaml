@@ -33,6 +33,7 @@ dependencies:
   flutter_foreground_task: ^9.2.2
   flutter_tts: ^4.2.5
   flutter_markdown_plus: ^1.0.7
+  animations: ^2.0.11
 
 dev_dependencies:
   flutter_test:
@@ -45,6 +46,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   generate: true
+
+  assets:
+    - assets/images/
 
   fonts:
     - family: JetBrainsMonoNerdFont

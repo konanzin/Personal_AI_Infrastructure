@@ -212,6 +212,42 @@ abstract class AppLocalizations {
   /// **'Envie uma mensagem para começar'**
   String get chatEmptySubtitle;
 
+  /// No description provided for @greetingMorning.
+  ///
+  /// In pt, this message translates to:
+  /// **'Bom dia'**
+  String get greetingMorning;
+
+  /// No description provided for @greetingAfternoon.
+  ///
+  /// In pt, this message translates to:
+  /// **'Boa tarde'**
+  String get greetingAfternoon;
+
+  /// No description provided for @greetingEvening.
+  ///
+  /// In pt, this message translates to:
+  /// **'Boa noite'**
+  String get greetingEvening;
+
+  /// No description provided for @displayNameTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Seu nome'**
+  String get displayNameTitle;
+
+  /// No description provided for @displayNameSubtitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Usado na saudação da tela inicial'**
+  String get displayNameSubtitle;
+
+  /// No description provided for @displayNameHint.
+  ///
+  /// In pt, this message translates to:
+  /// **'Como devo te chamar?'**
+  String get displayNameHint;
+
   /// No description provided for @initializingChat.
   ///
   /// In pt, this message translates to:

@@ -66,6 +66,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatEmptySubtitle => 'Send a message to get started';
 
   @override
+  String get greetingMorning => 'Good morning';
+
+  @override
+  String get greetingAfternoon => 'Good afternoon';
+
+  @override
+  String get greetingEvening => 'Good evening';
+
+  @override
+  String get displayNameTitle => 'Your name';
+
+  @override
+  String get displayNameSubtitle => 'Used to greet you on the home screen';
+
+  @override
+  String get displayNameHint => 'What should I call you?';
+
+  @override
   String get initializingChat => 'Initializing chat...';
 
   @override

@@ -41,6 +41,7 @@ class PaiMobileApp extends StatelessWidget {
             ..loadThemeMode()
             ..loadThemeAppearance()
             ..loadShowThinking()
+            ..loadDisplayName()
             ..loadVoiceSettings()
             ..loadPulseSettings(),
         ),

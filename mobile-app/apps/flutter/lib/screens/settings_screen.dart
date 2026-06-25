@@ -123,6 +123,16 @@ class SettingsScreen extends StatelessWidget {
                 onChanged: settings.setShowThinking,
                 contentPadding: EdgeInsets.zero,
               ),
+              ListTile(
+                leading: const Icon(Icons.badge_outlined),
+                title: Text(l10n.displayNameTitle),
+                subtitle: Text(settings.displayName.isEmpty
+                    ? l10n.displayNameSubtitle
+                    : settings.displayName),
+                trailing: const Icon(Icons.edit_outlined),
+                contentPadding: EdgeInsets.zero,
+                onTap: () => _editDisplayName(context, settings),
+              ),
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 16),
@@ -216,6 +226,36 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _editDisplayName(
+      BuildContext context, SettingsProvider settings) async {
+    final l10n = AppLocalizations.of(context)!;
+    final controller = TextEditingController(text: settings.displayName);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.displayNameTitle),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(hintText: l10n.displayNameHint),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: Text(l10n.save),
+          ),
+        ],
+      ),
+    );
+    if (result != null) await settings.setDisplayName(result);
   }
 }
 

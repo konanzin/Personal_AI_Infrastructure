@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/client_provider.dart';
 import '../providers/machine_store.dart';
@@ -16,6 +17,7 @@ import '../providers/settings_provider.dart';
 import '../services/git_status_service.dart';
 import '../services/ssh_gate_service.dart';
 import '../services/ssh_service.dart';
+import '../services/telos_identity_service.dart';
 import '../widgets/git_status_badge.dart';
 import '../widgets/workspace_picker.dart';
 import '../services/voice_service.dart';
@@ -27,6 +29,7 @@ import '../models/message_part.dart';
 import '../services/chat_formatting.dart';
 import '../services/connectivity_service.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/brand_mark.dart';
 import '../widgets/chat_autocomplete_controller.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/chat_message_tile.dart';
@@ -70,6 +73,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _showScrollToBottom = false;
   GitStatus? _gitStatus;
   String? _gitStatusDirectory;
+  String? _principalName;
+  String? _principalNameMachineId;
   StreamSubscription? _sendSubscription;
   bool _isSearching = false;
   final TextEditingController _chatSearchController = TextEditingController();
@@ -432,6 +437,56 @@ class _ChatScreenState extends State<ChatScreen> {
     }();
   }
 
+  // ── Principal name (home greeting, from the server's Telos identity) ──────
+
+  /// Loads the user's name from the active machine for the home greeting:
+  /// a cached value first (instant), then a background SSH refresh of
+  /// PRINCIPAL_IDENTITY.md (written by `/interview`). Runs once per machine.
+  void _fetchPrincipalNameIfNeeded() {
+    final machine = context.read<MachineStore>().activeMachine;
+    if (machine == null || machine.id == _principalNameMachineId) return;
+    _principalNameMachineId = machine.id;
+
+    final cacheKey = 'telos_name_${machine.id}';
+    () async {
+      // 1) Instant: show the cached name if we have one.
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(cacheKey);
+      if (cached != null && cached.isNotEmpty && mounted) {
+        setState(() => _principalName = cached);
+      }
+
+      // 2) Refresh over SSH — only when already unlocked, so we never trigger
+      // a surprise auth prompt just to personalize the greeting.
+      final ssh = machine.ssh;
+      if (ssh == null || !SshGateService.isUnlocked(machine.id)) return;
+
+      final sshService = SshService();
+      try {
+        await sshService.connect(
+          host: ssh.host,
+          port: ssh.port,
+          username: ssh.username,
+          privateKeyPem: ssh.privateKey,
+          password: ssh.password,
+          expectedHostKeyFingerprint: ssh.hostKeyFingerprint,
+        );
+        final content = await sshService.execute(catPrincipalIdentityCommand());
+        final name = parsePrincipalName(content);
+        if (name != null) {
+          await prefs.setString(cacheKey, name);
+          if (mounted && _principalNameMachineId == machine.id) {
+            setState(() => _principalName = name);
+          }
+        }
+      } catch (_) {
+        // SSH unavailable -- keep cached/empty greeting.
+      } finally {
+        sshService.disconnect();
+      }
+    }();
+  }
+
   // ── Menu actions ────────────────────────────────────────────────────────
 
   String _shortenPath(String path) {
@@ -493,20 +548,6 @@ class _ChatScreenState extends State<ChatScreen> {
         _shareSession();
       case 'info':
         _showSessionInfo();
-      case 'summarize':
-        _summarizeSession();
-    }
-  }
-
-  Future<void> _summarizeSession() async {
-    if (_provider == null) return;
-    final result = await _provider!.summarizeSession();
-    if (!mounted) return;
-    if (result != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(AppLocalizations.of(context)!.sessionSummarized)),
-      );
     }
   }
 
@@ -962,6 +1003,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (currentDir != _gitStatusDirectory) {
       _fetchGitStatusIfNeeded(currentDir);
     }
+    _fetchPrincipalNameIfNeeded();
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -1029,27 +1071,23 @@ class _ChatScreenState extends State<ChatScreen> {
         centerTitle: false,
         actions: [
           if (_provider != null) _buildConnectionAction(_provider!),
-          if (!_isSearching)
-            IconButton(
-              icon: const Icon(Icons.search, size: 22),
-              onPressed: () => setState(() => _isSearching = true),
-            ),
-          if (_isSearching && _searchMatchIndices.isNotEmpty) ...[
-            Text('${_currentSearchMatch + 1}/${_searchMatchIndices.length}',
-                style: const TextStyle(fontSize: 12)),
-            IconButton(
-              icon: const Icon(Icons.keyboard_arrow_up),
-              onPressed:
-                  _currentSearchMatch > 0 ? () => _navigateSearch(-1) : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.keyboard_arrow_down),
-              onPressed: _currentSearchMatch < _searchMatchIndices.length - 1
-                  ? () => _navigateSearch(1)
-                  : null,
-            ),
-          ],
-          if (_isSearching)
+          // Search-mode controls (only while actively searching).
+          if (_isSearching) ...[
+            if (_searchMatchIndices.isNotEmpty) ...[
+              Text('${_currentSearchMatch + 1}/${_searchMatchIndices.length}',
+                  style: const TextStyle(fontSize: 12)),
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_up),
+                onPressed:
+                    _currentSearchMatch > 0 ? () => _navigateSearch(-1) : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_down),
+                onPressed: _currentSearchMatch < _searchMatchIndices.length - 1
+                    ? () => _navigateSearch(1)
+                    : null,
+              ),
+            ],
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () => setState(() {
@@ -1059,61 +1097,67 @@ class _ChatScreenState extends State<ChatScreen> {
                 _currentSearchMatch = -1;
               }),
             ),
-          if (!_isSearching) ...[
-            IconButton(
-              icon: const Icon(Icons.edit_square, size: 22),
-              onPressed: _createNewChat,
-            ),
-            if (_provider != null)
-              AnimatedBuilder(
-                animation: _provider!,
-                builder: (context, child) {
-                  return PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 22),
-                    onSelected: (value) => _handleMenuAction(value),
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'todos',
-                        child: ListTile(
-                          leading: const Icon(Icons.checklist),
-                          title: Text(AppLocalizations.of(context)!.todos),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
+          ],
+          // Idle controls. Search and "new chat" only make sense once a chat
+          // has started — on the empty home screen the user just types to
+          // begin, so they're hidden there. The overflow menu stays available.
+          if (!_isSearching && _provider != null)
+            AnimatedBuilder(
+              animation: _provider!,
+              builder: (context, child) {
+                final hasActiveChat =
+                    _provider!.history.isNotEmpty || _provider!.isStreaming;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasActiveChat) ...[
+                      IconButton(
+                        icon: const Icon(Icons.search, size: 22),
+                        onPressed: () => setState(() => _isSearching = true),
                       ),
-                      PopupMenuItem(
-                        value: 'share',
-                        child: ListTile(
-                          leading: const Icon(Icons.share),
-                          title: Text(AppLocalizations.of(context)!.share),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'info',
-                        child: ListTile(
-                          leading: const Icon(Icons.info_outline),
-                          title:
-                              Text(AppLocalizations.of(context)!.sessionInfo),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'summarize',
-                        child: ListTile(
-                          leading: const Icon(Icons.summarize),
-                          title: Text(AppLocalizations.of(context)!.summarize),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.edit_square, size: 22),
+                        onPressed: _createNewChat,
                       ),
                     ],
-                  );
-                },
-              ),
-          ],
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, size: 22),
+                      onSelected: (value) => _handleMenuAction(value),
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'todos',
+                          child: ListTile(
+                            leading: const Icon(Icons.checklist),
+                            title: Text(AppLocalizations.of(context)!.todos),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'share',
+                          child: ListTile(
+                            leading: const Icon(Icons.share),
+                            title: Text(AppLocalizations.of(context)!.share),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'info',
+                          child: ListTile(
+                            leading: const Icon(Icons.info_outline),
+                            title:
+                                Text(AppLocalizations.of(context)!.sessionInfo),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
         ],
       ),
       body: _buildBody(),
@@ -1207,6 +1251,8 @@ class _ChatScreenState extends State<ChatScreen> {
       decoration: InputDecoration(
         hintText: AppLocalizations.of(context)!.searchInChat,
         border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
       ),
       style: const TextStyle(fontSize: 16),
       onChanged: (v) {
@@ -1354,9 +1400,11 @@ class _ChatScreenState extends State<ChatScreen> {
                         }
                         return KeyedSubtree(
                           key: ValueKey('msg-${item.historyIndex}'),
-                          child: _buildMessageBubble(
-                            item.message!,
-                            item.historyIndex!,
+                          child: _MessageEntrance(
+                            child: _buildMessageBubble(
+                              item.message!,
+                              item.historyIndex!,
+                            ),
                           ),
                         );
                       },
@@ -1430,32 +1478,57 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildEmptyState(BuildContext context) {
     final theme = Theme.of(context);
+    // Manual "Your name" wins; otherwise greet with the name from the server's
+    // PAI Telos identity (set via /interview), Gemini-style. First name only.
+    final displayName = context.watch<SettingsProvider>().displayName;
+    final name = displayName.isNotEmpty
+        ? displayName
+        : (_principalName != null ? firstNameOf(_principalName!) : '');
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.psychology,
-            size: 64,
-            color: theme.colorScheme.primary.withAlpha(180),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        builder: (context, t, child) => Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 12),
+            child: child,
           ),
-          const SizedBox(height: 24),
-          Text(
-            AppLocalizations.of(context)!.chatEmptyTitle,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Brand mark (white hands silhouette). Flip tinted: true to
+              // recolor it with the theme gradient instead of plain white.
+              const BrandMark(tinted: false, size: 140),
+              const SizedBox(height: 20),
+              Text(
+                _homeGreeting(context, name),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            AppLocalizations.of(context)!.chatEmptySubtitle,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withAlpha(180),
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  /// Time-aware greeting, personalized with the user's display name when set.
+  String _homeGreeting(BuildContext context, String name) {
+    final l10n = AppLocalizations.of(context)!;
+    final hour = DateTime.now().hour;
+    final word = hour < 12
+        ? l10n.greetingMorning
+        : (hour < 18 ? l10n.greetingAfternoon : l10n.greetingEvening);
+    return name.isEmpty ? word : '$word, $name';
   }
 
   Widget _buildMessageBubble(ChatMessage message, int index) {
@@ -1598,6 +1671,32 @@ class _ChatScreenState extends State<ChatScreen> {
       onRemoveAttachment: (i) =>
           setState(() => _pendingAttachments.removeAt(i)),
       guessMime: guessMimeType,
+    );
+  }
+}
+
+/// Gentle fade + slide-up applied once when a message tile first appears.
+/// The [KeyedSubtree] wrapping each item keeps the element alive across list
+/// rebuilds, so existing messages don't re-animate — only freshly inserted ones.
+class _MessageEntrance extends StatelessWidget {
+  const _MessageEntrance({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * 10),
+          child: child,
+        ),
+      ),
+      child: child,
     );
   }
 }
