@@ -125,6 +125,27 @@ void main() {
       r.markAndCheckFresh('c'); // evicts 'a'
       expect(r.markAndCheckFresh('a'), true);
     });
+
+    test('export/initial round-trips seen keys across a restart', () {
+      final r1 = PulseReconciler();
+      r1.markAndCheckFresh('k1');
+      r1.markAndCheckFresh('k2');
+      final snapshot = r1.export();
+      expect(snapshot, ['k1', 'k2']);
+
+      // Simulate a service restart: a new reconciler seeded from the snapshot
+      // must treat the prior keys as already seen (no re-notify).
+      final r2 = PulseReconciler(initial: snapshot);
+      expect(r2.markAndCheckFresh('k1'), false);
+      expect(r2.markAndCheckFresh('k2'), false);
+      expect(r2.markAndCheckFresh('k3'), true);
+    });
+
+    test('initial is trimmed to capacity (keeps newest)', () {
+      final r = PulseReconciler(capacity: 2, initial: ['a', 'b', 'c']);
+      expect(r.markAndCheckFresh('a'), true); // 'a' evicted by the cap
+      expect(r.markAndCheckFresh('c'), false); // 'c' kept
+    });
   });
 
   group('PulseCoalescer', () {

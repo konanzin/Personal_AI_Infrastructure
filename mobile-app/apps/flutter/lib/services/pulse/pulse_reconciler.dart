@@ -7,10 +7,22 @@ import 'pulse_event.dart';
 /// `GET /recent` and reconciles against what it already rendered, so events
 /// arrive late rather than never, without replaying a backlog out loud.
 class PulseReconciler {
-  PulseReconciler({this.capacity = 500});
+  PulseReconciler({this.capacity = 500, Iterable<String>? initial}) {
+    if (initial != null) {
+      for (final key in initial) {
+        _seen.add(key);
+      }
+      while (_seen.length > capacity) {
+        _seen.remove(_seen.first);
+      }
+    }
+  }
 
   final int capacity;
   final LinkedHashSet<String> _seen = LinkedHashSet();
+
+  /// Insertion-ordered snapshot of seen keys, for persistence across restarts.
+  List<String> export() => _seen.toList(growable: false);
 
   /// True if this delivery was not rendered before; marks it as rendered.
   bool markAndCheckFresh(String dedupeKey) {

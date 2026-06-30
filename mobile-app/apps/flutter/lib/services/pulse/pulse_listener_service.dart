@@ -35,6 +35,10 @@ const kPulseSpeakMilestoneKey = 'pulse.speak.milestone';
 const kPulseSpeakAttentionKey = 'pulse.speak.attention';
 const kPulseSpeakDigestKey = 'pulse.speak.digest';
 const kPulseAppForegroundedKey = 'pulse.app.foregrounded';
+// Persisted dedupe ledger (JSON array of seen keys) so a foreground-service
+// restart does not re-notify a backlog. Voice is already protected by the
+// live-only rule; this closes the double-NOTIFY gap.
+const kPulseSeenKeysKey = 'pulse.seen';
 
 @pragma('vm:entry-point')
 void pulseListenerStartCallback() {
@@ -56,7 +60,8 @@ class PulseListenerTaskHandler extends TaskHandler {
   bool _speakAttention = true;
   bool _speakDigest = true;
 
-  final _reconciler = PulseReconciler();
+  late PulseReconciler _reconciler;
+  bool _seenDirty = false;
   final _coalescer = PulseCoalescer();
   SpeechEngine? _speech;
 
@@ -82,10 +87,31 @@ class PulseListenerTaskHandler extends TaskHandler {
         false;
     _speech = NativeTtsEngine();
 
+    // Restore the persisted dedupe ledger so a service restart does not replay
+    // a backlog as fresh notifications.
+    List<String>? seenInitial;
+    final savedSeen =
+        await FlutterForegroundTask.getData<String>(key: kPulseSeenKeysKey);
+    if (savedSeen != null && savedSeen.isNotEmpty) {
+      try {
+        seenInitial = (jsonDecode(savedSeen) as List).cast<String>();
+      } catch (_) {
+        seenInitial = null; // corrupt → start empty
+      }
+    }
+    _reconciler = PulseReconciler(initial: seenInitial);
+
     _flushTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       for (final event
           in _coalescer.flushDue(DateTime.now().millisecondsSinceEpoch)) {
         _render(event, speakHint: true);
+      }
+      if (_seenDirty) {
+        _seenDirty = false;
+        unawaited(FlutterForegroundTask.saveData(
+          key: kPulseSeenKeysKey,
+          value: jsonEncode(_reconciler.export()),
+        ));
       }
     });
 
@@ -163,6 +189,7 @@ class PulseListenerTaskHandler extends TaskHandler {
     if (payload['type'] != 'notification') return;
     final delivery = PulseDelivery.fromFrame(payload);
     if (!_reconciler.markAndCheckFresh(delivery.dedupeKey)) return;
+    _seenDirty = true;
     for (final event in _coalescer.offer(
         delivery.event, DateTime.now().millisecondsSinceEpoch)) {
       _render(event, speakHint: delivery.brokerSpeak ?? true);
@@ -180,7 +207,9 @@ class PulseListenerTaskHandler extends TaskHandler {
           .whereType<Map>()
           .map((e) => PulseEvent.fromJson(e.cast<String, dynamic>()))
           .toList();
-      for (final event in _reconciler.reconcile(events)) {
+      final fresh = _reconciler.reconcile(events);
+      if (events.isNotEmpty) _seenDirty = true; // reconcile marks unseen as seen
+      for (final event in fresh) {
         _render(
           event,
           speakHint: false,
@@ -266,6 +295,13 @@ class PulseListenerTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     _stopping = true;
     _flushTimer?.cancel();
+    if (_seenDirty) {
+      _seenDirty = false;
+      await FlutterForegroundTask.saveData(
+        key: kPulseSeenKeysKey,
+        value: jsonEncode(_reconciler.export()),
+      );
+    }
     await _sub?.cancel();
     _client?.close(force: true);
     await _speech?.stop();

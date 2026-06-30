@@ -21,6 +21,7 @@ import {
   resolveVoice,
   sanitizeForSpeech,
 } from "../broker/edge-tts-lib.ts";
+import { createDedupeStore, MIN_CAPACITY } from "../broker/renderer-dedupe.ts";
 
 const mkEvent = (over: Partial<NotificationEvent> = {}): NotificationEvent => ({
   v: 1,
@@ -241,6 +242,66 @@ PAI_EDGE_TTS_RATE='+10%'
       }
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("Renderer dedupe ledger", () => {
+  const dirs: string[] = [];
+  const newPath = () => {
+    const dir = mkdtempSync(join(tmpdir(), "pai-dedupe-"));
+    dirs.push(dir);
+    return join(dir, "seen.json");
+  };
+  afterAll(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("marks fresh once, then deduplicates", () => {
+    const s = createDedupeStore({ path: newPath(), flushMs: 1 });
+    expect(s.markAndCheckFresh("a")).toBe(true);
+    expect(s.markAndCheckFresh("a")).toBe(false);
+    expect(s.has("a")).toBe(true);
+    expect(s.has("b")).toBe(false);
+  });
+
+  test("never deduplicates an empty key", () => {
+    const s = createDedupeStore({ path: newPath(), flushMs: 1 });
+    expect(s.markAndCheckFresh("")).toBe(true);
+    expect(s.markAndCheckFresh("")).toBe(true);
+  });
+
+  test("persists across reloads (survives restart)", () => {
+    const path = newPath();
+    const s1 = createDedupeStore({ path, flushMs: 1 });
+    s1.markAndCheckFresh("k1");
+    s1.markAndCheckFresh("k2");
+    s1.flush();
+
+    const s2 = createDedupeStore({ path });
+    expect(s2.markAndCheckFresh("k1")).toBe(false);
+    expect(s2.markAndCheckFresh("k2")).toBe(false);
+    expect(s2.markAndCheckFresh("k3")).toBe(true);
+  });
+
+  test("clamps capacity to the floor and evicts oldest beyond it", () => {
+    const s = createDedupeStore({ path: newPath(), capacity: 5, flushMs: 1 });
+    // capacity requested 5 but floored to MIN_CAPACITY (>= largest /recent n)
+    const total = MIN_CAPACITY + 10;
+    for (let i = 0; i < total; i++) s.markAndCheckFresh(`key-${i}`);
+    expect(s.size()).toBe(MIN_CAPACITY);
+    // the 10 oldest were evicted → fresh again
+    expect(s.has("key-0")).toBe(false);
+    expect(s.markAndCheckFresh("key-0")).toBe(true);
+    // a recent one is still present
+    expect(s.has(`key-${total - 1}`)).toBe(true);
+  });
+
+  test("corrupt ledger file loads as empty (fail-open)", () => {
+    const path = newPath();
+    writeFileSync(path, "{not valid json", "utf-8");
+    const s = createDedupeStore({ path });
+    expect(s.size()).toBe(0);
+    expect(s.markAndCheckFresh("x")).toBe(true);
   });
 });
 

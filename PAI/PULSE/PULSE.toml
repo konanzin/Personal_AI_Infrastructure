@@ -48,6 +48,14 @@ status = "reference-dev-consumer"
 entrypoint = "~/.config/opencode/PAI/broker/renderer-desktop.ts"
 default_tts_provider = "edge_tts"
 tts_override_env = "PULSE_TTS_CMD"
+# Presence: voice plays where the human is. "loginctl" reports listening=false
+# when this desktop is locked/idle/inactive (so it goes quiet when you walk
+# away); "off" keeps the legacy always-listening behaviour. idle_timeout_s
+# empty = use logind IdleHint as-is; a number delays idle-away by that many
+# seconds. (Strings — read by the renderer's pulseRendererSetting.)
+presence_mode = "loginctl"
+idle_poll_s = "15"
+idle_timeout_s = ""
 
 [jobs]
 enabled = false
