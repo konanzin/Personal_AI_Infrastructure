@@ -30,12 +30,17 @@ TTS_VENV_PYTHON="${TTS_VENV_DIR}/bin/python"
 UPDATE_MODE=false
 BOOTSTRAP_DEPS=true
 BOOTSTRAP_TTS=true
+RENDERER_SERVICE=auto   # auto | yes | no — desktop voice autostart unit
+ROLE=auto               # auto | anchor | renderer-client
+RENDERER_CLIENT_BROKER="" # PULSE_BROKER_URL for renderer-client role
 CHECK_MODE=false
 REPAIR_MODE=false
 PRESERVE_USER=true
 
 CONFIG_REGENERATED=false
 EDGE_TTS_STATUS="not checked"
+RENDERER_SERVICE_STATUS="not checked"
+ROLE_STATUS="not checked"
 ARCHIVE_DIR=""
 ARCHIVED_AGENTS=()
 ARCHIVED_COMMANDS=()
@@ -46,6 +51,11 @@ for arg in "$@"; do
         --update) UPDATE_MODE=true ;;
         --no-bootstrap) BOOTSTRAP_DEPS=false ;;
         --no-tts-bootstrap) BOOTSTRAP_TTS=false ;;
+        --renderer-service) RENDERER_SERVICE=yes ;;
+        --no-renderer-service) RENDERER_SERVICE=no ;;
+        --anchor) ROLE=anchor ;;
+        --renderer-client) ROLE=renderer-client ;;
+        --renderer-client=*) ROLE=renderer-client; RENDERER_CLIENT_BROKER="${arg#*=}" ;;
         --check) CHECK_MODE=true; BOOTSTRAP_DEPS=false ;;
         --repair) REPAIR_MODE=true ;;
         --preserve-user) PRESERVE_USER=true ;;
@@ -59,6 +69,17 @@ for arg in "$@"; do
             echo "  --no-bootstrap   Do not install missing prerequisites automatically."
             echo "  --no-tts-bootstrap"
             echo "                  Skip the optional desktop Edge TTS dependency bootstrap."
+            echo "  --renderer-service / --no-renderer-service"
+            echo "                  Force install (or skip) the desktop voice autostart systemd unit."
+            echo "                  Default (auto): installed only when Edge TTS is set up AND an audio"
+            echo "                  output is detected (sound card / running PipeWire-PulseAudio), so a"
+            echo "                  headless VPS never gets it even if the installer is run by hand."
+            echo "                  Use --renderer-service to force it (e.g. desktop install over SSH)."
+            echo "  --anchor / --renderer-client[=<broker-url>]"
+            echo "                  Host role. anchor (default): runs the local broker + agent."
+            echo "                  renderer-client: a desktop that only SPEAKS notifications from a"
+            echo "                  REMOTE anchor broker (no local broker). The role is persisted to"
+            echo "                  PAI/.role; switching roles disables the previous role's units."
             exit 0
             ;;
         *)
@@ -481,14 +502,53 @@ install_pai_core() {
     success "PAI core installed"
 }
 
+# ─── Host role (anchor vs renderer-only client) ───────────
+# anchor (default): this host runs the agent + the local Pulse broker.
+# renderer-client: this host only SPEAKS notifications from a REMOTE anchor
+# broker; it must NOT run a local broker. The role is persisted to PAI/.role so
+# re-runs converge without re-passing flags; switching roles disables the
+# previous role's units so the two never run side by side.
+resolve_and_reconcile_role() {
+    local role_file="$PAI_DIR/.role"
+    local previous=""
+    [ -f "$role_file" ] && previous="$(tr -d '[:space:]' < "$role_file" 2>/dev/null)"
+
+    if [ "$ROLE" = "auto" ]; then
+        ROLE="${previous:-anchor}"
+    fi
+
+    if command -v systemctl &>/dev/null && [ -n "$previous" ] && [ "$previous" != "$ROLE" ]; then
+        if [ "$previous" = "anchor" ]; then
+            systemctl --user disable --now pulse-broker.service 2>/dev/null || true
+            systemctl --user disable --now pai-renderer.service 2>/dev/null || true
+        elif [ "$previous" = "renderer-client" ]; then
+            systemctl --user disable --now pai-renderer-client.service 2>/dev/null || true
+        fi
+        systemctl --user daemon-reload 2>/dev/null || true
+        log "Role changed: $previous → $ROLE (disabled previous role's units)"
+    fi
+
+    mkdir -p "$PAI_DIR"
+    printf '%s\n' "$ROLE" > "$role_file"
+    ROLE_STATUS="$ROLE"
+}
+
 # ─── Install Pulse Broker (optional runtime) ──────────────
 install_broker() {
+    resolve_and_reconcile_role
     log "Installing Pulse Broker..."
 
     mkdir -p "$PAI_DIR/broker"
     rm -f "$PAI_DIR/broker/"*.py 2>/dev/null || true
+    # The renderer imports broker-lib/edge-tts-lib/renderer-dedupe, so the .ts
+    # files are copied for ALL roles, even when no local broker is enabled.
     cp -f "${REPO_DIR}/opencode/broker/"*.ts "$PAI_DIR/broker/" 2>/dev/null || true
     cp -f "${REPO_DIR}/opencode/config/pulse-broker.service.template" "$PAI_DIR/broker/" 2>/dev/null || true
+
+    if [ "$ROLE" = "renderer-client" ]; then
+        success "Renderer-client role: local Pulse Broker service not installed (uses remote anchor broker)"
+        return 0
+    fi
 
     if command -v systemctl &>/dev/null; then
         local user_unit_dir="${HOME}/.config/systemd/user"
@@ -576,6 +636,123 @@ install_edge_tts() {
     success "Edge TTS ready in $TTS_VENV_DIR"
 }
 
+# ─── Install desktop voice autostart (renderer) ───────────
+# The renderer is a per-device consumer that speaks notifications locally; it
+# only makes sense where the Edge TTS provider is set up. We therefore gate its
+# systemd unit on the SAME signal that distinguishes desktop from server: a
+# headless server is provisioned with --no-tts-bootstrap, so it never gets this
+# unit. The unit Requires/After the broker, so enabling it brings the broker up
+# too — one service to manage, two processes underneath (architecture intact).
+edge_tts_ready() {
+    case "$EDGE_TTS_STATUS" in
+        "not checked"|skipped*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# True only if this machine can actually play audio — the real desktop-vs-VPS
+# differentiator (capability), independent of the --no-tts-bootstrap intent
+# signal. A headless VPS has no sound card and no running sound server, so a
+# would-be renderer there would just fail; we skip it instead.
+audio_output_available() {
+    # 1) A usable audio player must exist.
+    local have_player=false
+    if [ "$(uname)" = "Darwin" ] && [ -x /usr/bin/afplay ]; then
+        have_player=true
+    fi
+    local p
+    for p in ffplay mpg123; do
+        command -v "$p" &>/dev/null && have_player=true
+    done
+    [ "$have_player" = true ] || return 1
+
+    # macOS desktops always have CoreAudio.
+    [ "$(uname)" = "Darwin" ] && return 0
+
+    # 2) Linux: require a real output device OR a running sound server.
+    if [ -r /proc/asound/cards ] && grep -qE '^[[:space:]]*[0-9]+[[:space:]]' /proc/asound/cards 2>/dev/null; then
+        return 0
+    fi
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && { [ -S "${XDG_RUNTIME_DIR}/pipewire-0" ] || [ -S "${XDG_RUNTIME_DIR}/pulse/native" ]; }; then
+        return 0
+    fi
+    if command -v pactl &>/dev/null && pactl info &>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+install_renderer_service() {
+    local anchor_tmpl="${REPO_DIR}/opencode/config/pai-renderer.service.template"
+    local client_tmpl="${REPO_DIR}/opencode/config/pai-renderer-client.service.template"
+    # Keep reference copies alongside the broker template regardless of gating.
+    cp -f "$anchor_tmpl" "$client_tmpl" "$PAI_DIR/broker/" 2>/dev/null || true
+
+    # Shared gates: the desktop voice autostart needs local audio + Edge TTS in
+    # both roles. A renderer-client still SPEAKS locally, just from a remote
+    # broker, so the same gates apply.
+    if [ "$RENDERER_SERVICE" = "no" ]; then
+        RENDERER_SERVICE_STATUS="skipped (--no-renderer-service)"
+        return 0
+    fi
+    if ! command -v systemctl &>/dev/null; then
+        RENDERER_SERVICE_STATUS="skipped (no systemctl)"
+        return 0
+    fi
+    if [ "$RENDERER_SERVICE" = "auto" ] && { [ "$BOOTSTRAP_TTS" != true ] || ! edge_tts_ready; }; then
+        RENDERER_SERVICE_STATUS="skipped (desktop voice not set up)"
+        return 0
+    fi
+    if [ "$RENDERER_SERVICE" = "auto" ] && ! audio_output_available; then
+        RENDERER_SERVICE_STATUS="skipped (no audio output detected)"
+        return 0
+    fi
+
+    local user_unit_dir="${HOME}/.config/systemd/user"
+    mkdir -p "$user_unit_dir"
+
+    if [ "$ROLE" = "renderer-client" ]; then
+        local broker_url="${RENDERER_CLIENT_BROKER:-${PULSE_BROKER_URL:-}}"
+        if [ -z "$broker_url" ]; then
+            RENDERER_SERVICE_STATUS="skipped (renderer-client without broker URL)"
+            warn "renderer-client role needs a broker URL: rerun with --renderer-client=http://<anchor>:31337"
+            return 0
+        fi
+        umask 077
+        printf 'PULSE_BROKER_URL=%s\n' "$broker_url" > "$PAI_DIR/broker/renderer-client.env"
+        log "Installing desktop voice autostart (pai-renderer-client → $broker_url)..."
+        cp -f "$client_tmpl" "$user_unit_dir/pai-renderer-client.service"
+        systemctl --user daemon-reload 2>/dev/null || \
+            warn "systemctl --user daemon-reload failed; unit file was still installed"
+        if systemctl --user enable pai-renderer-client.service 2>/dev/null; then
+            RENDERER_SERVICE_STATUS="enabled renderer-client → $broker_url"
+            systemctl --user start pai-renderer-client.service 2>/dev/null || \
+                warn "pai-renderer-client not started now (will start on next login / graphical session)"
+            success "Desktop voice (remote anchor) enabled; control with: systemctl --user start/stop pai-renderer-client"
+        else
+            RENDERER_SERVICE_STATUS="unit installed (enable failed)"
+            warn "pai-renderer-client unit installed but enable failed; enable with: systemctl --user enable --now pai-renderer-client"
+        fi
+        return 0
+    fi
+
+    log "Installing desktop voice autostart (pai-renderer)..."
+    cp -f "$anchor_tmpl" "$user_unit_dir/pai-renderer.service"
+    systemctl --user daemon-reload 2>/dev/null || \
+        warn "systemctl --user daemon-reload failed; unit file was still installed"
+
+    if systemctl --user enable pai-renderer.service 2>/dev/null; then
+        RENDERER_SERVICE_STATUS="enabled (autostart on login)"
+        # Best-effort immediate start; harmless if no audio session yet.
+        systemctl --user start pai-renderer.service 2>/dev/null || \
+            warn "pai-renderer not started now (will start on next login / graphical session)"
+        success "Desktop voice autostart enabled (pulls in pulse-broker; control with: systemctl --user start/stop pai-renderer)"
+    else
+        RENDERER_SERVICE_STATUS="unit installed (enable failed)"
+        warn "pai-renderer unit installed but enable failed; enable manually with: systemctl --user enable --now pai-renderer"
+    fi
+}
+
 # ─── Patch legacy upstream paths ──────────────────────────
 # Upstream PAI was built for Claude Code and hardcodes ~/.claude/ in
 # vendored skills and docs. The repo keeps those files pristine (clean
@@ -648,7 +825,9 @@ report() {
     echo ""
     echo "🧹 Hygiene:"
     echo "  Config regenerated: $CONFIG_REGENERATED"
+    echo "  Host role: $ROLE_STATUS"
     echo "  Edge TTS: $EDGE_TTS_STATUS"
+    echo "  Desktop voice autostart: $RENDERER_SERVICE_STATUS"
     if [ ${#ARCHIVED_AGENTS[@]} -gt 0 ]; then
         echo "  Archived agents: ${ARCHIVED_AGENTS[*]}"
     fi
@@ -868,6 +1047,11 @@ run_check_mode() {
     check_config_drift
     check_runtime_contracts
 
+    if [ -f "$PAI_DIR/.role" ]; then
+        echo ""
+        echo "  Host role: $(tr -d '[:space:]' < "$PAI_DIR/.role" 2>/dev/null)"
+    fi
+
     echo ""
     if [ "$CHECK_FAILURES" -eq 0 ]; then
         success "Installed runtime matches manifest"
@@ -908,6 +1092,7 @@ main() {
     install_pai_core
     install_broker
     install_edge_tts
+    install_renderer_service
     patch_installed_paths
     generate_config
     validate

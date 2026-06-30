@@ -1,0 +1,26 @@
+# PAI Pulse desktop renderer — user systemd unit (optional, desktop only)
+# Speaks notifications via Edge TTS. Installed by install.sh ONLY when the
+# desktop voice provider is set up (i.e. NOT with --no-tts-bootstrap), so
+# headless servers never get it. Manage manually with:
+#   systemctl --user daemon-reload && systemctl --user enable --now pai-renderer
+#
+# Lifecycle is bound to the broker: enabling this unit pulls the broker up
+# (Requires/After), and stopping/restarting the broker stops/restarts this
+# renderer (PartOf). The renderer exits when the broker stream closes, so
+# Restart=always lets it reconnect after a broker restart.
+
+[Unit]
+Description=PAI Pulse desktop renderer (Edge TTS voice)
+Requires=pulse-broker.service
+After=pulse-broker.service network.target
+PartOf=pulse-broker.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/.bun/bin/bun %h/.config/opencode/PAI/broker/renderer-desktop.ts --tts
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

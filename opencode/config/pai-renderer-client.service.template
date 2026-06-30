@@ -1,0 +1,25 @@
+# PAI Pulse desktop renderer — REMOTE-anchor client (optional, desktop only)
+# Speaks notifications from a REMOTE anchor's Pulse broker via Edge TTS. Unlike
+# pai-renderer.service this has NO local broker dependency: it reads the anchor
+# broker URL from renderer-client.env (PULSE_BROKER_URL=...). Installed by
+# install.sh --renderer-client <broker-url> on a desktop that is not the anchor.
+#   systemctl --user daemon-reload && systemctl --user enable --now pai-renderer-client
+#
+# The renderer exits when the broker stream closes, so Restart=always lets it
+# reconnect to the remote anchor after the anchor restarts.
+
+[Unit]
+Description=PAI Pulse renderer (remote anchor, Edge TTS voice)
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/opencode/PAI/broker/renderer-client.env
+ExecStart=%h/.bun/bin/bun %h/.config/opencode/PAI/broker/renderer-desktop.ts --tts
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
