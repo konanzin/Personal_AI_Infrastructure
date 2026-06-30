@@ -372,14 +372,15 @@ write_unit() {
   cat > "$unit_file" <<EOF
 [Unit]
 Description=PAI Pulse Broker (notifications fan-out, port $port)
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
 Environment=PAI_DIR=$pai_dir
 Environment=PULSE_BROKER_PORT=$port
 ExecStart="$bun_bin" "$broker" --port "$port"
-Restart=on-failure
+Restart=always
 RestartSec=5
 
 [Install]
@@ -463,9 +464,14 @@ const paiOpenCodeControllerPath = r'$HOME/.local/bin/pai-opencode';
 /// Supervision is delegated to a systemd user service when available
 /// (Restart=always, journald logs, linger across logouts); a supervised
 /// background process is the fallback for machines without a user systemd.
-/// The bind address is never 0.0.0.0: it resolves to the address the SSH
-/// connection arrived on (the same network path the phone uses), then the
-/// Tailscale IP, then loopback.
+///
+/// The bind/advertised address is substrate-agnostic, resolved by ordered
+/// strategies (never 0.0.0.0): explicit override (OPENCODE_HOST /
+/// PAI_ANCHOR_ADDRESS) → Tailscale IP when present and up (preferred, no open
+/// ports, reachable from anywhere) → the SSH-source LAN IP → loopback. Nothing
+/// depends on Tailscale; it is just the preferred strategy when available. The
+/// controller reports the chosen `strategy=` so the app can nudge toward
+/// Tailscale when running LAN-only.
 const paiOpenCodeControllerScript = r'''#!/bin/sh
 set -u
 
@@ -480,16 +486,25 @@ port="${OPENCODE_PORT:-4096}"
 opencode_bin="${OPENCODE_BIN:-}"
 workdir="${OPENCODE_WORKDIR:-$HOME}"
 password="${OPENCODE_PASSWORD:-}"
+strategy=""
 
+# Resolve the bind/advertised address by ordered, substrate-agnostic
+# strategies. Tailscale is preferred WHEN PRESENT (a non-empty `tailscale ip`
+# implies the daemon is up), but nothing here requires it.
 resolve_host() {
-  [ -n "$host" ] && return 0
+  if [ -n "$host" ]; then strategy="explicit"; return 0; fi
+  if [ -n "${PAI_ANCHOR_ADDRESS:-}" ]; then
+    host="$PAI_ANCHOR_ADDRESS"; strategy="explicit"; return 0
+  fi
+  if command -v tailscale >/dev/null 2>&1; then
+    ts="$(tailscale ip -4 2>/dev/null | head -n 1)"
+    if [ -n "$ts" ]; then host="$ts"; strategy="tailscale"; return 0; fi
+  fi
   if [ -n "${SSH_CONNECTION:-}" ]; then
     host="$(printf '%s\n' "$SSH_CONNECTION" | awk '{print $3; exit}')"
+    if [ -n "$host" ]; then strategy="lan"; return 0; fi
   fi
-  if [ -z "$host" ] && command -v tailscale >/dev/null 2>&1; then
-    host="$(tailscale ip -4 2>/dev/null | head -n 1)"
-  fi
-  [ -n "$host" ] || host="127.0.0.1"
+  host="127.0.0.1"; strategy="loopback"
 }
 
 runtime_ready() {
@@ -578,6 +593,8 @@ write_unit() {
   cat > "$unit_file" <<EOF
 [Unit]
 Description=PAI OpenCode server (managed by pai-mobile)
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
@@ -606,10 +623,13 @@ start_systemd() {
   systemctl --user enable "$unit_name" >/dev/null 2>&1 || true
   systemctl --user restart "$unit_name"
   loginctl enable-linger "$(id -un)" >/dev/null 2>&1 || true
+  if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || echo no)" != "yes" ]; then
+    printf 'warn: linger not enabled; anchor may not survive logout\n' >&2
+  fi
   i=0
   while [ "$i" -lt 20 ]; do
     if systemctl --user is-active --quiet "$unit_name"; then
-      printf 'started mode=systemd host=%s port=%s unit=%s\n' "$host" "$port" "$unit_name"
+      printf 'started mode=systemd host=%s port=%s strategy=%s unit=%s\n' "$host" "$port" "$strategy" "$unit_name"
       return 0
     fi
     sleep 0.5
@@ -659,7 +679,7 @@ start_process() {
   sleep 1
 
   if is_running; then
-    printf 'started mode=process pid=%s host=%s port=%s log=%s\n' "$pid" "$host" "$port" "$log_file"
+    printf 'started mode=process pid=%s host=%s port=%s strategy=%s log=%s\n' "$pid" "$host" "$port" "$strategy" "$log_file"
     return 0
   fi
 

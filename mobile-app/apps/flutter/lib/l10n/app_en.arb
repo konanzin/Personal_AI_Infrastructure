@@ -186,6 +186,7 @@
     }
   },
   "openCodeRunningReachable": "OpenCode is running and reachable",
+  "anchorTailscaleHint": "Tip: install Tailscale on the server and on this device to reach this machine from anywhere, without opening ports.",
   "openCodeStartedHttpFailed": "OpenCode started, but HTTP check failed: {message}",
   "@openCodeStartedHttpFailed": {
     "placeholders": {

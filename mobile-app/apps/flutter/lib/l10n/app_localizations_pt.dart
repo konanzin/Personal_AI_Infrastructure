@@ -542,6 +542,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get openCodeRunningReachable => 'OpenCode está rodando e acessível';
 
   @override
+  String get anchorTailscaleHint =>
+      'Dica: instale o Tailscale no servidor e neste aparelho para alcançar esta máquina de qualquer lugar, sem abrir portas.';
+
+  @override
   String openCodeStartedHttpFailed(String message) {
     return 'OpenCode iniciou, mas a checagem HTTP falhou: $message';
   }

@@ -53,7 +53,14 @@ class MachineStore extends ChangeNotifier {
   // ── CRUD ──────────────────────────────────────────────────────────────
 
   Future<void> addMachine(Machine machine) async {
-    _machines.add(machine);
+    // Upsert by id: re-adding the same anchor (same stable id, e.g. from a
+    // different network) refreshes the existing entry instead of duplicating.
+    final idx = _machines.indexWhere((m) => m.id == machine.id);
+    if (idx >= 0) {
+      _machines[idx] = machine;
+    } else {
+      _machines.add(machine);
+    }
     if (_machines.length == 1) {
       _activeMachineId = machine.id;
     }

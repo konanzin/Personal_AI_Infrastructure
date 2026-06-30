@@ -228,4 +228,35 @@ void main() {
       expect(done.outcome.failure, BootstrapFailureKind.sshConnectFailed);
     });
   });
+
+  group('parseAnchorStart', () {
+    test('extracts host + strategy into a durable serverUrl', () {
+      final r = parseAnchorStart(
+          'started mode=systemd host=100.101.102.103 port=4096 strategy=tailscale unit=pai-opencode.service',
+          4096);
+      expect(r.serverUrl, 'http://100.101.102.103:4096');
+      expect(r.strategy, 'tailscale');
+    });
+
+    test('lan strategy is reported and url derived', () {
+      final r = parseAnchorStart(
+          'started mode=process pid=42 host=192.168.0.5 port=4096 strategy=lan log=/x',
+          4096);
+      expect(r.serverUrl, 'http://192.168.0.5:4096');
+      expect(r.strategy, 'lan');
+    });
+
+    test('loopback yields no advertised url', () {
+      final r = parseAnchorStart(
+          'started mode=process host=127.0.0.1 port=4096 strategy=loopback', 4096);
+      expect(r.serverUrl, isNull);
+      expect(r.strategy, 'loopback');
+    });
+
+    test('unparseable output yields nulls', () {
+      final r = parseAnchorStart('stopped', 4096);
+      expect(r.serverUrl, isNull);
+      expect(r.strategy, isNull);
+    });
+  });
 }

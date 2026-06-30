@@ -1064,6 +1064,12 @@ abstract class AppLocalizations {
   /// **'OpenCode está rodando e acessível'**
   String get openCodeRunningReachable;
 
+  /// No description provided for @anchorTailscaleHint.
+  ///
+  /// In pt, this message translates to:
+  /// **'Dica: instale o Tailscale no servidor e neste aparelho para alcançar esta máquina de qualquer lugar, sem abrir portas.'**
+  String get anchorTailscaleHint;
+
   /// No description provided for @openCodeStartedHttpFailed.
   ///
   /// In pt, this message translates to:

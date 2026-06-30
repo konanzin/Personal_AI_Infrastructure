@@ -200,6 +200,14 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   /// SshConfig carries this key and the bootstrap password is discarded.
   String? _provisionedPrivateKey;
 
+  /// Durable server URL the anchor advertised (e.g. its Tailscale address),
+  /// adopted as the saved URL only after we confirm this device can reach it.
+  String? _resolvedAnchorUrl;
+
+  /// Address-resolution strategy the anchor reported (`tailscale`, `lan`, ...);
+  /// drives the "install Tailscale for from-anywhere reach" nudge.
+  String? _anchorStrategy;
+
   bool _obscurePassword = true;
   bool _obscureSshPassword = true;
   bool _testing = false;
@@ -400,6 +408,10 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
   String _effectiveServerUrl() {
     final raw = _urlCtrl.text.trim();
     if (raw.isNotEmpty) return ClientConfig.normalizeBaseUrl(raw);
+    final anchor = _resolvedAnchorUrl;
+    if (anchor != null && anchor.isNotEmpty) {
+      return ClientConfig.normalizeBaseUrl(anchor);
+    }
     final sshHost = _sshHostCtrl.text.trim();
     if (sshHost.isEmpty) return '';
     return 'http://$sshHost:4096';
@@ -414,6 +426,11 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
 
   void _applyDerivedServerUrlIfNeeded() {
     if (_urlCtrl.text.trim().isNotEmpty) return;
+    final anchor = _resolvedAnchorUrl;
+    if (anchor != null && anchor.isNotEmpty) {
+      _urlCtrl.text = ClientConfig.normalizeBaseUrl(anchor);
+      return;
+    }
     final sshHost = _sshHostCtrl.text.trim();
     if (sshHost.isEmpty) return;
     _urlCtrl.text = 'http://$sshHost:4096';
@@ -443,6 +460,25 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
       requestTimeoutSeconds: int.tryParse(_timeoutCtrl.text) ?? 30,
     ));
     return client.checkConnection().whenComplete(client.close);
+  }
+
+  /// Probes whether THIS device can reach a specific server URL (e.g. the
+  /// anchor's advertised Tailscale address). Used to decide whether to adopt it
+  /// as the durable saved URL — we never persist an address the phone can't hit.
+  Future<bool> _probeServerUrl(String url) async {
+    final client = OpenCodeClient(ClientConfig(
+      baseUrl: url,
+      username: _effectiveOpenCodeUsername(),
+      password: _effectiveOpenCodePassword(),
+      requestTimeoutSeconds: 5,
+    ));
+    try {
+      return (await client.checkConnection()).success;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close();
+    }
   }
 
   /// Builds the config used to *connect* during setup. May include the
@@ -666,6 +702,19 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
     if (result.provisionedPrivateKeyPem != null) {
       _provisionedPrivateKey = result.provisionedPrivateKeyPem;
     }
+    _anchorStrategy = result.anchorStrategy;
+
+    // Adopt the anchor's durable (e.g. Tailscale) address as the saved URL only
+    // when the user did not type one AND this device can actually reach it, so a
+    // saved machine never points at an address the phone cannot hit.
+    if (result.success &&
+        result.anchorServerUrl != null &&
+        _urlCtrl.text.trim().isEmpty &&
+        result.anchorServerUrl != _effectiveServerUrl() &&
+        await _probeServerUrl(result.anchorServerUrl!)) {
+      _resolvedAnchorUrl = result.anchorServerUrl;
+    }
+    if (!mounted) return false;
 
     final String message;
     final Color color;
@@ -687,12 +736,16 @@ class _MachineEditorScreenState extends State<_MachineEditorScreen> {
         message = l10n.sshBootstrapFailed;
         color = Theme.of(context).colorScheme.error;
     }
-    if (showSnackBar || !result.success) {
+    final showNudge = result.success &&
+        (_anchorStrategy == 'lan' || _anchorStrategy == 'loopback');
+    final displayMessage =
+        showNudge ? '$message\n\n${l10n.anchorTailscaleHint}' : message;
+    if (showSnackBar || !result.success || showNudge) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Text(displayMessage),
           backgroundColor: color,
-          duration: const Duration(seconds: 5),
+          duration: Duration(seconds: showNudge ? 8 : 5),
         ),
       );
     }

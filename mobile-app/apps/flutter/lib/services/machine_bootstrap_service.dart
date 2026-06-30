@@ -63,6 +63,16 @@ class BootstrapOutcome {
   /// Set when a dedicated key was generated and installed during bootstrap.
   final String? provisionedPrivateKeyPem;
 
+  /// Durable server URL the anchor advertised (its resolved bind address), e.g.
+  /// `http://100.x.y.z:4096`. Preferred over the SSH-host-derived URL because it
+  /// survives network changes. Null when the controller output was unparseable.
+  final String? anchorServerUrl;
+
+  /// Address-resolution strategy the anchor used: `tailscale`, `lan`,
+  /// `explicit`, or `loopback`. Drives the "install Tailscale for from-anywhere
+  /// reach" nudge (shown when not `tailscale`).
+  final String? anchorStrategy;
+
   const BootstrapOutcome({
     required this.success,
     this.message = '',
@@ -70,7 +80,30 @@ class BootstrapOutcome {
     this.exitCode,
     this.hostKeyFingerprint,
     this.provisionedPrivateKeyPem,
+    this.anchorServerUrl,
+    this.anchorStrategy,
   });
+}
+
+/// Parses the `pai-opencode start` status line (e.g.
+/// `started mode=systemd host=100.x port=4096 strategy=tailscale unit=...`).
+/// Returns (advertisedServerUrl, strategy). serverUrl is null for loopback or
+/// when no host token is present.
+({String? serverUrl, String? strategy}) parseAnchorStart(String output, int port) {
+  String? host;
+  String? strategy;
+  for (final token in output.split(RegExp(r'\s+'))) {
+    final eq = token.indexOf('=');
+    if (eq <= 0) continue;
+    final key = token.substring(0, eq);
+    final value = token.substring(eq + 1);
+    if (key == 'host') host = value;
+    if (key == 'strategy') strategy = value;
+  }
+  final serverUrl = (host != null && host.isNotEmpty && host != '127.0.0.1')
+      ? 'http://$host:$port'
+      : null;
+  return (serverUrl: serverUrl, strategy: strategy);
 }
 
 class MachineBootstrapService {
@@ -137,13 +170,14 @@ class MachineBootstrapService {
       await sshService.execute(installPaiOpenCodeControllerCommand());
 
       yield const BootstrapStepEvent(BootstrapStep.startingService);
-      await sshService.execute(paiOpenCodeControllerCommand(
+      final startOutput = await sshService.execute(paiOpenCodeControllerCommand(
         'start',
         opencodeBin: opencodeBin,
         password: serverPassword,
         port: port,
         workdir: workdir,
       ));
+      final anchor = parseAnchorStart(startOutput, port);
 
       var result = await _checkHttp(
           serverUrl, serverUsername, serverPassword, requestTimeoutSeconds);
@@ -165,6 +199,8 @@ class MachineBootstrapService {
         message: result.message,
         hostKeyFingerprint: fingerprint,
         provisionedPrivateKeyPem: provisionedKey,
+        anchorServerUrl: anchor.serverUrl,
+        anchorStrategy: anchor.strategy,
       ));
     } on SshCommandException catch (e) {
       final missing = e.command == remoteOpenCodeLookupCommand() &&
