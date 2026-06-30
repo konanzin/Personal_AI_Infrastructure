@@ -33,6 +33,7 @@ void main() {
           contains(r'${repo_branch}:refs/remotes/origin/${repo_branch}'));
       expect(command, contains('opencode/install.sh'));
       expect(command, contains('--update'));
+      expect(command, contains('--no-tts-bootstrap'));
       expect(command, contains('pulse-broker.ts'));
       expect(command, contains('apt-get install'));
     });

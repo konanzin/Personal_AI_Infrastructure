@@ -213,7 +213,7 @@ Long tail nao portado por grupo:
 | Funcionalidade | Original | Port atual | Status |
 |---|---|---|---|
 | Desktop dashboard | Next/Observability UI | nao portado | Fora de escopo |
-| Voice server | VoiceServer/ElevenLabs | broker + renderer/Kokoro/mobile TTS path | Adaptado |
+| Voice server | VoiceServer/ElevenLabs | broker + desktop Edge TTS renderer + mobile TTS path | Adaptado |
 | MenuBar macOS | app/plist/MenuBar | nao portado | Fora de escopo |
 | `/notify` | daemon endpoint | legacy-compatible broker endpoint + `pai_notify` | Adaptado |
 | Notifications contract | Pulse visual/events | `notifications.jsonl` schema v1 | Adaptado |

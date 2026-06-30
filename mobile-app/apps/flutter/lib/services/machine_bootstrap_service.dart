@@ -195,9 +195,10 @@ class MachineBootstrapService {
   }
 
   /// Updates the PAI setup on an already-provisioned machine — equivalent to
-  /// running `opencode/install.sh --update` on the server. Reuses the
-  /// idempotent ecosystem command, which fetches the latest repo and runs the
-  /// installer in update mode (a backup is taken server-side by the installer).
+  /// running `opencode/install.sh --update --no-tts-bootstrap` on the server.
+  /// Reuses the idempotent ecosystem command, which fetches the latest repo and
+  /// runs the installer in update mode (a backup is taken server-side by the
+  /// installer).
   ///
   /// Does not restart the OpenCode service: matching `--update` semantics, it
   /// refreshes files on disk; a reconnect/restart is what loads new plugin code.

@@ -136,7 +136,7 @@ All observability is **file-first, JSONL-only, backend-first** — designed for 
 | Subagent Traces | `subagent-trace.jsonl` | Agent/skill execution traces: spawned/invoked events with success/duration |
 | **Notifications (contract v1)** | `notifications.jsonl` | Human-relevant events with a deterministic speakable `speak` field — the producer side of the presence layer. Stable contract: `NOTIFICATIONS_STREAM.md` |
 
-**Pulse Broker** (`PAI/broker/pulse-broker.ts`, optional runtime, port 31337) tails `notifications.jsonl` and fans events out over SSE to identified renderers (desktop renderer with Kokoro TTS, mobile app) with per-subscriber routing decisions. `POST /notify` exists only as legacy compatibility for inherited startup/progress messages; speaking payloads require `language`. See `NOTIFICATIONS_STREAM.md` and `PAI/PULSE/README.md`.
+**Pulse Broker** (`PAI/broker/pulse-broker.ts`, optional runtime, port 31337) tails `notifications.jsonl` and fans events out over SSE to identified renderers (desktop renderer with Edge TTS by default and optional `PULSE_TTS_CMD`, mobile app) with per-subscriber routing decisions. Normal install prepares the managed Edge TTS venv at `~/.config/opencode/tts-venv`; `--no-bootstrap` skips all dependency bootstrap, while `--no-tts-bootstrap` skips only the optional desktop voice dependency for mobile-only remote bootstraps. `POST /notify` exists only as legacy compatibility for inherited startup/progress messages; speaking payloads require `language`. See `NOTIFICATIONS_STREAM.md` and `PAI/PULSE/README.md`.
 
 **Schema conventions:**
 - Every event has `timestamp` (ISO), `event` (type string), `session_id`
@@ -185,19 +185,19 @@ PAI_AGENTGUARD_DENY_CONFIDENCE=true      # Enable deny on high-confidence agent 
 
 - ~~Claude Code's Sonnet-based `UserPromptSubmit` classifier is not yet ported~~ — **RESTORED** as an OpenCode-native LLM-first classifier with provider/model selection and deterministic heuristic fallback.
 - Claude Code's persistent statusline/sidebar is represented as commands and logs.
-- Voice remains external-only via Pulse notifications.
+- Voice remains outside the core agent loop and is delivered by optional Pulse renderers; desktop voice defaults to the installer-prepared Edge TTS provider.
 - The upstream desktop Pulse daemon remains out of scope. This branch ships a lean optional Pulse Broker on port 31337 (`PAI/broker/`) for notifications and renderer fan-out, but a running broker is not part of install success criteria.
 
 ## Validation
 
 Three-tier validation:
 
-**Structural** (109 checks) — file existence, config validity, agent/skill/plugin presence, observability schemas, tools manifest, and doc integrity:
+**Structural** (112 checks) — file existence, config validity, agent/skill/plugin presence, observability schemas, tools manifest, Edge TTS dependency readiness, `/voice` helper readiness, and doc integrity:
 ```bash
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-**Behavioral** (100 checks) — grep-based + lightweight functional probes:
+**Behavioral** (109 checks) — grep-based + lightweight functional probes:
 ```bash
 bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 ```
@@ -207,4 +207,4 @@ bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 bash ~/.config/opencode/PAI/bin/test-e2e-runtime.sh
 ```
 
-Current installed score: **226/226 passing** (109 structural + 106 behavioral + 11 E2E). Repository test suite: **200/200 passing**. Parity estimate: **~95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded.
+Current installed score: **232/232 passing** (112 structural + 109 behavioral + 11 E2E). Repository test suite: **257/257 passing**. Parity estimate: **~95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded.

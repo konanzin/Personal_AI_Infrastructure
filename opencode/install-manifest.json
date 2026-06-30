@@ -84,7 +84,8 @@
   "commands": [
     "context-search.md",
     "cs.md",
-    "pu.md"
+    "pu.md",
+    "voice.md"
   ],
   "plugins": [
     "pai-hooks.js"

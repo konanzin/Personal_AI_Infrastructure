@@ -3,11 +3,14 @@
  *
  * Validation harness for the routing policy and the renderer protocol
  * before any Android work: prints every delivery, optionally raises a
- * desktop notification (notify-send) and speaks via system TTS.
+ * desktop notification (notify-send) and optionally speaks through Edge TTS
+ * or a caller-provided TTS command.
  *
  * Run: bun renderer-desktop.ts [--broker http://localhost:31337]
  *        [--name desk] [--focus <sessionId>] [--tts] [--mute]
  */
+
+import { resolveVoiceEnabled } from './edge-tts-lib.ts';
 
 const arg = (flag: string): string | null => {
   const i = process.argv.indexOf(flag);
@@ -18,6 +21,7 @@ const NAME = arg('--name') || 'desktop';
 const FOCUS = arg('--focus');
 const TTS = process.argv.includes('--tts');
 const MUTE = process.argv.includes('--mute');
+const TTS_PROVIDER = arg('--tts-provider') || process.env.PULSE_TTS_PROVIDER || 'edge_tts';
 
 async function hasBin(bin: string): Promise<boolean> {
   const proc = Bun.spawn(['which', bin], { stdout: 'ignore', stderr: 'ignore' });
@@ -26,38 +30,55 @@ async function hasBin(bin: string): Promise<boolean> {
 
 const canNotify = await hasBin('notify-send');
 
-// ─── Speech engine: Kokoro (persistent child, model loaded once) ───
-// Platform TTS (spd-say/espeak) was deliberately dropped — quality is not
-// worth shipping. Override the speaker entirely with PULSE_TTS_CMD
-// (a command that reads one utterance per stdin line).
-function resolveSpeakerCmd(): string[] | null {
-  if (process.env.PULSE_TTS_CMD) return process.env.PULSE_TTS_CMD.split(' ');
-  const home = process.env.HOME || '';
-  const kokoroPython = `${home}/.local/share/pipx/venvs/kokoro-tts/bin/python`;
-  const sayScript = new URL('./kokoro-say.py', import.meta.url).pathname;
-  try {
-    if (Bun.file(kokoroPython).size > 0 && Bun.file(sayScript).size > 0) {
-      return [kokoroPython, sayScript];
-    }
-  } catch {}
+type Speaker = {
+  cmd: string[];
+  mode: 'plain' | 'json';
+  label: string;
+};
+
+function splitCommand(command: string): string[] {
+  return command.split(/\s+/).map((part) => part.trim()).filter(Boolean);
+}
+
+// ─── Speech engine ─────────────────────────────────────────
+// PULSE_TTS_CMD is an escape hatch for any long-running command that reads one
+// plain-text utterance per stdin line. Without it, --tts uses the bundled Edge
+// TTS speaker and sends JSON lines so language can select the voice.
+function resolveSpeaker(): Speaker | null {
+  if (process.env.PULSE_TTS_CMD) {
+    return { cmd: splitCommand(process.env.PULSE_TTS_CMD), mode: 'plain', label: 'PULSE_TTS_CMD' };
+  }
+  if (/^(0|false|no|off|none)$/i.test(TTS_PROVIDER)) return null;
+  if (TTS_PROVIDER === 'edge' || TTS_PROVIDER === 'edge_tts') {
+    const script = new URL('./edge-tts-speaker.ts', import.meta.url).pathname;
+    return { cmd: [process.execPath || 'bun', script], mode: 'json', label: 'edge_tts' };
+  }
   return null;
 }
 
 let speaker: ReturnType<typeof Bun.spawn> | null = null;
+let speakerMode: Speaker['mode'] = 'plain';
 if (TTS) {
-  const cmd = resolveSpeakerCmd();
-  if (cmd) {
-    speaker = Bun.spawn(cmd, { stdin: 'pipe', stdout: 'inherit', stderr: 'inherit' });
-    console.log(`[renderer] speech engine: ${cmd.join(' ')}`);
+  const resolved = resolveSpeaker();
+  if (resolved) {
+    speakerMode = resolved.mode;
+    speaker = Bun.spawn(resolved.cmd, { stdin: 'pipe', stdout: 'inherit', stderr: 'inherit' });
+    console.log(`[renderer] speech engine: ${resolved.label} (${resolved.cmd.join(' ')})`);
   } else {
-    console.log('[renderer] --tts requested but no speech engine found (install kokoro-tts via pipx or set PULSE_TTS_CMD)');
+    console.log('[renderer] --tts requested but no speech engine configured');
   }
 }
 
-function speak(text: string) {
+function speak(event: { speak?: string; language?: string }) {
   if (!speaker?.stdin) return;
+  if (!resolveVoiceEnabled()) return;
+  const text = (event.speak || '').replace(/\n+/g, ' ').trim();
+  if (!text) return;
   try {
-    speaker.stdin.write(text.replace(/\n+/g, ' ').trim() + '\n');
+    const line = speakerMode === 'json'
+      ? JSON.stringify({ text, language: event.language || 'en-US' })
+      : text;
+    speaker.stdin.write(`${line}\n`);
     speaker.stdin.flush();
   } catch {}
 }
@@ -65,14 +86,15 @@ function speak(text: string) {
 function render(delivery: { event: any; render: { speak: boolean; reason: string }; dedupe_key: string }) {
   const { event, render: decision } = delivery;
   const icon = event.level === 'attention' ? '🚨' : event.level === 'digest' ? '📋' : '🔔';
-  const speakMark = decision.speak ? '🔊' : `🔇(${decision.reason})`;
+  const voiceEnabled = resolveVoiceEnabled();
+  const speakMark = decision.speak ? (voiceEnabled ? '🔊' : '🔇(voice-off)') : `🔇(${decision.reason})`;
   console.log(`${icon} [${event.level}] ${event.speak || event.event} ${speakMark}`);
 
   if (canNotify && (decision.speak || event.level === 'attention')) {
     Bun.spawn(['notify-send', '-a', 'PAI', event.title || 'PAI', event.speak || event.event]);
   }
   if (decision.speak && event.speak) {
-    speak(event.speak);
+    speak(event);
   }
 }
 

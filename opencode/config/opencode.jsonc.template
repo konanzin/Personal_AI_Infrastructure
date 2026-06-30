@@ -133,6 +133,11 @@
       "description": "Check PAI Pulse status and metrics",
       "agent": "build"
     },
+    "voice": {
+      "template": "Manage the PAI desktop voice using ~/.config/opencode/PAI/bin/voice-config.sh. If $ARGUMENTS is empty, run `~/.config/opencode/PAI/bin/voice-config.sh show` and `~/.config/opencode/PAI/bin/voice-config.sh list pt-BR`, present the numbered voices, and ask which one to save. If $ARGUMENTS is `on`, run `~/.config/opencode/PAI/bin/voice-config.sh on`. If $ARGUMENTS is `off`, run `~/.config/opencode/PAI/bin/voice-config.sh off`. If $ARGUMENTS is `test`, run `~/.config/opencode/PAI/bin/voice-config.sh test`. If $ARGUMENTS is a voice name, run `~/.config/opencode/PAI/bin/voice-config.sh set $ARGUMENTS`, then tell the user that voice on/off applies immediately to the built-in renderer and voice changes apply on the next spoken line.",
+      "description": "Choose the PAI desktop voice",
+      "agent": "build"
+    },
 
     "e1": {
       "template": "Run PAI effort E1 for: $ARGUMENTS",

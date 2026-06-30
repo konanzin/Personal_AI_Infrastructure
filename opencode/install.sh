@@ -23,15 +23,19 @@ SKILLS_DIR="${OPENCODE_DIR}/skills"
 COMMANDS_DIR="${OPENCODE_DIR}/commands"
 DOCS_DIR="${OPENCODE_DIR}/docs"
 INSTALL_MANIFEST="${REPO_DIR}/opencode/install-manifest.json"
+TTS_VENV_DIR="${OPENCODE_DIR}/tts-venv"
+TTS_VENV_PYTHON="${TTS_VENV_DIR}/bin/python"
 
 # ─── Flags ────────────────────────────────────────────────
 UPDATE_MODE=false
 BOOTSTRAP_DEPS=true
+BOOTSTRAP_TTS=true
 CHECK_MODE=false
 REPAIR_MODE=false
 PRESERVE_USER=true
 
 CONFIG_REGENERATED=false
+EDGE_TTS_STATUS="not checked"
 ARCHIVE_DIR=""
 ARCHIVED_AGENTS=()
 ARCHIVED_COMMANDS=()
@@ -41,17 +45,20 @@ for arg in "$@"; do
     case "$arg" in
         --update) UPDATE_MODE=true ;;
         --no-bootstrap) BOOTSTRAP_DEPS=false ;;
+        --no-tts-bootstrap) BOOTSTRAP_TTS=false ;;
         --check) CHECK_MODE=true; BOOTSTRAP_DEPS=false ;;
         --repair) REPAIR_MODE=true ;;
         --preserve-user) PRESERVE_USER=true ;;
         -h|--help)
-            echo "Usage: ./install.sh [--update] [--check] [--repair] [--preserve-user] [--no-bootstrap]"
+            echo "Usage: ./install.sh [--update] [--check] [--repair] [--preserve-user] [--no-bootstrap] [--no-tts-bootstrap]"
             echo ""
             echo "  --check          Report drift between repo manifest and installed OpenCode runtime; make no changes."
             echo "  --repair         Reinstall generated artifacts, archive stale generated dirs, and regenerate config."
             echo "  --preserve-user  Preserve PAI/USER, PAI/MEMORY, and .env (default)."
             echo "  --update         Create a full PAI backup before reinstalling."
             echo "  --no-bootstrap   Do not install missing prerequisites automatically."
+            echo "  --no-tts-bootstrap"
+            echo "                  Skip the optional desktop Edge TTS dependency bootstrap."
             exit 0
             ;;
         *)
@@ -164,6 +171,28 @@ install_bun() {
         error "Failed to install bun automatically"
         exit 1
     fi
+}
+
+find_python_runtime() {
+    if command -v python3 &>/dev/null; then
+        echo "python3"
+        return 0
+    fi
+    if command -v python &>/dev/null; then
+        echo "python"
+        return 0
+    fi
+    return 1
+}
+
+python_has_edge_tts() {
+    local python="$1"
+    "$python" -c 'import edge_tts' >/dev/null 2>&1
+}
+
+edge_tts_version() {
+    local python="$1"
+    "$python" -c 'import edge_tts; print(getattr(edge_tts, "__version__", "unknown"))' 2>/dev/null || true
 }
 
 # ─── Check Prerequisites ──────────────────────────────────
@@ -457,7 +486,8 @@ install_broker() {
     log "Installing Pulse Broker..."
 
     mkdir -p "$PAI_DIR/broker"
-    cp -f "${REPO_DIR}/opencode/broker/"*.ts "${REPO_DIR}/opencode/broker/"*.py "$PAI_DIR/broker/" 2>/dev/null || true
+    rm -f "$PAI_DIR/broker/"*.py 2>/dev/null || true
+    cp -f "${REPO_DIR}/opencode/broker/"*.ts "$PAI_DIR/broker/" 2>/dev/null || true
     cp -f "${REPO_DIR}/opencode/config/pulse-broker.service.template" "$PAI_DIR/broker/" 2>/dev/null || true
 
     if command -v systemctl &>/dev/null; then
@@ -473,6 +503,77 @@ install_broker() {
     fi
 
     success "Pulse Broker installed (optional runtime, PAI/broker/)"
+}
+
+# ─── Install Edge TTS Provider ────────────────────────────
+install_edge_tts() {
+    log "Preparing Edge TTS voice provider..."
+
+    if [ -x "$TTS_VENV_PYTHON" ] && python_has_edge_tts "$TTS_VENV_PYTHON"; then
+        local version
+        version="$(edge_tts_version "$TTS_VENV_PYTHON")"
+        EDGE_TTS_STATUS="managed venv (${version:-installed})"
+        success "Edge TTS ready in $TTS_VENV_DIR"
+        return 0
+    fi
+
+    if [ "$BOOTSTRAP_DEPS" != true ] || [ "$BOOTSTRAP_TTS" != true ]; then
+        if command -v edge-tts &>/dev/null; then
+            EDGE_TTS_STATUS="PATH executable ($(edge-tts --version 2>/dev/null || echo installed))"
+            success "Edge TTS executable found in PATH"
+            return 0
+        fi
+
+        local existing_python
+        for existing_python in python3 python; do
+            if command -v "$existing_python" &>/dev/null && python_has_edge_tts "$existing_python"; then
+                EDGE_TTS_STATUS="$existing_python module ($(edge_tts_version "$existing_python"))"
+                success "Edge TTS Python module found via $existing_python"
+                return 0
+            fi
+        done
+
+        if [ "$BOOTSTRAP_TTS" != true ]; then
+            EDGE_TTS_STATUS="skipped (--no-tts-bootstrap)"
+            warn "Edge TTS venv not prepared because --no-tts-bootstrap is active"
+        else
+            EDGE_TTS_STATUS="skipped (--no-bootstrap)"
+            warn "Edge TTS venv not prepared because --no-bootstrap is active"
+            warn "Run without --no-bootstrap for plug-and-play desktop voice"
+        fi
+        return 0
+    fi
+
+    local python
+    if ! python="$(find_python_runtime)"; then
+        error "python3 or python is required to bootstrap Edge TTS"
+        error "Install Python or rerun with --no-tts-bootstrap to skip desktop voice dependency bootstrap"
+        exit 1
+    fi
+
+    mkdir -p "$TTS_VENV_DIR"
+    if ! "$python" -m venv "$TTS_VENV_DIR"; then
+        error "Failed to create Edge TTS venv at $TTS_VENV_DIR"
+        error "Install the Python venv package for your distro, then rerun the installer"
+        exit 1
+    fi
+
+    if ! "$TTS_VENV_PYTHON" -m pip --version >/dev/null 2>&1; then
+        error "pip is missing from the Edge TTS venv at $TTS_VENV_DIR"
+        error "Install ensurepip/pip for Python, then rerun the installer"
+        exit 1
+    fi
+
+    if ! "$TTS_VENV_PYTHON" -m pip install --quiet edge-tts; then
+        error "Failed to install edge-tts into $TTS_VENV_DIR"
+        error "Check network/PyPI access or rerun with --no-tts-bootstrap to skip desktop voice dependency bootstrap"
+        exit 1
+    fi
+
+    local version
+    version="$(edge_tts_version "$TTS_VENV_PYTHON")"
+    EDGE_TTS_STATUS="managed venv (${version:-installed})"
+    success "Edge TTS ready in $TTS_VENV_DIR"
 }
 
 # ─── Patch legacy upstream paths ──────────────────────────
@@ -547,6 +648,7 @@ report() {
     echo ""
     echo "🧹 Hygiene:"
     echo "  Config regenerated: $CONFIG_REGENERATED"
+    echo "  Edge TTS: $EDGE_TTS_STATUS"
     if [ ${#ARCHIVED_AGENTS[@]} -gt 0 ]; then
         echo "  Archived agents: ${ARCHIVED_AGENTS[*]}"
     fi
@@ -805,6 +907,7 @@ main() {
     install_skills
     install_pai_core
     install_broker
+    install_edge_tts
     patch_installed_paths
     generate_config
     validate

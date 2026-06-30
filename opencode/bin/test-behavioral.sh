@@ -522,8 +522,8 @@ TOTAL=$((TOTAL + 1))
 echo ""
 echo "${BLUE}Pulse Broker${RESET}"
 
-run_test "Broker daemon and lib installed" \
-    "[ -f ${PAI_DIR}/broker/pulse-broker.ts ] && [ -f ${PAI_DIR}/broker/broker-lib.ts ]"
+run_test "Broker daemon, renderer, and Edge TTS files installed" \
+    "[ -f ${PAI_DIR}/broker/pulse-broker.ts ] && [ -f ${PAI_DIR}/broker/broker-lib.ts ] && [ -f ${PAI_DIR}/broker/renderer-desktop.ts ] && [ -f ${PAI_DIR}/broker/edge-tts-lib.ts ] && [ -f ${PAI_DIR}/broker/edge-tts-speaker.ts ]"
 
 run_test "Pulse config declares optional broker scope" \
     "grep -q 'status = \"optional-broker\"' ${PAI_DIR}/PULSE/PULSE.toml"
@@ -533,6 +533,15 @@ run_test "Pulse config has no legacy jobs or missing tool calls" \
 
 run_test "Broker serves /health and legacy /api/pulse/health" \
     "grep -q \"'/health'\" ${PAI_DIR}/broker/pulse-broker.ts && grep -q '/api/pulse/health' ${PAI_DIR}/broker/pulse-broker.ts"
+
+run_test "Desktop renderer defaults to Edge TTS with command override" \
+    "grep -q 'edge-tts-speaker.ts' ${PAI_DIR}/broker/renderer-desktop.ts && grep -q 'PULSE_TTS_CMD' ${PAI_DIR}/broker/renderer-desktop.ts"
+
+run_test "Voice config helper installed" \
+    "[ -x ${PAI_DIR}/bin/voice-config.sh ]"
+
+run_test "Edge TTS provider dependency available" \
+    "([ -x \"${OPENCODE_DIR}/tts-venv/bin/python\" ] && \"${OPENCODE_DIR}/tts-venv/bin/python\" -c 'import edge_tts') || command -v edge-tts || (command -v python3 && python3 -c 'import edge_tts') || (command -v python && python -c 'import edge_tts')"
 
 # Functional: routing policy v1 (attention always; focused suppresses)
 BROKER_TEST=$(cat <<EOF

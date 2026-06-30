@@ -5,7 +5,7 @@
 - `git`
 - `curl`
 
-`opencode` and `bun` are now **bootstrapped automatically** by the installer when missing. Use `--no-bootstrap` if you want strict failure instead.
+`opencode`, `bun`, and the managed Edge TTS Python dependency are now **bootstrapped automatically** by the installer when missing. Use `--no-bootstrap` if you want strict/offline installation instead.
 
 ## Update Existing Install
 
@@ -41,6 +41,7 @@ Strict mode (do not auto-install dependencies):
 - PAI metadata files from `opencode/config/`
 - `opencode` binary when missing
 - `bun` runtime when missing
+- Edge TTS managed venv at `~/.config/opencode/tts-venv`, unless `--no-tts-bootstrap` is used
 
 ## Pulse Scope
 
@@ -48,7 +49,8 @@ This installer ships both the **Pulse scaffold** and the lean optional **Pulse B
 
 - `~/.config/opencode/PAI/PULSE/PULSE.toml`
 - related docs and directory structure
-- `~/.config/opencode/PAI/broker/` with the Bun broker, desktop renderer, Kokoro speaker, and systemd user service template
+- `~/.config/opencode/PAI/broker/` with the Bun broker, desktop renderer, Edge TTS speaker, and systemd user service template
+- `~/.config/opencode/tts-venv` with the `edge-tts` Python package, unless `--no-bootstrap` or `--no-tts-bootstrap` is used
 
 It does **not** provision or require the upstream desktop Pulse daemon. A missing or stopped broker on `localhost:31337` is therefore **not** treated as an installation failure for this branch.
 
@@ -66,7 +68,7 @@ Expected successful state:
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The validator currently checks 81 structural points and then runs the behavioral suite (70 checks, including promise-integrity checks that verify agents only reference paths and commands the install actually provides) and the E2E suite (11 scenarios). Its Pulse checks validate installed scaffold/broker assets, not a live daemon.
+The validator currently checks 112 structural points and then runs the behavioral suite (109 checks, including promise-integrity checks, the Edge TTS provider dependency, and the `/voice` helper) and the E2E suite (11 scenarios). Its Pulse checks validate installed scaffold/broker assets and desktop voice readiness, not a live daemon.
 
 ## Pulse Broker (optional runtime)
 
@@ -82,23 +84,51 @@ systemctl --user daemon-reload && systemctl --user enable --now pulse-broker
 
 # Watch/listen from any terminal
 bun ~/.config/opencode/PAI/broker/renderer-desktop.ts --tts
+
+# List and persist the desktop voice
+~/.config/opencode/PAI/bin/voice-config.sh list pt-BR
+~/.config/opencode/PAI/bin/voice-config.sh set pt-BR-AntonioNeural
+~/.config/opencode/PAI/bin/voice-config.sh off
+~/.config/opencode/PAI/bin/voice-config.sh on
 ```
 
-### Desktop voice (Kokoro)
+### Desktop voice (Edge TTS)
 
-The desktop renderer's `--tts` uses **Kokoro** (high-quality open TTS, pt-BR voices) through a persistent speaker process (`PAI/broker/kokoro-say.py`, model loaded once). Platform TTS (spd-say/espeak) was deliberately dropped. One-time setup:
+The desktop renderer's `--tts` uses the bundled Edge TTS speaker by default. It
+uses the managed Python venv at `~/.config/opencode/tts-venv`, generates MP3
+files in `/tmp`, and plays them with `ffplay` or `mpg123` (`afplay` on macOS).
+The normal installer prepares that venv up front. `--no-tts-bootstrap` skips
+only this desktop voice dependency, which is useful for mobile-only remote
+bootstraps. If you install with `--no-bootstrap`/`--no-tts-bootstrap` or delete
+the venv later, the speaker can still auto-install on first use unless
+`PAI_EDGE_TTS_AUTO_INSTALL=false` is set.
 
 ```bash
-sudo apt install -y libportaudio2
-pipx install kokoro-tts
-mkdir -p ~/.local/share/kokoro && cd ~/.local/share/kokoro
-curl -sLO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
-curl -sLO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
-# pt-br needs kokoro-onnx >= 0.5 (the CLI pin is older; the speaker bypasses the CLI):
-~/.local/share/pipx/venvs/kokoro-tts/bin/python -m pip install -U kokoro-onnx
+bun ~/.config/opencode/PAI/broker/renderer-desktop.ts --tts
 ```
 
-Tune with `KOKORO_VOICE` (default `pf_dora`), `KOKORO_LANG` (`pt-br`), `KOKORO_SPEED`, or replace the engine entirely with `PULSE_TTS_CMD` (one utterance per stdin line).
+Useful overrides:
+
+```bash
+PAI_EDGE_TTS_VOICE_PT_BR=pt-BR-AntonioNeural
+PAI_EDGE_TTS_VOICE_EN_US=en-US-AvaNeural
+PAI_EDGE_TTS_RATE=+15%
+PAI_EDGE_TTS_VOLUME=+0%
+PAI_EDGE_TTS_AUTO_INSTALL=false
+PAI_AUDIO_PLAYER_CMD="/custom/player"
+```
+
+Persistent voice choices and on/off state are saved in
+`~/.config/opencode/PAI/USER/Config/voice.env`. Use `/voice` inside OpenCode
+for an assisted flow that lists voices, saves the selected one, or toggles voice
+feedback with `/voice on` and `/voice off`.
+
+Set `PULSE_TTS_CMD` to replace Edge TTS entirely with a long-running command
+that reads one plain-text utterance per stdin line:
+
+```bash
+PULSE_TTS_CMD="/path/to/speaker" bun ~/.config/opencode/PAI/broker/renderer-desktop.ts --tts
+```
 
 ## Path Migration
 

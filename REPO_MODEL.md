@@ -53,7 +53,7 @@ Original to this repo. No upstream equivalent. These are the value-adds and oper
 - ISA ↔ Work-State Sync — Backend-only ISA frontmatter to work.json propagation
 - Observability Streams — JSONL telemetry streams (classifier, guards, sessions, failures, traces)
 - Notifications contract v1 (`notifications.jsonl`) — speakable, template-deterministic events; the producer side of the presence layer (`opencode/docs/NOTIFICATIONS_STREAM.md`)
-- Pulse Broker (`opencode/broker/`) — optional SSE fan-out daemon on port 31337 with identified subscriptions, presence-based routing, upstream-compatible `/notify`, and a desktop renderer with Kokoro TTS
+- Pulse Broker (`opencode/broker/`) — optional SSE fan-out daemon on port 31337 with identified subscriptions, presence-based routing, upstream-compatible `/notify`, and a desktop renderer with Edge TTS by default (`PULSE_TTS_CMD` override)
 - `build-mobile` lean profile — per-message client agent with calibrated system injection for mobile clients
 - Runtime event bridge — adapter mapping OpenCode ≥1.16 bus events to the plugin's named handlers
 - `opencode/bin/deploy-plugin.sh` — Hot-deploy plugin without full reinstall

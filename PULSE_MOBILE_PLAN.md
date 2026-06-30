@@ -1,6 +1,6 @@
 # Pulse-Mobile Plan — Notifications, Background Delivery, Broker & Voice
 
-> **Status (2026-06-11): ALL PHASES SHIPPED.** A (contract, plugin v2.11.0) → C1 (broker) → C2 (desktop renderer, Kokoro TTS) → B (spike + ADR-001: FGS+SSE accepted) → C3 (app Pulse listener: background service, catch-up, presence, native TTS — validated audibly on the S24). The presence layer lives. Follow-ups: tailscale on hosts (ADR-001 req. 2), battery dogfooding, per-agent voices.
+> **Status (2026-06-11): ALL PHASES SHIPPED.** A (contract, plugin v2.11.0) → C1 (broker) → C2 (desktop renderer with Edge TTS provider and external command override) → B (spike + ADR-001: FGS+SSE accepted) → C3 (app Pulse listener: background service, catch-up, presence, native TTS — validated audibly on the S24). The presence layer lives. Follow-ups: tailscale on hosts (ADR-001 req. 2), battery dogfooding, per-agent voices.
 
 This is the implementation plan for rebuilding PAI's presence layer (originally: Pulse daemon + ElevenLabs voice on the desktop) as a multi-renderer system where the phone is the primary renderer. It covers the three phases agreed after the port-coherence pass.
 
@@ -111,7 +111,7 @@ Battery impact over a workday; delivery reliability under Doze (test: phone idle
 
 ### C2. Desktop renderer (validation harness)
 
-- Minimal consumer: `notify-send` + **Kokoro TTS** (persistent `kokoro-say.py` speaker, voice `pf_dora`, lang `pt-br`), subscribes as `device: desktop`. Platform TTS (spd-say/espeak) was evaluated and dropped — quality unacceptable (user decision 2026-06-11). `PULSE_TTS_CMD` overrides the engine.
+- Minimal consumer: `notify-send` + Edge TTS by default, with optional external TTS through `PULSE_TTS_CMD`; subscribes as `device: desktop`. `PULSE_TTS_CMD` commands must keep stdin open and read one utterance per line.
 - Purpose: exercise the broker protocol and routing policy with two fake renderers before any Android work. Lives in `opencode/broker/`.
 
 ### C3. App integration (depends on Phase B decision)

@@ -265,7 +265,7 @@ ensure_repo() {
 
 install_pai() {
   log "running PAI installer"
-  bash "$repo_dir/opencode/install.sh" --update
+  bash "$repo_dir/opencode/install.sh" --update --no-tts-bootstrap
   export PATH="$HOME/.opencode/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
 
   if ! command -v opencode >/dev/null 2>&1 &&

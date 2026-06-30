@@ -9,15 +9,15 @@ single source of truth for "where does my stuff live and how do I authenticate."
 | File | What it holds |
 |------|----------------|
 | `PAI_CONFIG.yaml` | The main config — projects directory, default temperature unit, integration toggles. |
+| `voice.env` | Local desktop voice preference and on/off state for the optional Pulse Edge TTS renderer. Created by `/voice` or `voice-config.sh`; not a secret. |
 
 ## Where credentials actually live
 
 `PAI_CONFIG.yaml` itself does **not** store credentials. Secrets live in
 two places:
 
-- **`~/.config/opencode/PAI/.env`** — environment variables (`ELEVENLABS_API_KEY`,
-  `TELEGRAM_BOT_TOKEN`, etc.). Pulse loads this on boot. The installer
-  writes here when you complete the voice / Telegram steps.
+- **`~/.config/opencode/PAI/.env`** — environment variables for optional
+  integrations. The installer creates a baseline file when missing.
 - **`~/.config/opencode/PAI/PAI/USER/CREDENTIALS/`** — credential JSON files (Google
   OAuth, AWS profiles, etc.). The directory does not exist by default;
   create it on demand and `chmod 700` it.
@@ -32,6 +32,9 @@ Open `PAI_CONFIG.yaml` and update:
 - `projectsDir` — where your code projects live (default `~/Projects`).
 - `temperatureUnit` — `celsius` or `fahrenheit`.
 - Any integration-specific blocks added by skills you install.
+- `voice.env` — normally managed with `/voice`; stores values such as
+  `PAI_VOICE_ENABLED=false` and
+  `PAI_EDGE_TTS_VOICE_PT_BR=pt-BR-AntonioNeural`.
 
 The installer writes sensible defaults during the configuration step.
 You only need to edit this file when you want to change a default or

@@ -22,7 +22,7 @@ cd ~/PAI-opencode
 bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ```
 
-The installer is idempotent. It preserves installed `USER` and `MEMORY` data, updates plugins/agents/commands/config/scripts, and removes the obsolete root-level `pai-hooks.lib.js` plugin copy.
+The installer is idempotent. It preserves installed `USER` and `MEMORY` data, updates plugins/agents/commands/config/scripts, prepares the managed Edge TTS venv at `~/.config/opencode/tts-venv`, and removes the obsolete root-level `pai-hooks.lib.js` plugin copy.
 
 ## Included Surface
 
@@ -31,12 +31,12 @@ The installer is idempotent. It preserves installed `USER` and `MEMORY` data, up
 - PAI skills loaded from `~/.config/opencode/skills`, with legacy `~/.claude/` paths rewritten at install time
 - PAI core directories for Algorithm, Memory, optional Pulse scaffolding, Tools, Templates, and User context
 - Default PAI runtime injection on normal prompts (model decides mode)
-- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse` (diagnostic scaffold only), `/context`, `/context-search` (alias `/cs`), `/pu`, and `/e1` through `/e5`
-- **Notifications stream + Pulse Broker** (optional runtime): the plugin emits human-relevant events to `MEMORY/OBSERVABILITY/notifications.jsonl` (stable contract, `opencode/docs/NOTIFICATIONS_STREAM.md`); the broker on port 31337 fans them out to identified renderers — desktop (Kokoro TTS) and the mobile app (background voice). Roadmap and design: `PULSE_MOBILE_PLAN.md`, `mobile-app/docs/ADR-001-BACKGROUND-DELIVERY.md`
+- OpenCode slash commands for `/pai`, `/status`, `/interview`, `/pulse` (diagnostic scaffold only), `/voice`, `/context`, `/context-search` (alias `/cs`), `/pu`, and `/e1` through `/e5`
+- **Notifications stream + Pulse Broker** (optional runtime): the plugin emits human-relevant events to `MEMORY/OBSERVABILITY/notifications.jsonl` (stable contract, `opencode/docs/NOTIFICATIONS_STREAM.md`); the broker on port 31337 fans them out to identified renderers — desktop (Edge TTS by default, `PULSE_TTS_CMD` override) and the mobile app (background voice). Roadmap and design: `PULSE_MOBILE_PLAN.md`, `mobile-app/docs/ADR-001-BACKGROUND-DELIVERY.md`
 
 ## Current Scope Boundary
 
-The upstream desktop-heavy Pulse daemon remains out of scope. This branch now ships a lean **optional Pulse Broker** on port 31337 (`opencode/broker/`) that tails `notifications.jsonl`, exposes `/health` and `/notify`, and fans events out to desktop/mobile renderers. It is installed by `opencode/install.sh`, but a running broker is still **not** part of install success criteria.
+The upstream desktop-heavy Pulse daemon remains out of scope. This branch now ships a lean **optional Pulse Broker** on port 31337 (`opencode/broker/`) that tails `notifications.jsonl`, exposes `/health` and `/notify`, and fans events out to desktop/mobile renderers. It is installed by `opencode/install.sh`, and the default desktop voice dependency is bootstrapped during normal install, but a running broker is still **not** part of install success criteria.
 
 ## Useful Docs
 

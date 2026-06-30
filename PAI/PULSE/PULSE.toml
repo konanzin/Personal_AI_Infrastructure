@@ -46,6 +46,8 @@ presence = "POST /presence"
 [renderers.desktop]
 status = "reference-dev-consumer"
 entrypoint = "~/.config/opencode/PAI/broker/renderer-desktop.ts"
+default_tts_provider = "edge_tts"
+tts_override_env = "PULSE_TTS_CMD"
 
 [jobs]
 enabled = false

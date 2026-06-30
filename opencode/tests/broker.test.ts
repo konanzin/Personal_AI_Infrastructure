@@ -1,5 +1,5 @@
 import { describe, test, expect, afterAll } from "bun:test";
-import { mkdtempSync, mkdirSync, appendFileSync, rmSync } from "fs";
+import { mkdtempSync, mkdirSync, appendFileSync, rmSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath } from "url";
@@ -13,6 +13,14 @@ import {
   type NotificationEvent,
   type Subscriber,
 } from "../broker/broker-lib.ts";
+import {
+  parseSpeakerLine,
+  parseVoiceEnv,
+  resolveEdgeTtsConfig,
+  resolveVoiceEnabled,
+  resolveVoice,
+  sanitizeForSpeech,
+} from "../broker/edge-tts-lib.ts";
 
 const mkEvent = (over: Partial<NotificationEvent> = {}): NotificationEvent => ({
   v: 1,
@@ -134,6 +142,105 @@ describe("Broker lib — misc", () => {
     const ring = new RingBuffer<number>(3);
     [1, 2, 3, 4, 5].forEach((n) => ring.push(n));
     expect(ring.last(10)).toEqual([3, 4, 5]);
+  });
+});
+
+describe("Edge TTS speaker config", () => {
+  test("parses JSON utterance lines with language", () => {
+    expect(parseSpeakerLine('{"text":"Trabalho concluido","language":"pt-BR"}')).toEqual({
+      text: "Trabalho concluido",
+      language: "pt-BR",
+      voice: undefined,
+      rate: undefined,
+      volume: undefined,
+    });
+  });
+
+  test("parses plain text utterance lines", () => {
+    expect(parseSpeakerLine("Done now")).toEqual({ text: "Done now" });
+  });
+
+  test("sanitizes thinking tags before speech", () => {
+    expect(sanitizeForSpeech("Visible <think>hidden</think> done")).toBe("Visible done");
+  });
+
+  test("selects default and overridden voices by language", () => {
+    expect(resolveVoice("pt-BR", {})).toBe("pt-BR-FranciscaNeural");
+    expect(resolveVoice("en-US", {})).toBe("en-US-AvaNeural");
+    expect(resolveVoice("pt-BR", { PAI_EDGE_TTS_VOICE_PT_BR: "pt-BR-AntonioNeural" })).toBe("pt-BR-AntonioNeural");
+  });
+
+  test("parses persisted voice env config", () => {
+    expect(parseVoiceEnv(`
+# PAI voice config
+PAI_EDGE_TTS_LANGUAGE=pt-BR
+PAI_VOICE_ENABLED=false
+export PAI_EDGE_TTS_VOICE_PT_BR="pt-BR-ThalitaMultilingualNeural"
+PAI_EDGE_TTS_RATE='+10%'
+`)).toEqual({
+      PAI_EDGE_TTS_LANGUAGE: "pt-BR",
+      PAI_VOICE_ENABLED: "false",
+      PAI_EDGE_TTS_VOICE_PT_BR: "pt-BR-ThalitaMultilingualNeural",
+      PAI_EDGE_TTS_RATE: "+10%",
+    });
+  });
+
+  test("resolves voice feedback enabled flag", () => {
+    expect(resolveVoiceEnabled({})).toBe(true);
+    expect(resolveVoiceEnabled({ PAI_VOICE_ENABLED: "false" })).toBe(false);
+    expect(resolveVoiceEnabled({ PAI_VOICE_ENABLED: "off" })).toBe(false);
+    expect(resolveVoiceEnabled({ PAI_EDGE_TTS_ENABLED: "0" })).toBe(false);
+    expect(resolveVoiceEnabled({ PAI_VOICE_ENABLED: "true" })).toBe(true);
+  });
+
+  test("resolves Edge TTS config with rate and volume defaults", () => {
+    expect(resolveEdgeTtsConfig({ text: "Done", language: "en-US" }, {})).toEqual({
+      text: "Done",
+      language: "en-US",
+      voice: "en-US-AvaNeural",
+      rate: "+15%",
+      volume: "+0%",
+    });
+  });
+
+  test("loads persisted voice config for runtime resolution", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pai-voice-config-"));
+    const configPath = join(dir, "voice.env");
+    writeFileSync(configPath, "PAI_VOICE_ENABLED=false\nPAI_EDGE_TTS_LANGUAGE=pt-BR\nPAI_EDGE_TTS_VOICE_PT_BR=pt-BR-AntonioNeural\n", "utf-8");
+
+    const previous = process.env.PAI_EDGE_TTS_CONFIG;
+    const previousVoiceEnabled = process.env.PAI_VOICE_ENABLED;
+    const previousEdgeEnabled = process.env.PAI_EDGE_TTS_ENABLED;
+    process.env.PAI_EDGE_TTS_CONFIG = configPath;
+    delete process.env.PAI_VOICE_ENABLED;
+    delete process.env.PAI_EDGE_TTS_ENABLED;
+    try {
+      expect(resolveVoiceEnabled(process.env)).toBe(false);
+      expect(resolveEdgeTtsConfig({ text: "Oi" }, process.env)).toEqual({
+        text: "Oi",
+        language: "pt-BR",
+        voice: "pt-BR-AntonioNeural",
+        rate: "+15%",
+        volume: "+0%",
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.PAI_EDGE_TTS_CONFIG;
+      } else {
+        process.env.PAI_EDGE_TTS_CONFIG = previous;
+      }
+      if (previousVoiceEnabled === undefined) {
+        delete process.env.PAI_VOICE_ENABLED;
+      } else {
+        process.env.PAI_VOICE_ENABLED = previousVoiceEnabled;
+      }
+      if (previousEdgeEnabled === undefined) {
+        delete process.env.PAI_EDGE_TTS_ENABLED;
+      } else {
+        process.env.PAI_EDGE_TTS_ENABLED = previousEdgeEnabled;
+      }
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
