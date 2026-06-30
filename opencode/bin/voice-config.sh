@@ -121,6 +121,18 @@ set_config_value() {
     mv "$tmp" "$CONFIG_FILE"
 }
 
+get_config_value() {
+    local key="$1"
+    [ -f "$CONFIG_FILE" ] || return 1
+    local line
+    line="$(grep -E "^(export[[:space:]]+)?${key}=" "$CONFIG_FILE" | tail -n1)"
+    [ -n "$line" ] || return 1
+    local value="${line#*=}"
+    value="${value%\"}"; value="${value#\"}"
+    value="${value%\'}"; value="${value#\'}"
+    printf '%s' "$value"
+}
+
 show_config() {
     echo "Voice config: $CONFIG_FILE"
     if [ -f "$CONFIG_FILE" ]; then
@@ -176,7 +188,22 @@ test_voice() {
         echo "Missing speaker: $PAI_DIR/broker/edge-tts-speaker.ts" >&2
         return 1
     fi
-    printf '%s\n' "$text" | PAI_EDGE_TTS_CONFIG="$CONFIG_FILE" bun "$PAI_DIR/broker/edge-tts-speaker.ts"
+
+    # Resolve the language we'll demo so a fresh `test` (before any voice is
+    # saved) speaks in the helper's pt-BR default instead of the speaker's
+    # neutral en-US fallback. Saved config and env still take precedence.
+    local language
+    language="$(get_config_value PAI_EDGE_TTS_LANGUAGE || true)"
+    language="${language:-${PAI_EDGE_TTS_LANGUAGE:-${PAI_VOICE_LANGUAGE:-pt-BR}}}"
+    language="$(normalize_language "$language")"
+
+    # Emit a single valid JSON line so the speaker selects the voice by
+    # language; escape backslashes/quotes and flatten newlines.
+    text="${text//$'\n'/ }"
+    text="${text//\\/\\\\}"
+    text="${text//\"/\\\"}"
+    printf '{"text":"%s","language":"%s"}\n' "$text" "$language" \
+        | PAI_EDGE_TTS_CONFIG="$CONFIG_FILE" bun "$PAI_DIR/broker/edge-tts-speaker.ts"
 }
 
 cmd="${1:-help}"

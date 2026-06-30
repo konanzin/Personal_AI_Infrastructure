@@ -75,25 +75,6 @@ render_expected_config() {
         "$CONFIG_TEMPLATE" > "$output"
 }
 
-edge_tts_available() {
-    local venv_python="${OPENCODE_DIR}/tts-venv/bin/python"
-    if [ -x "$venv_python" ] && "$venv_python" -c 'import edge_tts' >/dev/null 2>&1; then
-        return 0
-    fi
-    if command -v edge-tts &>/dev/null; then
-        return 0
-    fi
-
-    local python
-    for python in python3 python; do
-        if command -v "$python" &>/dev/null && "$python" -c 'import edge_tts' >/dev/null 2>&1; then
-            return 0
-        fi
-    done
-
-    return 1
-}
-
 # ═══════════════════════════════════════════════════════════
 #  CHECKPOINTS
 # ═══════════════════════════════════════════════════════════
@@ -616,7 +597,7 @@ check_commands() {
     fi
     checks=$((checks + 1))
 
-    for cmd in "context-search" "cs" "pu" "voice"; do
+    for cmd in "context-search" "cs" "pu"; do
         if grep -q "\"${cmd}\"" "${OPENCODE_DIR}/opencode.jsonc"; then
             pass "/${cmd} command registered"
             passed=$((passed + 1))
@@ -625,14 +606,6 @@ check_commands() {
         fi
         checks=$((checks + 1))
     done
-
-    if [ -x "$PAI_DIR/bin/voice-config.sh" ]; then
-        pass "Voice config helper installed"
-        passed=$((passed + 1))
-    else
-        fail "Voice config helper missing or not executable"
-    fi
-    checks=$((checks + 1))
 
     local stale_commands=()
     local command_file
@@ -827,23 +800,11 @@ check_pulse() {
     fi
     checks=$((checks + 1))
 
-    if [ -f "$PAI_DIR/broker/pulse-broker.ts" ] \
-        && [ -f "$PAI_DIR/broker/broker-lib.ts" ] \
-        && [ -f "$PAI_DIR/broker/renderer-desktop.ts" ] \
-        && [ -f "$PAI_DIR/broker/edge-tts-lib.ts" ] \
-        && [ -f "$PAI_DIR/broker/edge-tts-speaker.ts" ]; then
-        pass "Pulse Broker and Edge TTS renderer files installed"
+    if [ -f "$PAI_DIR/broker/pulse-broker.ts" ] && [ -f "$PAI_DIR/broker/broker-lib.ts" ]; then
+        pass "Pulse Broker installed (optional runtime, PAI/broker/)"
         passed=$((passed + 1))
     else
-        fail "Pulse Broker or Edge TTS renderer files missing from PAI/broker/"
-    fi
-    checks=$((checks + 1))
-
-    if edge_tts_available; then
-        pass "Edge TTS provider dependency available"
-        passed=$((passed + 1))
-    else
-        fail "Edge TTS provider dependency missing; rerun installer without --no-bootstrap"
+        fail "Pulse Broker files missing from PAI/broker/"
     fi
     checks=$((checks + 1))
     

@@ -841,13 +841,17 @@ check_pulse() {
     fi
     checks=$((checks + 1))
 
+    # Edge TTS is an OPTIONAL desktop-voice dependency: the renderer is opt-in
+    # (--tts) and auto-installs edge-tts lazily on first use, and headless
+    # servers are provisioned with --no-tts-bootstrap on purpose. Its absence is
+    # therefore a soft warning, never a validation failure.
     if edge_tts_available; then
-        pass "Edge TTS provider dependency available"
+        pass "Edge TTS provider dependency available (desktop voice ready)"
         passed=$((passed + 1))
+        checks=$((checks + 1))
     else
-        fail "Edge TTS provider dependency missing; rerun installer without --no-bootstrap"
+        warn "Edge TTS provider not installed — optional desktop voice; auto-installs on first --tts use, or rerun installer without --no-tts-bootstrap"
     fi
-    checks=$((checks + 1))
     
     # Installed content must have no legacy Claude Code paths anywhere —
     # PAI core, skills, agents, and commands (install.sh patch_installed_paths
