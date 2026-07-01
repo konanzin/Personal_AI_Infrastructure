@@ -101,3 +101,23 @@ class PulseDelivery {
   factory PulseDelivery.recovered(PulseEvent event) =>
       PulseDelivery(event: event, dedupeKey: event.dedupeKey);
 }
+
+bool pulseEventMatchesFocusedSession(PulseEvent event, String? focusedSession) {
+  if (focusedSession == null || focusedSession.isEmpty) return false;
+  return focusedSession == event.sessionId || focusedSession == event.slug;
+}
+
+bool shouldSpeakPulseEventOnMobile(
+  PulseEvent event, {
+  required bool recovered,
+  required bool appForegrounded,
+  required bool speakHint,
+  required bool levelEnabled,
+  required String? focusedSession,
+}) {
+  if (recovered || !appForegrounded || !speakHint || !levelEnabled) {
+    return false;
+  }
+  if (event.level == PulseLevel.attention) return true;
+  return pulseEventMatchesFocusedSession(event, focusedSession);
+}

@@ -60,6 +60,57 @@ void main() {
       expect(d.brokerReason, 'session-on-screen');
       expect(d.dedupeKey, 'k1');
     });
+
+    test('mobile speech requires local focus for milestones', () {
+      final event = ev(session: 's1');
+      expect(
+        shouldSpeakPulseEventOnMobile(
+          event,
+          recovered: false,
+          appForegrounded: true,
+          speakHint: true,
+          levelEnabled: true,
+          focusedSession: null,
+        ),
+        false,
+      );
+      expect(
+        shouldSpeakPulseEventOnMobile(
+          event,
+          recovered: false,
+          appForegrounded: true,
+          speakHint: true,
+          levelEnabled: true,
+          focusedSession: 's2',
+        ),
+        false,
+      );
+      expect(
+        shouldSpeakPulseEventOnMobile(
+          event,
+          recovered: false,
+          appForegrounded: true,
+          speakHint: true,
+          levelEnabled: true,
+          focusedSession: 's1',
+        ),
+        true,
+      );
+    });
+
+    test('mobile speech keeps attention global', () {
+      expect(
+        shouldSpeakPulseEventOnMobile(
+          ev(level: 'attention', event: 'security_blocked'),
+          recovered: false,
+          appForegrounded: true,
+          speakHint: true,
+          levelEnabled: true,
+          focusedSession: null,
+        ),
+        true,
+      );
+    });
   });
 
   group('PulseReconciler', () {

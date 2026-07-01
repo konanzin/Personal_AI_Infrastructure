@@ -64,9 +64,8 @@ export function parseJsonlChunk(chunk: string): { events: NotificationEvent[]; r
  * Routing policy v1 (deliberately simple and error-tolerant):
  *
  * 1. `attention` always speaks, everywhere — the principal is needed.
- * 2. If ANY listening subscriber is displaying the event's session, voice is
- *    suppressed for everyone (you are watching it happen); renderers may
- *    still badge.
+ * 2. If ANOTHER listening subscriber is displaying the event's session, voice
+ *    is suppressed for this target; renderers may still badge.
  * 3. A muted subscriber (`listening: false`) never speaks.
  * 4. Otherwise speak.
  *
@@ -88,6 +87,7 @@ export function decideRender(
 
   const watched = allSubscribers.some(
     (s) =>
+      s.id !== target.id &&
       s.listening &&
       s.focusedSession !== null &&
       (s.focusedSession === event.session_id || (event.slug !== null && s.focusedSession === event.slug)),

@@ -543,7 +543,7 @@ run_test "Voice config helper installed" \
 run_test "Edge TTS provider dependency available" \
     "([ -x \"${OPENCODE_DIR}/tts-venv/bin/python\" ] && \"${OPENCODE_DIR}/tts-venv/bin/python\" -c 'import edge_tts') || command -v edge-tts || (command -v python3 && python3 -c 'import edge_tts') || (command -v python && python -c 'import edge_tts')"
 
-# Functional: routing policy v1 (attention always; focused suppresses)
+# Functional: routing policy v1 (attention always; focused suppresses others)
 BROKER_TEST=$(cat <<EOF
 import { decideRender } from '${PAI_DIR}/broker/broker-lib.ts';
 const ev = (level) => ({ v:1, timestamp:'t', level, event:'x', session_id:'s1', slug:null, title:null, speak:'s', data:{} });
@@ -558,7 +558,7 @@ EOF
 
 BROKER_RESULT=$(echo "$BROKER_TEST" | bun run - 2>/dev/null || echo "FAIL")
 if [ "$BROKER_RESULT" = "PASS" ]; then
-    pass "Routing policy functional test (attention-always, session-on-screen)"
+    pass "Routing policy functional test (attention-always, focused suppresses others)"
     PASSED=$((PASSED + 1))
 else
     fail "Routing policy functional test"

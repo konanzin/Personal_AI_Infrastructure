@@ -9,11 +9,10 @@
 ///  - presence reported to the broker (focused session / foreground state)
 ///    so routing can stay silent while you are watching the session.
 ///
-/// Voice: SpeechEngine (platform TTS) speaks live `event.speak` verbatim
-/// while the app is foregrounded, coalesced per session. Settings (enabled,
-/// per-level toggles)
-/// travel via FlutterForegroundTask.saveData and live updates over
-/// sendDataToTask.
+/// Voice: SpeechEngine (platform TTS) speaks live `event.speak` for the
+/// focused mobile session only; attention events remain global. Settings
+/// (enabled, per-level toggles) travel via FlutterForegroundTask.saveData and
+/// live updates over sendDataToTask.
 library;
 
 import 'dart:async';
@@ -208,7 +207,9 @@ class PulseListenerTaskHandler extends TaskHandler {
           .map((e) => PulseEvent.fromJson(e.cast<String, dynamic>()))
           .toList();
       final fresh = _reconciler.reconcile(events);
-      if (events.isNotEmpty) _seenDirty = true; // reconcile marks unseen as seen
+      if (events.isNotEmpty) {
+        _seenDirty = true; // reconcile marks unseen as seen
+      }
       for (final event in fresh) {
         _render(
           event,
@@ -229,16 +230,14 @@ class PulseListenerTaskHandler extends TaskHandler {
       PulseLevel.digest => _speakDigest,
     };
 
-    // Local focus guard mirrors the broker: never speak the session on screen.
-    final watchingIt = _appForegrounded &&
-        _focusedSession != null &&
-        (_focusedSession == event.sessionId || _focusedSession == event.slug);
-
-    final speak = !recovered &&
-        _appForegrounded &&
-        speakHint &&
-        levelEnabled &&
-        !watchingIt;
+    final speak = shouldSpeakPulseEventOnMobile(
+      event,
+      recovered: recovered,
+      appForegrounded: _appForegrounded,
+      speakHint: speakHint,
+      levelEnabled: levelEnabled,
+      focusedSession: _focusedSession,
+    );
 
     FlutterForegroundTask.updateService(
       notificationTitle: event.title ?? 'PAI',

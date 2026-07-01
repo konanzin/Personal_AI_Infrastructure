@@ -70,7 +70,7 @@ describe("Broker lib — routing policy v1", () => {
     expect(decideRender(ev, [watcher, other], watcher).speak).toBe(true);
   });
 
-  test("milestone is suppressed for everyone when someone watches the session", () => {
+  test("milestone is suppressed for other subscribers when someone watches the session", () => {
     const ev = mkEvent();
     const watcher = mkSub({ id: "a", device: "desktop", focusedSession: "ses-1" });
     const phone = mkSub({ id: "b" });
@@ -82,7 +82,16 @@ describe("Broker lib — routing policy v1", () => {
   test("focus matches by slug too", () => {
     const ev = mkEvent();
     const watcher = mkSub({ id: "a", focusedSession: "slug-1" });
-    expect(decideRender(ev, [watcher], watcher).speak).toBe(false);
+    const other = mkSub({ id: "b" });
+    expect(decideRender(ev, [watcher, other], other).speak).toBe(false);
+  });
+
+  test("target focus does not mute itself", () => {
+    const ev = mkEvent();
+    const watcher = mkSub({ id: "a", focusedSession: "ses-1" });
+    const d = decideRender(ev, [watcher], watcher);
+    expect(d.speak).toBe(true);
+    expect(d.reason).toBe("default");
   });
 
   test("muted subscriber never speaks, even on attention", () => {
@@ -430,7 +439,7 @@ describe("Broker integration", () => {
     expect(mutedDelivery.render.reason).toBe("muted");
   }, 20_000);
 
-  test("focused subscriber suppresses voice for everyone on that session", async () => {
+  test("focused subscriber suppresses voice for other subscribers on that session", async () => {
     const broker = await startBroker();
     handles.push(broker);
     const base = `http://localhost:${broker.port}`;
@@ -444,13 +453,14 @@ describe("Broker integration", () => {
     await nextFrame(phone); // hello
 
     appendFileSync(broker.streamPath, JSON.stringify(mkEvent()) + "\n", "utf-8");
+    const deskDelivery = await nextFrame(desk);
+    expect(deskDelivery.render.speak).toBe(true);
     const phoneDelivery = await nextFrame(phone);
     expect(phoneDelivery.render.speak).toBe(false);
     expect(phoneDelivery.render.reason).toBe("session-on-screen");
 
     // attention still speaks on the phone
     appendFileSync(broker.streamPath, JSON.stringify(mkEvent({ level: "attention", event: "guard_denied" })) + "\n", "utf-8");
-    await nextFrame(desk); // consume desk's milestone
     await nextFrame(desk); // consume desk's attention
     const phoneAttention = await nextFrame(phone);
     expect(phoneAttention.event.level).toBe("attention");
