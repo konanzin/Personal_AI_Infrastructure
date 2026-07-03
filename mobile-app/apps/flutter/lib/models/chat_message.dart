@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 /// Origin of a chat message.
@@ -47,7 +49,12 @@ class ChatMessage {
     required this.origin,
     required this.text,
     required this.attachments,
-  }) : assert(origin.isUser && text != null && text.isNotEmpty || origin.isLlm);
+  }) : assert(
+          origin.isLlm ||
+              (text != null && text.isNotEmpty) ||
+              attachments.isNotEmpty,
+          'A user message must carry text or at least one attachment',
+        );
 
   factory ChatMessage.llm() =>
       ChatMessage(origin: MessageOrigin.llm, text: null, attachments: []);
@@ -70,4 +77,33 @@ class ChatMessage {
   @override
   String toString() =>
       'ChatMessage(origin: $origin, text: $text, attachments: $attachments)';
+}
+
+/// Rebuilds a [FileAttachment] from an OpenCode `file` message part as stored
+/// in session history (mirrors the send shape `{type,url,mime,filename}`).
+///
+/// Inline `data:` URIs are decoded to real bytes so images render exactly like
+/// the live conversation. A non-`data:` URL (remote/path) or a malformed
+/// payload degrades to a named chip with empty bytes — the attachment tile's
+/// `errorBuilder` falls back to a file/image icon, never a crash.
+FileAttachment attachmentFromHistoryPart(Map part) {
+  final url = part['url'] as String?;
+  final mimeType =
+      (part['mime'] ?? part['mimeType']) as String? ?? 'application/octet-stream';
+  final name = (part['filename'] ?? part['name']) as String? ?? 'anexo';
+
+  var bytes = Uint8List(0);
+  if (url != null && url.startsWith('data:')) {
+    final comma = url.indexOf(',');
+    final header = comma == -1 ? '' : url.substring(5, comma);
+    if (comma != -1 && header.contains('base64')) {
+      try {
+        bytes = base64Decode(url.substring(comma + 1));
+      } catch (_) {
+        // Malformed base64 — keep empty; the chip falls back to an icon.
+      }
+    }
+  }
+
+  return FileAttachment(name: name, mimeType: mimeType, bytes: bytes);
 }

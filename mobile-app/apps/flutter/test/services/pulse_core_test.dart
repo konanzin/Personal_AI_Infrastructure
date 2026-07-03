@@ -98,7 +98,9 @@ void main() {
       );
     });
 
-    test('mobile speech keeps attention global', () {
+    test('mobile speech gates attention by focus too', () {
+      // Not following any session on the phone: even attention stays silent so
+      // a session driven on the PC never speaks here.
       expect(
         shouldSpeakPulseEventOnMobile(
           ev(level: 'attention', event: 'security_blocked'),
@@ -107,6 +109,30 @@ void main() {
           speakHint: true,
           levelEnabled: true,
           focusedSession: null,
+        ),
+        false,
+      );
+      // Following an unrelated session: still silent for this attention event.
+      expect(
+        shouldSpeakPulseEventOnMobile(
+          ev(level: 'attention', event: 'security_blocked', session: 's1'),
+          recovered: false,
+          appForegrounded: true,
+          speakHint: true,
+          levelEnabled: true,
+          focusedSession: 's2',
+        ),
+        false,
+      );
+      // Following the event's own session: attention speaks.
+      expect(
+        shouldSpeakPulseEventOnMobile(
+          ev(level: 'attention', event: 'security_blocked', session: 's1'),
+          recovered: false,
+          appForegrounded: true,
+          speakHint: true,
+          levelEnabled: true,
+          focusedSession: 's1',
         ),
         true,
       );

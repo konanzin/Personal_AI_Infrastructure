@@ -118,6 +118,8 @@ bool shouldSpeakPulseEventOnMobile(
   if (recovered || !appForegrounded || !speakHint || !levelEnabled) {
     return false;
   }
-  if (event.level == PulseLevel.attention) return true;
+  // Every level — including `attention` — only speaks for the session you are
+  // actively following on the phone. A session you are driving on the PC must
+  // never talk on the phone, regardless of event type.
   return pulseEventMatchesFocusedSession(event, focusedSession);
 }

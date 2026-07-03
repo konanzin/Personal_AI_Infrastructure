@@ -682,6 +682,7 @@ class OpenCodeProvider with ChangeNotifier {
         final textBuffer = StringBuffer();
         final reasoningBuffer = StringBuffer();
         final msgToolCalls = <ToolCallPart>[];
+        final msgAttachments = <Attachment>[];
 
         for (final part in parts) {
           if (part is! Map) continue;
@@ -784,6 +785,8 @@ class OpenCodeProvider with ChangeNotifier {
                     .add((callId, _answeredQuestions[callId]!));
               }
             }
+          } else if (partType == 'file') {
+            msgAttachments.add(attachmentFromHistoryPart(part));
           }
         }
 
@@ -793,10 +796,15 @@ class OpenCodeProvider with ChangeNotifier {
           if (_isInternalPaiContextLoadedMessage(messageText)) {
             continue;
           }
+          // A user turn with neither text nor attachments has nothing to
+          // render (and would trip ChatMessage's invariant) — skip it.
+          if (messageText.isEmpty && msgAttachments.isEmpty) {
+            continue;
+          }
           _flushPendingToolCalls(pendingToolCalls);
           pendingToolCalls = [];
           pendingReasoning = StringBuffer();
-          _history.add(ChatMessage.user(messageText, const []));
+          _history.add(ChatMessage.user(messageText, msgAttachments));
           _historyMessageIds.add(messageId);
         } else if (role == 'assistant') {
           if (messageText.isEmpty && msgToolCalls.isEmpty) {

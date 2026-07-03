@@ -10,9 +10,11 @@
 ///    so routing can stay silent while you are watching the session.
 ///
 /// Voice: SpeechEngine (platform TTS) speaks live `event.speak` for the
-/// focused mobile session only; attention events remain global. Settings
-/// (enabled, per-level toggles) travel via FlutterForegroundTask.saveData and
-/// live updates over sendDataToTask.
+/// focused mobile session only — every level, including `attention`, is gated
+/// by local focus so a session driven on the PC never speaks on the phone. The
+/// persistent notification follows the same rule. Settings (enabled, per-level
+/// toggles) travel via FlutterForegroundTask.saveData and live updates over
+/// sendDataToTask.
 library;
 
 import 'dart:async';
@@ -239,9 +241,16 @@ class PulseListenerTaskHandler extends TaskHandler {
       focusedSession: _focusedSession,
     );
 
+    // The persistent (silent) service notification only ever reflects the
+    // session you are following on the phone; events from sessions you are
+    // driving elsewhere leave it on a neutral baseline, so it never surfaces
+    // PC-only activity.
+    final following = pulseEventMatchesFocusedSession(event, _focusedSession);
     FlutterForegroundTask.updateService(
-      notificationTitle: event.title ?? 'PAI',
-      notificationText: event.speak.isNotEmpty ? event.speak : event.event,
+      notificationTitle: following ? (event.title ?? 'PAI') : 'PAI',
+      notificationText: following
+          ? (event.speak.isNotEmpty ? event.speak : event.event)
+          : 'Ativo em segundo plano',
     );
     final language = normalizePulseTtsLanguage(event.language);
     if (speak && event.speak.isNotEmpty && language != null) {
