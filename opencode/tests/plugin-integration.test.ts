@@ -417,3 +417,66 @@ describe("Plugin Integration — Runtime Event Bridge (OpenCode >=1.16)", () => 
     expect(after.length).toBe(1);
   });
 });
+
+// Regression: OpenCode >=1.16 delivers tool.execute.before args on `output.args`
+// (input carries only { tool, sessionID, callID }). The plugin previously read
+// input.args, so the entire hard-block floor silently never ran in production while
+// unit tests — which passed args on `input` — kept passing. These tests pin the REAL
+// runtime shape and assert async rejection correctly (rejects.toThrow, not the
+// no-op `expect(async()=>...).toThrow`).
+describe("Plugin Integration — tool.execute.before real OpenCode arg shape (output.args)", () => {
+  const realInput = (tool) => ({ tool, sessionID: "ses-realshape", callID: "call-1" });
+
+  test("blocks catastrophic rm -rf when command is on output.args", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+    await expect(
+      hook(realInput("bash"), { args: { command: "rm -rf /" } }),
+    ).rejects.toThrow(/PAI SECURITY.*BLOCKED/);
+  });
+
+  test("blocks pipe-to-shell when command is on output.args", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+    await expect(
+      hook(realInput("bash"), { args: { command: "echo hi | sh" } }),
+    ).rejects.toThrow(/PAI SECURITY.*BLOCKED/);
+  });
+
+  test("blocks sensitive read when filePath is on output.args", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+    await expect(
+      hook(realInput("read"), { args: { filePath: "/etc/shadow" } }),
+    ).rejects.toThrow(/PAI SECURITY.*BLOCKED/);
+  });
+
+  test("blocks write to protected path when filePath is on output.args", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+    await expect(
+      hook(realInput("write"), { args: { filePath: "/etc/passwd", content: "evil" } }),
+    ).rejects.toThrow(/PAI SECURITY.*BLOCKED/);
+  });
+
+  test("allows a safe command carried on output.args", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["tool.execute.before"];
+    await hook(realInput("bash"), { args: { command: "ls -la" } });
+  });
+});
+
+// Regression: permission.ask delivers a Permission object (tool on `type`,
+// command/filePath on `metadata`) — NOT { tool, args }. Pin the real shape.
+describe("Plugin Integration — permission.ask real Permission shape (type + metadata)", () => {
+  test("denies a sensitive read expressed as type+metadata", async () => {
+    const plugin = await loadPlugin();
+    const hook = plugin["permission.asked"];
+    const output: { status?: string } = {};
+    await hook(
+      { type: "read", sessionID: "ses-perm", callID: "c1", metadata: { filePath: "/etc/shadow" } },
+      output,
+    );
+    expect(output.status).toBe("deny");
+  });
+});

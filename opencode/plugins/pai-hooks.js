@@ -679,8 +679,14 @@ ${activeWork}`);
     // ═══════════════════════════════════════════════════════════════
     "permission.asked": async (input, output) => {
       const sessionId = input.sessionID || 'unknown';
-      const toolName = String(input.tool || '').toLowerCase();
-      const args = input.args || {};
+      // permission.ask delivers a Permission object: the tool name is on `type`
+      // and the tool input (command / filePath) is on `metadata` — NOT `tool`/`args`
+      // (which exist only on tool.execute.*). Keep the old fields as fallbacks for
+      // other/older runtimes. Note: this hook is best-effort — upstream OpenCode has
+      // known cases where permission.ask does not fire (issue #7006); the authoritative
+      // hard-block floor is tool.execute.before, not this handler.
+      const toolName = String(input.type || input.tool || '').toLowerCase();
+      const args = input.metadata || input.args || {};
 
       if (toolName === 'bash' && args.command) {
         const cmd = args.command;
@@ -1017,7 +1023,10 @@ ${activeWork}`);
     // ═══════════════════════════════════════════════════════════════
     "tool.execute.before": async (input, output) => {
       const tool = input.tool;
-      const args = input.args || {};
+      // OpenCode ≥1.16 delivers tool args on `output.args` for this hook
+      // (input carries only { tool, sessionID, callID }). Older/other runtimes
+      // put them on `input.args`; prefer output, fall back defensively.
+      const args = output?.args || input.args || {};
       const sessionId = getSessionId(input);
 
       try {
