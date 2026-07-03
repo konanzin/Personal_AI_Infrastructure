@@ -49,6 +49,18 @@ if [ -f "${REPO_DIR}/opencode/bin/pai-sandbox.sh" ]; then
     success "pai-sandbox.sh deployed"
 fi
 
+# Deploy the escape-hatch token to a PATH dir so opencode's permission
+# matcher sees it as a real command_name (env-var prefixes can't be gated).
+if [ -f "${REPO_DIR}/opencode/bin/pai-nosandbox" ]; then
+    log "Deploying pai-nosandbox to ~/.local/bin..."
+    mkdir -p "${HOME}/.local/bin"
+    cp -f "${REPO_DIR}/opencode/bin/pai-nosandbox" "${HOME}/.local/bin/"
+    chmod +x "${HOME}/.local/bin/pai-nosandbox"
+    command -v pai-nosandbox >/dev/null 2>&1 \
+        && success "pai-nosandbox deployed (on PATH)" \
+        || warn "pai-nosandbox deployed but ~/.local/bin is not on PATH — inline escape won't resolve"
+fi
+
 # Verify: every lib the repo ships must exist installed
 verify_ok=1
 [ -f "$PLUGINS_DIR/pai-hooks.js" ] || verify_ok=0

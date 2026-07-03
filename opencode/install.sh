@@ -514,6 +514,17 @@ install_pai_core() {
     cp -f "${REPO_DIR}/opencode/bin/"*.js "$PAI_DIR/bin/" 2>/dev/null || true
     chmod +x "$PAI_DIR/bin/"*.sh "$PAI_DIR/bin/"*.js 2>/dev/null || true
 
+    # Escape-hatch token must live on PATH so opencode's permission matcher
+    # sees it as a real command_name (an env-var prefix can't be gated —
+    # tree-sitter drops variable_assignment nodes before matching).
+    if [ -f "${REPO_DIR}/opencode/bin/pai-nosandbox" ]; then
+        mkdir -p "${HOME}/.local/bin"
+        cp -f "${REPO_DIR}/opencode/bin/pai-nosandbox" "${HOME}/.local/bin/"
+        chmod +x "${HOME}/.local/bin/pai-nosandbox"
+        command -v pai-nosandbox >/dev/null 2>&1 \
+            || warn "pai-nosandbox installed to ~/.local/bin but that dir is not on PATH; the inline sandbox escape won't resolve until it is"
+    fi
+
     success "PAI core installed"
 }
 

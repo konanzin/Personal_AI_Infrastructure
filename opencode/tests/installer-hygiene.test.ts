@@ -128,8 +128,12 @@ describe("Installer hygiene", () => {
     expect(bashBlock).not.toContain('"*": "ask"');
     // Boundary crossings that must still prompt: privilege escalation,
     // escaping the T1 sandbox, and deleting the security floor itself.
+    // The escape must be a real command token, not an env-var prefix —
+    // opencode drops variable_assignment nodes before matching, so an
+    // env prefix would never gate (it would escape silently).
     expect(bashBlock).toMatch(/"sudo \*":\s*"ask"/);
-    expect(bashBlock).toMatch(/"PAI_SANDBOX=off \*":\s*"ask"/);
+    expect(bashBlock).toMatch(/"pai-nosandbox \*":\s*"ask"/);
+    expect(bashBlock).not.toContain("PAI_SANDBOX=off");
     expect(bashBlock).toMatch(/pai-hooks\.lib\.js":\s*"ask"/);
     // Self-modification surfaces stay on ask (the deny floor can't protect
     // itself from the Edit tool).

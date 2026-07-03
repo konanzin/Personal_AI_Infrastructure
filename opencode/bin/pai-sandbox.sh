@@ -21,7 +21,7 @@
 #
 #  Escalation: when a wrapped command exits nonzero, a stderr
 #  hint explains how to rerun outside the sandbox by prefixing
-#  `PAI_SANDBOX=off ` — that prefix is configured as "ask" in
+#  `pai-nosandbox ` — that command token is configured as "ask" in
 #  opencode.jsonc, so escaping the sandbox always requires a
 #  human approval prompt.
 #
@@ -77,6 +77,6 @@ maskfile "$HOME/.cargo/credentials.toml"
 bwrap "${ARGS[@]}" /bin/bash -c "$CMD"
 rc=$?
 if [ $rc -ne 0 ]; then
-    echo "[PAI-SANDBOX] exit $rc inside the filesystem sandbox (read-only outside \$PWD; credentials masked; unix sockets like docker unavailable). If the failure is sandbox-caused, rerun prefixed with: PAI_SANDBOX=off <command>  — this always triggers a human approval prompt." >&2
+    echo "[PAI-SANDBOX] exit $rc inside the filesystem sandbox (read-only outside \$PWD; credentials masked; unix sockets like docker unavailable). If the failure is sandbox-caused, rerun prefixed with: pai-nosandbox <command>  — this always triggers a human approval prompt." >&2
 fi
 exit $rc

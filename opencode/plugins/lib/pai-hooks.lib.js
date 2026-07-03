@@ -1024,11 +1024,19 @@ export function shellQuoteSingle(s) {
 
 export function shouldSandboxCommand(command, env = {}) {
   if (!command || typeof command !== 'string') return false;
-  if (env.PAI_SANDBOX === 'off') return false; // session-level kill switch
+  // Session-level kill switch: set by a human at launch (out of band). An
+  // in-session agent cannot alter the launcher env, so this is safe.
+  if (env.PAI_SANDBOX === 'off') return false;
   const c = command.trimStart();
-  // Human-approved escape hatch: the prefix is an "ask" pattern in
-  // opencode.jsonc, so this branch is only reachable after a prompt.
-  if (/^PAI_SANDBOX=off\s/.test(c)) return false;
+  // Human-approved inline escape hatch. Must be a real leading command token
+  // (not an env-var prefix): OpenCode parses bash with tree-sitter and drops
+  // variable_assignment nodes before permission matching, so an env prefix
+  // like `PAI_SANDBOX=off ` is NEVER gated (it matches "*" -> allow and
+  // escapes silently). `pai-nosandbox` is a command_name, so the pattern
+  // "pai-nosandbox *": "ask" in opencode.jsonc fires a real approval prompt —
+  // this branch is only reachable after a human approves. The command string
+  // is left intact (not rewritten) so the matcher always sees the token.
+  if (/^pai-nosandbox\s/.test(c)) return false;
   // sudo is its own "ask" boundary and cannot run inside a user namespace.
   if (/^sudo\s/.test(c)) return false;
   if (c.includes('pai-sandbox.sh')) return false; // already wrapped

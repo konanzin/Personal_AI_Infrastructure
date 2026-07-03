@@ -26,12 +26,19 @@ describe("Sandbox — decision logic (shouldSandboxCommand)", () => {
     expect(shouldSandboxCommand("bun test", {})).toBe(true);
   });
 
-  test("session kill switch PAI_SANDBOX=off disables wrapping", () => {
+  test("session kill switch PAI_SANDBOX=off (launch env) disables wrapping", () => {
     expect(shouldSandboxCommand("ls", { PAI_SANDBOX: "off" })).toBe(false);
   });
 
-  test("human-approved escape prefix runs unwrapped (gated by 'ask' in opencode.jsonc)", () => {
-    expect(shouldSandboxCommand("PAI_SANDBOX=off bun install", {})).toBe(false);
+  test("human-approved escape via pai-nosandbox token runs unwrapped", () => {
+    expect(shouldSandboxCommand("pai-nosandbox bun install", {})).toBe(false);
+  });
+
+  test("REGRESSION: an inline PAI_SANDBOX=off prefix is NOT an escape — it stays sandboxed", () => {
+    // opencode strips variable_assignment before permission matching, so this
+    // prefix can never be gated by an 'ask' pattern. Treating it as an escape
+    // would let a command bypass the sandbox with no approval prompt.
+    expect(shouldSandboxCommand("PAI_SANDBOX=off touch ~/x", {})).toBe(true);
   });
 
   test("sudo commands are not wrapped (own ask boundary; no sudo in userns)", () => {
@@ -88,7 +95,7 @@ describe.if(BWRAP)("Sandbox — bwrap confinement (functional)", () => {
     expect(r.status).not.toBe(0);
     expect(existsSync(target)).toBe(false);
     expect(r.stderr).toContain("[PAI-SANDBOX]");
-    expect(r.stderr).toContain("PAI_SANDBOX=off");
+    expect(r.stderr).toContain("pai-nosandbox");
   });
 
   test.if(existsSync(join(homedir(), ".ssh")) && readdirSync(join(homedir(), ".ssh")).length > 0)(

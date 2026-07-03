@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════
+#  pai-nosandbox — human-approved escape from the PAI T1 sandbox
+#
+#  Usage: pai-nosandbox <command> [args...]
+#
+#  Prefix any command with `pai-nosandbox` to run it OUTSIDE the
+#  bwrap filesystem sandbox (host filesystem, real credentials).
+#
+#  This is the ONLY inline escape, and it is gated: `pai-nosandbox`
+#  is a real command token, so opencode.jsonc's
+#      "pai-nosandbox *": "ask"
+#  fires an approval prompt. Reaching this script means a human
+#  already approved the escape. (An env-var prefix cannot be used
+#  for this — OpenCode strips variable_assignment nodes before
+#  permission matching, so it would escape silently and ungated.)
+#
+#  The PAI plugin's shouldSandboxCommand() leaves commands starting
+#  with `pai-nosandbox ` unwrapped, so exec runs on the host.
+# ═══════════════════════════════════════════════════════════
+if [ "$#" -eq 0 ]; then
+    echo "usage: pai-nosandbox <command> [args...]" >&2
+    exit 2
+fi
+exec "$@"
