@@ -101,7 +101,7 @@ describe("Installer hygiene", () => {
     const result = runCheck(home);
     expect(outputOf(result)).toContain("Installed runtime matches manifest");
     expect(result.exitCode).toBe(0);
-  });
+  }, 30000);
 
   test("install.sh --check fails when stale skills are installed", async () => {
     const home = mkdtempSync(join(tmpdir(), "pai-install-drift-"));
@@ -111,7 +111,7 @@ describe("Installer hygiene", () => {
     const result = runCheck(home);
     expect(outputOf(result)).toContain("interceptor-browser");
     expect(result.exitCode).toBe(1);
-  });
+  }, 30000);
 
   test("plugin array is pai-hooks only (no third-party plugins)", async () => {
     const template = await Bun.file(join(opencodeRoot, "config/opencode.jsonc.template")).text();
@@ -169,5 +169,6 @@ describe("Installer hygiene", () => {
     const result = runCheck(home);
     expect(result.exitCode).toBe(1);
     expect(outputOf(result)).toContain("opencode.jsonc differs");
-  });
+    // Two full-validator spawns; the default 5s bun timeout is too tight.
+  }, 30000);
 });

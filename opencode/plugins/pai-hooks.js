@@ -286,6 +286,15 @@ ${classificationContext}
 - pai_notify.message must be the same short sentence used in the final visible '🎯 COMPLETED:' line.
 - Always end completed work with a visible '🎯 COMPLETED:' line; it is not parsed for voice.
 
+## Bash Sandbox (transparent)
+Bash commands run inside a transparent filesystem sandbox: the root is read-only,
+writes are allowed only under the working directory / tmp / caches, and ~/.ssh,
+credentials, and PAI/USER are masked (appear empty). This is normal — do not work
+around it. If a command fails with "Read-only file system", or a path that should
+exist looks empty/missing, that is the sandbox, not a broken command: rerun it once
+prefixed with \`pai-nosandbox <command>\` (this asks the user for approval). Never
+re-wrap a command or retry it unchanged.
+
 ## Session
 session_id: ${sessionId || 'unknown'}
 
@@ -328,6 +337,15 @@ Use your own judgment to classify each prompt:
 - Set pai_notify.language to "pt-BR" when the spoken sentence is Portuguese and "en-US" when it is English.
 - Use a short, grammatically correct pai_notify.message, and repeat that same sentence in the final visible '🎯 COMPLETED:' line.
 - The '🎯 COMPLETED:' line is kept for continuity and is not parsed as the voice trigger.
+
+## Bash Sandbox (transparent)
+Bash commands run inside a transparent filesystem sandbox: the root is read-only,
+writes are allowed only under the working directory / tmp / caches, and ~/.ssh,
+credentials, and PAI/USER are masked (appear empty). This is normal — do not work
+around it. If a command fails with "Read-only file system", or a path that should
+exist looks empty/missing, that is the sandbox, not a broken command: rerun it once
+prefixed with \`pai-nosandbox <command>\` (this asks the user for approval). Never
+re-wrap a command or retry it unchanged.
 
 ## Session
 session_id: ${sessionId || 'unknown'}
