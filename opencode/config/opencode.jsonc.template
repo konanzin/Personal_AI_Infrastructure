@@ -74,6 +74,7 @@
       // for genuine boundary crossings so the rare prompt gets read.
       "*": "allow",
       "sudo *": "ask",
+      "PAI_SANDBOX=off *": "ask",
       "rm -f ~/.config/opencode/plugins/pai-hooks.lib.js": "ask"
     },
     "external_directory": {

@@ -36,6 +36,7 @@ import {
   getSessionId, findStateFile, truncate, hashString,
   logSecurityEvent,
   inspectBashCommand, inspectWritePath, inspectReadPath, inspectWriteContent, inspectEgress,
+  shouldSandboxCommand, sandboxAvailable, wrapBashInSandbox,
   isTrustedPath, permissionCacheAllowRead,
   inspectPrompt, inspectContent,
   inspectAgentSpawn, inspectSkillInvocation,
@@ -1100,6 +1101,15 @@ ${activeWork}`);
               });
               throw new Error(`[PAI SECURITY] BLOCKED: Dangerous pattern detected in bash command: ${result.violations.map(v => v.reason).join(', ')}`);
             }
+          }
+
+          // T1 sandbox: wrap the already-inspected command in the bwrap
+          // filesystem sandbox (bin/pai-sandbox.sh). Wrapping happens AFTER
+          // inspection so the floor always sees the original command, and only
+          // when the runtime delivered args on `output` (mutation is honored
+          // there). Fail-open: missing script/bwrap → runs unwrapped.
+          if (output?.args && shouldSandboxCommand(cmd, process.env) && sandboxAvailable(process.env)) {
+            output.args.command = wrapBashInSandbox(cmd, process.env);
           }
         }
 

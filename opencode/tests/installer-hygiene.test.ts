@@ -126,9 +126,10 @@ describe("Installer hygiene", () => {
     const bashBlock = template.match(/"bash":\s*\{[\s\S]*?\}/)?.[0] ?? "";
     expect(bashBlock).toContain('"*": "allow"');
     expect(bashBlock).not.toContain('"*": "ask"');
-    // Boundary crossings that must still prompt: privilege escalation and
-    // deleting the security floor itself.
+    // Boundary crossings that must still prompt: privilege escalation,
+    // escaping the T1 sandbox, and deleting the security floor itself.
     expect(bashBlock).toMatch(/"sudo \*":\s*"ask"/);
+    expect(bashBlock).toMatch(/"PAI_SANDBOX=off \*":\s*"ask"/);
     expect(bashBlock).toMatch(/pai-hooks\.lib\.js":\s*"ask"/);
     // Self-modification surfaces stay on ask (the deny floor can't protect
     // itself from the Edit tool).

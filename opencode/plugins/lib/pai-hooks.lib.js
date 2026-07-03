@@ -1009,6 +1009,47 @@ export function inspectEgress(command) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// SANDBOX (T1 — bwrap filesystem confinement for bash commands)
+//
+// The allow-by-default bash posture is bounded by the kernel, not only by
+// the regex floor: tool.execute.before rewrites the command to run inside
+// bin/pai-sandbox.sh (read-only root, rw only in $PWD/tmp/caches, secret
+// dirs masked). Escaping requires the literal prefix `PAI_SANDBOX=off `,
+// which opencode.jsonc maps to "ask" — a human approval prompt.
+// ═══════════════════════════════════════════════════════════════
+
+export function shellQuoteSingle(s) {
+  return `'${String(s).replace(/'/g, `'\\''`)}'`;
+}
+
+export function shouldSandboxCommand(command, env = {}) {
+  if (!command || typeof command !== 'string') return false;
+  if (env.PAI_SANDBOX === 'off') return false; // session-level kill switch
+  const c = command.trimStart();
+  // Human-approved escape hatch: the prefix is an "ask" pattern in
+  // opencode.jsonc, so this branch is only reachable after a prompt.
+  if (/^PAI_SANDBOX=off\s/.test(c)) return false;
+  // sudo is its own "ask" boundary and cannot run inside a user namespace.
+  if (/^sudo\s/.test(c)) return false;
+  if (c.includes('pai-sandbox.sh')) return false; // already wrapped
+  return true;
+}
+
+export function resolveSandboxScript(env = {}) {
+  return env.PAI_SANDBOX_BIN || join(PAI_DIR, 'bin', 'pai-sandbox.sh');
+}
+
+export function sandboxAvailable(env = {}) {
+  if (!existsSync(resolveSandboxScript(env))) return false;
+  return ['/usr/bin/bwrap', '/usr/local/bin/bwrap', '/bin/bwrap']
+    .some((p) => existsSync(p));
+}
+
+export function wrapBashInSandbox(command, env = {}) {
+  return `${resolveSandboxScript(env)} ${shellQuoteSingle(command)}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PROMPT GUARD (PromptInspector)
 // ═══════════════════════════════════════════════════════════════
 
@@ -2097,6 +2138,11 @@ export default {
   inspectReadPath,
   inspectWriteContent,
   inspectEgress,
+  shellQuoteSingle,
+  shouldSandboxCommand,
+  resolveSandboxScript,
+  sandboxAvailable,
+  wrapBashInSandbox,
   inspectPrompt,
   inspectContent,
   inspectAgentSpawn,

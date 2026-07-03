@@ -40,6 +40,15 @@ log "Deploying plugin libraries (lib/*.js)..."
 cp -f "${REPO_DIR}/opencode/plugins/lib/"*.js "$PLUGINS_DIR/lib/"
 success "plugin libraries deployed"
 
+# Deploy the sandbox wrapper the plugin invokes at runtime
+if [ -f "${REPO_DIR}/opencode/bin/pai-sandbox.sh" ]; then
+    log "Deploying pai-sandbox.sh..."
+    mkdir -p "$PAI_DIR/bin"
+    cp -f "${REPO_DIR}/opencode/bin/pai-sandbox.sh" "$PAI_DIR/bin/"
+    chmod +x "$PAI_DIR/bin/pai-sandbox.sh"
+    success "pai-sandbox.sh deployed"
+fi
+
 # Verify: every lib the repo ships must exist installed
 verify_ok=1
 [ -f "$PLUGINS_DIR/pai-hooks.js" ] || verify_ok=0
