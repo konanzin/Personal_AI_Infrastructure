@@ -1014,8 +1014,9 @@ export function inspectEgress(command) {
 // The allow-by-default bash posture is bounded by the kernel, not only by
 // the regex floor: tool.execute.before rewrites the command to run inside
 // bin/pai-sandbox.sh (read-only root, rw only in $PWD/tmp/caches, secret
-// dirs masked). Escaping requires the literal prefix `PAI_SANDBOX=off `,
-// which opencode.jsonc maps to "ask" — a human approval prompt.
+// dirs masked). Inline escape: prefix a command with the real token
+// `pai-nosandbox`, which opencode.jsonc maps to "ask" — a human approval
+// prompt. (An env-var prefix cannot gate it; see shouldSandboxCommand.)
 // ═══════════════════════════════════════════════════════════════
 
 export function shellQuoteSingle(s) {
