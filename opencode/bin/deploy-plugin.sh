@@ -33,13 +33,20 @@ log "Deploying pai-hooks.js..."
 cp -f "${REPO_DIR}/opencode/plugins/pai-hooks.js" "$PLUGINS_DIR/"
 success "pai-hooks.js deployed"
 
-# Deploy library
-log "Deploying pai-hooks.lib.js..."
-cp -f "${REPO_DIR}/opencode/plugins/lib/pai-hooks.lib.js" "$PLUGINS_DIR/lib/"
-success "pai-hooks.lib.js deployed"
+# Deploy ALL libraries (pai-hooks.js imports pai-hooks.lib.js AND
+# mode-classifier.lib.js; a stale lib missing a newly-imported symbol
+# breaks the whole plugin load — including the security floor)
+log "Deploying plugin libraries (lib/*.js)..."
+cp -f "${REPO_DIR}/opencode/plugins/lib/"*.js "$PLUGINS_DIR/lib/"
+success "plugin libraries deployed"
 
-# Verify
-if [ -f "$PLUGINS_DIR/pai-hooks.js" ] && [ -f "$PLUGINS_DIR/lib/pai-hooks.lib.js" ]; then
+# Verify: every lib the repo ships must exist installed
+verify_ok=1
+[ -f "$PLUGINS_DIR/pai-hooks.js" ] || verify_ok=0
+for lib in "${REPO_DIR}/opencode/plugins/lib/"*.js; do
+    [ -f "$PLUGINS_DIR/lib/$(basename "$lib")" ] || verify_ok=0
+done
+if [ "$verify_ok" = "1" ]; then
     success "Plugin files verified"
 else
     echo "ERROR: Plugin files missing after deploy"
