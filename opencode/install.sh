@@ -160,6 +160,21 @@ render_expected_config() {
 
     sed "s|\"./plugins/pai-hooks.js\"|\"${PLUGINS_DIR}/pai-hooks.js\"|" \
         "${REPO_DIR}/opencode/config/opencode.jsonc.template" > "$output"
+
+    # Per-machine primary model (model-agnostic: the template hardcodes NO model).
+    # If $PAI_DIR/USER/Config/primary-model exists and is non-empty, inject a
+    # top-level "model" line at the marker. Without it, no model key is emitted and
+    # OpenCode uses the host's globally configured model. Subagents omit `model`
+    # and inherit this primary. Applied here so generate_config and --check render
+    # identically (no false drift).
+    local model_file="$PAI_DIR/USER/Config/primary-model"
+    if [ -f "$model_file" ]; then
+        local m
+        m="$(tr -d '[:space:]' < "$model_file" 2>/dev/null)"
+        if [ -n "$m" ]; then
+            sed -i "/PAI_MODEL_INJECTION_POINT/a\\  \"model\": \"${m}\"," "$output"
+        fi
+    fi
 }
 
 require_curl() {

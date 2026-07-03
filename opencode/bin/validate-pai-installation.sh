@@ -69,10 +69,22 @@ manifest_count() {
     manifest_values "$key" | sed '/^$/d' | wc -l | tr -d ' '
 }
 
+# Must mirror install.sh's render_expected_config so --check / this validator and
+# generate_config produce byte-identical output (no false drift). Currently:
+# pai-hooks path rewrite + per-machine primary-model injection.
 render_expected_config() {
     local output="$1"
     sed "s|\"./plugins/pai-hooks.js\"|\"${OPENCODE_DIR}/plugins/pai-hooks.js\"|" \
         "$CONFIG_TEMPLATE" > "$output"
+
+    local model_file="$PAI_DIR/USER/Config/primary-model"
+    if [ -f "$model_file" ]; then
+        local m
+        m="$(tr -d '[:space:]' < "$model_file" 2>/dev/null)"
+        if [ -n "$m" ]; then
+            sed -i "/PAI_MODEL_INJECTION_POINT/a\\  \"model\": \"${m}\"," "$output"
+        fi
+    fi
 }
 
 edge_tts_available() {

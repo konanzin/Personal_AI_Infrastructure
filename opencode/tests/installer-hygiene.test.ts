@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, statSync, writeFileSync } from "fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { fileURLToPath } from "url";
@@ -111,5 +111,48 @@ describe("Installer hygiene", () => {
     const result = runCheck(home);
     expect(outputOf(result)).toContain("interceptor-browser");
     expect(result.exitCode).toBe(1);
+  });
+
+  test("plugin array is pai-hooks only (no third-party plugins)", async () => {
+    const template = await Bun.file(join(opencodeRoot, "config/opencode.jsonc.template")).text();
+    const pluginLine = template.split("\n").find((l) => l.includes('"plugin"') && !l.trimStart().startsWith("//"));
+    expect(pluginLine).toBeDefined();
+    expect(pluginLine).toContain("pai-hooks.js");
+    expect(pluginLine).not.toContain("opencode-sandbox");
+  });
+
+  test("template has exactly one flippable bash '*: ask' so automode sed is targeted", async () => {
+    const template = await Bun.file(join(opencodeRoot, "config/opencode.jsonc.template")).text();
+    const matches = template.match(/"\*":\s*"ask"/g) || [];
+    expect(matches.length).toBe(1);
+  });
+
+  test("template is model-agnostic: no hardcoded model, has the injection marker", async () => {
+    const template = await Bun.file(join(opencodeRoot, "config/opencode.jsonc.template")).text();
+    expect(template.match(/"model":\s*"[^"]*"/g) || []).toHaveLength(0);
+    expect(template).toContain("PAI_MODEL_INJECTION_POINT");
+  });
+
+  test("agents omit `model` so they inherit the primary (model-agnostic)", () => {
+    const agentsDir = join(opencodeRoot, "agents");
+    for (const f of readdirSync(agentsDir).filter((n) => n.endsWith(".md"))) {
+      const fm = readFileSync(join(agentsDir, f), "utf-8").split(/\n/).slice(0, 15).join("\n");
+      expect(fm).not.toMatch(/^model:/m);
+    }
+  });
+
+  test("per-machine primary-model file injects the model into the rendered config", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pai-install-model-"));
+    await seedCleanInstall(home);
+    // No override file: template has no model, installed has none → --check matches.
+    expect(runCheck(home).exitCode).toBe(0);
+    // With the file, render injects a model line the installed config lacks → drift,
+    // proving the injection applied.
+    const cfgDir = join(home, ".config/opencode/PAI/USER/Config");
+    mkdirSync(cfgDir, { recursive: true });
+    writeFileSync(join(cfgDir, "primary-model"), "openai/gpt-5.5\n");
+    const result = runCheck(home);
+    expect(result.exitCode).toBe(1);
+    expect(outputOf(result)).toContain("opencode.jsonc differs");
   });
 });

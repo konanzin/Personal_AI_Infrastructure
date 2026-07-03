@@ -56,6 +56,7 @@ import {
 import {
   classifyPrompt,
   classifyPromptWithLLM,
+  classifyPaiMetaCommand,
   normalizeClassification,
   formatClassificationContext,
   getEffortLabel,
@@ -338,6 +339,7 @@ ${activeWork}`;
 // ═══════════════════════════════════════════════════════════════
 
 export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }) => {
+
   // Ensure all required directories exist
   ensureDir(MEMORY_DIR);
   ensureDir(STATE_DIR);
@@ -524,8 +526,13 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         // Resolve fresh each time so classifier.json edits apply without restart
         const classifierConfig = resolveClassifierConfig(readClassifierConfigFile(), process.env);
 
-        // Try LLM classifier if enabled and configured
-        if (classifierConfig.useLLM) {
+        // Bypass: PAI meta/config commands (/classifier, /status, /voice, /pu,
+        // /pulse, /context, /cs) are explicit intents — classify NATIVE and skip
+        // the LLM classifier entirely (no subprocess, no ALGORITHM escalation).
+        const metaCommand = classifyPaiMetaCommand(content);
+        if (metaCommand) {
+          classification = normalizeClassification(metaCommand);
+        } else if (classifierConfig.useLLM) {
           try {
             const llmResult = await classifyPromptWithLLM(content, {
               endpoint: classifierConfig.endpoint,

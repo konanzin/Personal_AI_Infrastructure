@@ -1,4 +1,5 @@
 import { describe, test, expect } from "bun:test";
+import { readFileSync } from "fs";
 import {
   classifyPrompt,
   normalizeClassification,
@@ -351,9 +352,9 @@ describe("resolveClassifierConfig — precedence", () => {
   test("PAI_OPENCODE_PROVIDER/MODEL compose into model when PAI_CLASSIFIER_MODEL absent", () => {
     const cfg = resolveClassifierConfig(
       { model: "file/model" },
-      { PAI_OPENCODE_PROVIDER: "kimi-for-coding", PAI_OPENCODE_MODEL: "k2p6" },
+      { PAI_OPENCODE_PROVIDER: "someprovider", PAI_OPENCODE_MODEL: "somemodel" },
     );
-    expect(cfg.model).toBe("kimi-for-coding/k2p6");
+    expect(cfg.model).toBe("someprovider/somemodel");
   });
 
   test("PAI_CLASSIFIER_MODEL beats PAI_OPENCODE_* composite", () => {
@@ -361,8 +362,8 @@ describe("resolveClassifierConfig — precedence", () => {
       {},
       {
         PAI_CLASSIFIER_MODEL: "explicit/model",
-        PAI_OPENCODE_PROVIDER: "kimi-for-coding",
-        PAI_OPENCODE_MODEL: "k2p6",
+        PAI_OPENCODE_PROVIDER: "someprovider",
+        PAI_OPENCODE_MODEL: "somemodel",
       },
     );
     expect(cfg.model).toBe("explicit/model");
@@ -392,5 +393,34 @@ describe("resolveClassifierConfig — precedence", () => {
   test("file useLLM only honored when boolean (non-boolean → default true)", () => {
     expect(resolveClassifierConfig({ useLLM: "false" as any }, {}).useLLM).toBe(true);
     expect(resolveClassifierConfig({ useLLM: false }, {}).useLLM).toBe(false);
+  });
+});
+
+describe("Mode Classifier — PAI meta-command bypass (→ NATIVE, never ALGORITHM)", () => {
+  // Uses the ACTUAL expanded command templates from the config so this test
+  // catches drift if a template is reworded away from its classifier signature.
+  const templateOf = (name: string) => {
+    const cfg = readFileSync(
+      new URL("../config/opencode.jsonc.template", import.meta.url),
+      "utf-8",
+    );
+    // crude: find the command block's "template" string
+    const re = new RegExp(`"${name}"\\s*:\\s*\\{[\\s\\S]*?"template"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
+    const m = cfg.match(re);
+    return m ? m[1] : "";
+  };
+
+  for (const cmd of ["classifier", "status", "pulse", "pu", "voice", "context-search"]) {
+    test(`/${cmd} expanded template classifies NATIVE`, () => {
+      const tpl = templateOf(cmd).replace(/\$ARGUMENTS/g, "foo");
+      expect(tpl.length).toBeGreaterThan(0);
+      const result = classifyPrompt(tpl);
+      expect(result.mode).toBe("NATIVE");
+    });
+  }
+
+  test("/pai template still enters ALGORITHM (not bypassed)", () => {
+    const tpl = "Execute the PAI Algorithm for: refactor the auth module";
+    expect(classifyPrompt(tpl).mode).toBe("ALGORITHM");
   });
 });

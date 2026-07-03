@@ -22,7 +22,15 @@ RALPH_STATE="${HOME}/.ralph"
 MAX_ITERATIONS="${MAX_ITERATIONS:-20}"
 COMPLETION_PROMISE="${COMPLETION_PROMISE:-COMPLETE}"
 AGENT="${AGENT:-opencode}"
-MODEL="${MODEL:-kimi-for-coding/k2p6}"
+# Model-agnostic default: prefer the per-machine primary (PAI/USER/Config/primary-model),
+# else the primary configured in opencode.jsonc. No vendor is hardcoded here.
+_pai_default_model() {
+    local f="${PAI_DIR}/USER/Config/primary-model"
+    if [ -f "$f" ]; then tr -d '[:space:]' < "$f"; return; fi
+    grep -m1 '"model":' "${HOME}/.config/opencode/opencode.jsonc" 2>/dev/null \
+        | sed -E 's/.*"model"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/'
+}
+MODEL="${MODEL:-$(_pai_default_model)}"
 
 # ─── Helpers ──────────────────────────────────────────────
 log() { echo -e "${BLUE}[PAI-RALPH]${RESET} $1"; }
@@ -61,7 +69,7 @@ Launch Ralph loop for PAI port stories.
 OPTIONS:
   -s, --story ID          Story ID to run (PORT-001, PORT-002, etc.)
   -i, --iterations N      Max iterations (default: 20)
-  -m, --model MODEL       Model to use (default: claude-sonnet-4)
+  -m, --model MODEL       Model to use (default: per-machine primary model)
   -a, --agent AGENT       Agent to use: opencode, claude-code, codex (default: opencode)
   -f, --foreground        Run in foreground (default: background)
   -p, --prompt FILE       Custom prompt file

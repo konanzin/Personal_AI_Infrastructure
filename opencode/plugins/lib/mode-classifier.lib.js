@@ -156,6 +156,31 @@ function checkMinimal(prompt) {
   return null;
 }
 
+// PAI meta/config slash-command invocations expand into multi-step-looking
+// templates (e.g. /classifier → "discover models, ask, write config") that the
+// classifier would otherwise escalate to ALGORITHM, running the full 7-phase
+// Algorithm for a trivial config/status task. These are explicit user intents,
+// so treat them as NATIVE and skip the LLM classifier entirely (bypass). Match
+// on distinctive, stable phrases from the command templates in opencode.jsonc.
+// Excludes /pai, /interview, /e1–/e5 which legitimately want the Algorithm.
+const PAI_META_COMMAND_SIGNATURES = [
+  { pattern: /prompt-classifier model/i, reason: 'PAI /classifier command (config task → NATIVE)' },
+  { pattern: /Report PAI system status/i, reason: 'PAI /status command (→ NATIVE)' },
+  { pattern: /\bPulse (scaffold|scaffolding|status|metrics)\b/i, reason: 'PAI /pulse|/pu command (→ NATIVE)' },
+  { pattern: /Manage the PAI desktop voice/i, reason: 'PAI /voice command (→ NATIVE)' },
+  { pattern: /PAI context search|Search PAI (session registry|context)/i, reason: 'PAI /context|/cs command (→ NATIVE)' },
+];
+
+export function classifyPaiMetaCommand(prompt) {
+  if (!prompt || typeof prompt !== 'string') return null;
+  for (const { pattern, reason } of PAI_META_COMMAND_SIGNATURES) {
+    if (pattern.test(prompt)) {
+      return { mode: 'NATIVE', tier: null, reason, source: 'command', confidence: 0.95 };
+    }
+  }
+  return null;
+}
+
 function hasObviousWorkRequest(prompt) {
   return /\b(implement|build|create|write|develop|refactor|migrate|fix|debug|solve|add|update|upgrade|delete|remove|edit|modify|change|implemente|implementar|construa|construir|crie|criar|escreva|escrever|desenvolva|desenvolver|refatore|refatorar|migre|migrar|corrija|corrigir|adicione|adicionar|atualize|atualizar|delete|deletar|remova|remover|edite|editar|modifique|modificar|altere|alterar)\b/i.test(prompt);
 }
@@ -362,6 +387,12 @@ export function classifyPrompt(prompt, options = {}) {
   }
 
   const startTime = performance.now();
+
+  // Layer 0a: PAI meta/config command → NATIVE (never escalate a config task)
+  const metaCommand = classifyPaiMetaCommand(prompt);
+  if (metaCommand) {
+    return { ...metaCommand, latencyMs: Math.round(performance.now() - startTime) };
+  }
 
   // Layer 0: Explicit override (/e1–/e5)
   const override = checkOverride(prompt);
