@@ -121,10 +121,20 @@ describe("Installer hygiene", () => {
     expect(pluginLine).not.toContain("opencode-sandbox");
   });
 
-  test("template has exactly one flippable bash '*: ask' so automode sed is targeted", async () => {
+  test("bash posture matches original PAI: allow by default, ask only on boundary crossings", async () => {
     const template = await Bun.file(join(opencodeRoot, "config/opencode.jsonc.template")).text();
-    const matches = template.match(/"\*":\s*"ask"/g) || [];
-    expect(matches.length).toBe(1);
+    const bashBlock = template.match(/"bash":\s*\{[\s\S]*?\}/)?.[0] ?? "";
+    expect(bashBlock).toContain('"*": "allow"');
+    expect(bashBlock).not.toContain('"*": "ask"');
+    // Boundary crossings that must still prompt: privilege escalation and
+    // deleting the security floor itself.
+    expect(bashBlock).toMatch(/"sudo \*":\s*"ask"/);
+    expect(bashBlock).toMatch(/pai-hooks\.lib\.js":\s*"ask"/);
+    // Self-modification surfaces stay on ask (the deny floor can't protect
+    // itself from the Edit tool).
+    const editBlock = template.match(/"edit":\s*\{[\s\S]*?\}/)?.[0] ?? "";
+    expect(editBlock).toMatch(/plugins\/\*\*":\s*"ask"/);
+    expect(editBlock).toMatch(/opencode\.jsonc":\s*"ask"/);
   });
 
   test("template is model-agnostic: no hardcoded model, has the injection marker", async () => {

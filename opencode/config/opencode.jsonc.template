@@ -67,12 +67,13 @@
       "/tmp/**": "allow"
     },
     "bash": {
-      "*": "ask",
-      "git *": "allow",
-      "bun *": "allow",
-      "bunx *": "allow",
-      "opencode --version": "allow",
-      "bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh": "allow",
+      // Original-PAI posture (Releases/v5.0.0 settings.json: Bash in allow,
+      // deny/ask empty): allow by default. Protection is the deterministic
+      // deny floor in the PAI plugin (tool.execute.before) + the alert audit
+      // trail — not approval prompts the user stops reading. Ask is reserved
+      // for genuine boundary crossings so the rare prompt gets read.
+      "*": "allow",
+      "sudo *": "ask",
       "rm -f ~/.config/opencode/plugins/pai-hooks.lib.js": "ask"
     },
     "external_directory": {
