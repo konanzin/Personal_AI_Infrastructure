@@ -64,6 +64,27 @@ bash:
     # ── Credential access via shell (deny — matches original PAI) ──
     - pattern: '\b(cat|grep|rg|sed|awk|source|less|head|tail)\b[^|;&]*\.env\b'
       reason: 'Reading .env via shell (use Read tool or secrets utility)'
+    # ── Curated high-severity adds (harvested from opencode-policy, MIT) ──
+    # Selective: only low-false-positive catastrophic signatures the base
+    # pattern set lacked (crypto miners, reverse shells).
+    - pattern: '\bxmrig\b'
+      reason: 'Crypto miner (xmrig)'
+    - pattern: '\b(cpuminer|minerd|ccminer|ethminer)\b'
+      reason: 'Crypto miner'
+    - pattern: 'stratum\+(tcp|ssl)://'
+      reason: 'Mining pool connection (stratum)'
+    - pattern: '\bnc(at)?\b[^|;&\n]*\s-[a-zA-Z]*e\b'
+      reason: 'netcat with -e/execute (reverse shell)'
+    - pattern: '\bsocat\b[^|;&\n]*exec:'
+      reason: 'socat exec reverse shell'
+    - pattern: '(>&?|<)\s*/dev/(tcp|udp)/'
+      reason: 'Bash /dev/tcp reverse shell'
+    - pattern: '\bperl\b.*[Ss]ocket.*connect'
+      reason: 'Perl reverse shell'
+    - pattern: '\bruby\b.*TCPSocket'
+      reason: 'Ruby reverse shell'
+    - pattern: '\bphp\b.*fsockopen'
+      reason: 'PHP reverse shell'
   alert:
     - pattern: 'rm\s+.*-\w*[rR]'
       reason: 'Recursive rm (logged for audit)'
