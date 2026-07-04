@@ -789,7 +789,10 @@ export function normalizeClassification(result) {
 
   const validModes = ['MINIMAL', 'NATIVE', 'ALGORITHM'];
   const validTiers = ['E1', 'E2', 'E3', 'E4', 'E5', null];
-  const validSources = ['heuristic', 'override', 'fail-safe', 'llm'];
+  // 'command' = PAI meta-command bypass (a deliberate NATIVE route, NOT a failure).
+  // It must be valid or classifyPaiMetaCommand results get coerced to 'fail-safe'
+  // and pollute the classifier health signal with legitimate /status, /voice, etc.
+  const validSources = ['heuristic', 'override', 'fail-safe', 'llm', 'command'];
 
   const mode = validModes.includes(result.mode) ? result.mode : 'ALGORITHM';
   const tier = validTiers.includes(result.tier) ? result.tier : 'E3';

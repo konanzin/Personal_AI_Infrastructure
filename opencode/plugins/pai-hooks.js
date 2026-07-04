@@ -538,12 +538,13 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
       }
 
       // ─── Mode/Tier Classification ──────────────────────────────
-      // Run explicit classifier on every non-blocked top-level prompt
+      // Run explicit classifier on every non-blocked top-level prompt.
+      // Resolve fresh each time so classifier.json edits apply without restart.
+      // Hoisted above the try so the fail-safe catch below can also record the
+      // intended path (use_llm) — every emitted mode_classification event carries it.
+      const classifierConfig = resolveClassifierConfig(readClassifierConfigFile(), process.env);
       try {
         let classification;
-
-        // Resolve fresh each time so classifier.json edits apply without restart
-        const classifierConfig = resolveClassifierConfig(readClassifierConfigFile(), process.env);
 
         // Bypass: PAI meta/config commands (/classifier, /status, /voice, /pu,
         // /pulse, /context, /cs) are explicit intents — classify NATIVE and skip
@@ -620,7 +621,17 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           reason: classification.reason,
           confidence: classification.confidence,
           latency_ms: classification.latencyMs,
-          fallback: classification.source === 'fail-safe',
+          // Degraded = did NOT classify via the intended path. When useLLM is on,
+          // a 'heuristic' result means the LLM path threw and fell back (the common
+          // silent-degradation case #7006-style); 'fail-safe' is the hard failure.
+          // 'llm'/'override'/'command' are healthy or deliberate, never a fallback.
+          fallback:
+            classification.source === 'fail-safe' ||
+            (classifierConfig.useLLM && classification.source === 'heuristic'),
+          // Record the intended path PER EVENT so a later useLLM config change can't
+          // make a health monitor misjudge historical rows (heuristic is healthy when
+          // useLLM was false, degraded when it was true).
+          use_llm: classifierConfig.useLLM,
           prompt_hash: hashString(content, 16),
           prompt_preview: truncate(content, 200),
         });
@@ -656,6 +667,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           confidence: 1.0,
           latency_ms: 0,
           fallback: true,
+          use_llm: classifierConfig.useLLM,
           prompt_hash: hashString(content, 16),
           prompt_preview: truncate(content, 200),
         });
