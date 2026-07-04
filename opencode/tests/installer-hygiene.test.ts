@@ -80,6 +80,12 @@ async function seedCleanInstall(home: string) {
   // T1 sandbox wrapper — a real install always ships it; --check asserts its presence.
   write(join(paiDir, "bin/pai-sandbox.sh"), "#!/usr/bin/env bash\nexec /bin/bash -c \"$1\"\n");
   chmodSync(join(paiDir, "bin/pai-sandbox.sh"), 0o755);
+  // O5 health timer — a real install writes + enables it; enablement is the
+  // timers.target.wants/ symlink, which --check probes file-based.
+  const unitDir = join(home, ".config/systemd/user");
+  write(join(unitDir, "pai-health.timer"), "[Timer]\nOnCalendar=daily\n");
+  mkdirSync(join(unitDir, "timers.target.wants"), { recursive: true });
+  writeFileSync(join(unitDir, "timers.target.wants/pai-health.timer"), "[Timer]\nOnCalendar=daily\n");
 }
 
 function runCheck(home: string) {
@@ -226,5 +232,40 @@ describe("Installer wires the T1 sandbox", () => {
     expect(install).toContain("SANDBOX_STATUS");
     expect(install).toContain("T1 sandbox:");
     expect(install).toMatch(/bwrap absent.*commands run unconfined/);
+  });
+});
+
+describe("Installer wires the O5 health-check timer", () => {
+  const install = readFileSync(installScript, "utf-8");
+
+  test("health-check consumer script exists, is executable, and runs both probes", () => {
+    const scriptPath = join(opencodeRoot, "bin", "pai-health-check.sh");
+    const script = readFileSync(scriptPath, "utf-8");
+    expect(script).toContain("monitor-classifier-health.js");
+    expect(script).toContain("--check");
+    expect(script).toContain("notify-send");
+    expect(script).toContain("health-check.jsonl");
+    // Executable bit — the systemd unit ExecStarts it directly.
+    const mode = statSync(scriptPath).mode;
+    expect(mode & 0o111).toBeGreaterThan(0);
+  });
+
+  test("install main() installs and enables the timer", () => {
+    expect(install).toContain("install_health_timer");
+    expect(install).toMatch(/install_renderer_service\s*\n\s*install_health_timer/);
+    expect(install).toContain("pai-health.timer");
+    expect(install).toContain("pai-health.service");
+    expect(install).toContain("OnCalendar=daily");
+    expect(install).toContain("Persistent=true");
+    expect(install).toMatch(/systemctl --user enable --now pai-health\.timer/);
+  });
+
+  test("--check fails when the timer is not scheduled (O5 consumer probe)", () => {
+    // The probe lives in check_runtime_contracts so drift mode notices a
+    // disabled/removed timer — "runnable but unscheduled" must be red.
+    // Enablement is checked as the timers.target.wants/ symlink (what
+    // `systemctl --user enable` creates), so it respects $HOME overrides.
+    expect(install).toMatch(/check_runtime_contracts[\s\S]*Health timer not scheduled/);
+    expect(install).toMatch(/timers\.target\.wants\/pai-health\.timer/);
   });
 });

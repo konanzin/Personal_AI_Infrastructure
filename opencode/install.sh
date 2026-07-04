@@ -907,6 +907,57 @@ patch_installed_paths() {
     success "Patched legacy paths in $patched files"
 }
 
+# ─── Health-check timer (O5 consumer) ─────────────────────
+# HARNESS_QUALITY.md O5: "degradation is noticed" requires a CONSUMER that runs
+# on a schedule — an on-demand monitor nobody runs is the write-only-JSONL
+# failure mode one step removed. Installs a systemd user timer that runs
+# bin/pai-health-check.sh daily (classifier health + install drift, notify-send
+# on warn/alert). Skipped where there is no systemd user session (mobile rigs,
+# containers) — warn, not abort, matching the bwrap posture.
+install_health_timer() {
+    log "Installing PAI health-check timer (O5 consumer)..."
+
+    if [ "$(uname -s)" != "Linux" ] || ! systemctl --user show-environment >/dev/null 2>&1; then
+        warn "No systemd user session — health timer skipped. Run bin/pai-health-check.sh manually or via cron."
+        return 0
+    fi
+
+    chmod +x "${REPO_DIR}/opencode/bin/pai-health-check.sh"
+
+    local unit_dir="$HOME/.config/systemd/user"
+    mkdir -p "$unit_dir"
+
+    cat > "$unit_dir/pai-health.service" <<EOF
+[Unit]
+Description=PAI harness health check (classifier health + install drift)
+
+[Service]
+Type=oneshot
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
+ExecStart=${REPO_DIR}/opencode/bin/pai-health-check.sh
+EOF
+
+    cat > "$unit_dir/pai-health.timer" <<EOF
+[Unit]
+Description=Daily PAI harness health check
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    systemctl --user daemon-reload
+    if systemctl --user enable --now pai-health.timer >/dev/null 2>&1; then
+        success "pai-health.timer enabled (daily; notify-send on warn/alert; log: MEMORY/OBSERVABILITY/health-check.jsonl)"
+    else
+        warn "Could not enable pai-health.timer — enable manually: systemctl --user enable --now pai-health.timer"
+    fi
+}
+
 # ─── Generate opencode.jsonc ──────────────────────────────
 generate_config() {
     log "Generating opencode.jsonc..."
@@ -1165,6 +1216,21 @@ check_runtime_contracts() {
         record_check_failure "OpenCode observability contract docs missing"
     fi
 
+    # O5 consumer: the health timer must be SCHEDULED, not merely runnable — an
+    # on-demand monitor nobody runs is the write-only-JSONL failure mode one
+    # step removed.
+    # Filesystem-based on purpose: user-unit enablement IS the wants/ symlink
+    # (systemctl enable creates it), and file checks respect $HOME overrides so
+    # the fixture tests exercise the same code path as a real host.
+    if [ "$(uname -s)" != "Linux" ] || ! systemctl --user show-environment >/dev/null 2>&1; then
+        record_check_pass "Health timer N/A (no systemd user session)"
+    elif [ -f "$HOME/.config/systemd/user/pai-health.timer" ] \
+        && [ -e "$HOME/.config/systemd/user/timers.target.wants/pai-health.timer" ]; then
+        record_check_pass "Health timer scheduled (pai-health.timer enabled)"
+    else
+        record_check_failure "Health timer not scheduled — O5 consumer missing (re-run install, or: systemctl --user enable --now pai-health.timer)"
+    fi
+
     if [ -f "$PAI_DIR/USER/SECURITY/PATTERNS.yaml" ]; then
         record_check_pass "Security policy (PATTERNS.yaml) installed"
         # Staleness fence: the installed policy is user-owned and seeded only when
@@ -1252,6 +1318,7 @@ main() {
     install_broker
     install_edge_tts
     install_renderer_service
+    install_health_timer
     patch_installed_paths
     generate_config
     validate
