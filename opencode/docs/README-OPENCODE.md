@@ -207,4 +207,15 @@ bash ~/.config/opencode/PAI/bin/test-behavioral.sh
 bash ~/.config/opencode/PAI/bin/test-e2e-runtime.sh
 ```
 
-Current installed score: **232/232 passing** (112 structural + 109 behavioral + 11 E2E). Repository test suite: **257/257 passing**. Parity estimate: **~95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded.
+Repository test suite: run `cd opencode && bun test` for the authoritative, current count — do **not** trust a hardcoded number in prose (several docs cite conflicting stale counts; that drift is itself tracked in `HARNESS_QUALITY.md`). Parity estimate: **~95% over the core scope** — see `REPO_MODEL.md` → "Out of Scope by Design" for what is deliberately excluded; note that this figure is a hand-graded estimate, not an executed cross-runtime comparison (also tracked in `HARNESS_QUALITY.md`).
+
+### Quality model & health checks
+
+`opencode/docs/HARNESS_QUALITY.md` is the north-star: what "better" means (five objectives), the proxies that have drifted, and the regression fences that catch drift. On-demand health tools:
+
+```bash
+bun opencode/bin/monitor-classifier-health.js   # LLM-classifier degradation: ok/warn/alert (exit 0/1/2)
+bun opencode/bin/recall-feedback.js             # recall past low-rating feedback (read-only); also /feedback command
+```
+
+Regression fences worth knowing: `security-corpus.test.ts` (deny-floor catch-rate + false-positive-rate, with `test.failing` gaps that flip red when fixed), `floor-liveness.test.ts` (floor fires under both arg shapes — anti-`b6ec6a8f`), and `observability-schemas.test.ts` (strict emitter-vs-schema round-trip). The T1 sandbox is provisioned and confinement-verified by `install.sh` and re-checked by `install.sh --check`.

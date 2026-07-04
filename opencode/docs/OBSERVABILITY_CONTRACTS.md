@@ -44,3 +44,11 @@ bash ~/.config/opencode/PAI/bin/validate-pai-installation.sh
 ## Consumer Guidance
 
 Use `session_id` as the primary correlation key. Use `slug` when present for work-session identity. Unknown `event` values should be ignored or displayed generically unless the stream schema says otherwise.
+
+### In-repo consumers
+
+These streams are no longer write-only. The following ship as concrete consumers (see `HARNESS_QUALITY.md` for the quality rationale):
+
+- `mode-classifier.jsonl` → `opencode/bin/monitor-classifier-health.js` — degradation monitor (ok/warn/alert on the share that fell off the LLM path).
+- `LEARNING/SIGNALS/ratings.jsonl` → `opencode/bin/recall-feedback.js` (and the `/feedback` command) — on-demand, read-only recall of low-rating feedback.
+- All six streams here → `opencode/tests/observability-schemas.test.ts` — a strict emitter-vs-schema round-trip: it drives the **real** emitters and validates the on-disk records, failing if an emitter renames or drops a field. Keep producer changes in sync with the schema in the same PR or this test goes red.

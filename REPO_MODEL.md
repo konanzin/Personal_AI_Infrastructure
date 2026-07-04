@@ -57,7 +57,10 @@ Original to this repo. No upstream equivalent. These are the value-adds and oper
 - `build-mobile` lean profile — per-message client agent with calibrated system injection for mobile clients
 - Runtime event bridge — adapter mapping OpenCode ≥1.16 bus events to the plugin's named handlers
 - `opencode/bin/deploy-plugin.sh` — Hot-deploy plugin without full reinstall
-- `opencode/tests/` — Unit and integration test suite (137 tests)
+- `opencode/bin/monitor-classifier-health.js` — On-demand LLM-classifier degradation monitor (reads `mode-classifier.jsonl`; ok/warn/alert)
+- `opencode/bin/recall-feedback.js` — On-demand, read-only recall of low-rating feedback (also the `/feedback` command)
+- `opencode/tests/` — Unit and integration test suite. For the authoritative count run `cd opencode && bun test`; do not hardcode it here.
+- `opencode/docs/HARNESS_QUALITY.md` — Harness quality north-star (objectives, proxy-drift register, regression fences)
 - `setup-github.sh`, `PUSH-GITHUB.sh` — Repo automation helpers
 
 ## Upstream Sync Policy
