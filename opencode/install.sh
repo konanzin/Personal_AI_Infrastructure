@@ -533,6 +533,11 @@ install_pai_core() {
     cp -f "${REPO_DIR}/opencode/config/opencode.jsonc.template" "$PAI_DIR/config/opencode.jsonc.template"
     cp -f "${REPO_DIR}/opencode/install-manifest.json" "$PAI_DIR/install-manifest.json"
 
+    # Record where the repo checkout lives so the installed agent can route
+    # harness fixes back to source (HarnessCalibration skill reads this) —
+    # changes belong in the repo + fences, never in the installed copy.
+    printf '%s\n' "$REPO_DIR" > "$PAI_DIR/.repo"
+
     mkdir -p "$PAI_DIR/schemas"
     cp -f "${REPO_DIR}/opencode/schemas/"*.json "$PAI_DIR/schemas/" 2>/dev/null || true
 

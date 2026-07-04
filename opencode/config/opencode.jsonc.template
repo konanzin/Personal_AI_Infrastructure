@@ -149,6 +149,11 @@
       "description": "Recall past low-rating feedback (read-only)",
       "agent": "build"
     },
+    "calibrate": {
+      "template": "The user is reporting that the HARNESS misbehaved (wrong mode/tier classification, a legitimate action blocked, a dangerous action allowed, sandbox friction, lying telemetry, or upstream-parity drift). Load and follow the HarnessCalibration skill (~/.config/opencode/skills/HarnessCalibration/SKILL.md) end to end: capture the exact evidence, route it to the correct artifact in the repo checkout, apply the fix TEST-FIRST through the regression fences, re-measure, and deploy. Complaint context: $ARGUMENTS",
+      "description": "Turn a harness complaint into a permanent regression fence",
+      "agent": "build"
+    },
 
     "e1": {
       "template": "Run PAI effort E1 for: $ARGUMENTS",
