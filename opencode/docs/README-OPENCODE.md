@@ -66,7 +66,7 @@ PAI_CLASSIFIER_TIMEOUT_MS=25000          # Timeout (default: 25s, matching origi
 
 The LLM classifier uses `opencode run --pure --model <model>` internally and includes LRU caching (100 entries, 5min TTL) to avoid redundant calls for identical prompts. `--pure` prevents recursive plugin execution during classification.
 
-**Fail-safe:** any LLM classifier error/timeout defaults to `ALGORITHM E3`. Under-escalation is worse than over-escalation in PAI doctrine. Set `PAI_CLASSIFIER_USE_LLM=false` only for offline/debug runs.
+**Fail-safe:** any LLM classifier error/timeout defaults to `ALGORITHM E3` (a failure means we know nothing — stay conservative). Distinct from that, when the classifier is *working but uncertain* between NATIVE and ALGORITHM it now prefers NATIVE (2026-07-04). Be precise about why, because there is **no mid-task re-classification** — a misroute is not auto-corrected in either direction. The asymmetry is in the cost: a complex task misrouted NATIVE still gets done by the same model, just without the ALGORITHM scaffolding (and the user can force it with `/e1`–`/e5` or `/pai`); a trivial task misrouted ALGORITHM pays the full ceremony tax every single time — which the first golden-eval measurement showed happening systematically. The under-escalation side of this trade is measured, not assumed: the golden set carries explicit escalation-risk probes (short vague imperatives that must stay ALGORITHM). Set `PAI_CLASSIFIER_USE_LLM=false` only for offline/debug runs.
 
 `/pai` remains as an explicit manual shortcut, but it is not the primary path.
 

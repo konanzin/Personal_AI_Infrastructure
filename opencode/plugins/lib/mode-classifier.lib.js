@@ -516,26 +516,38 @@ async function discoverEndpoint() {
 
 /**
  * Build the classification prompt for the LLM.
+ * Exported so the golden-eval leakage fence can assert its few-shot examples
+ * stay disjoint from the golden set (classifier-golden.test.ts).
  */
-function buildClassificationPrompt(userPrompt) {
+export function buildClassificationPrompt(userPrompt) {
   return `You are a prompt classifier for PAI (Personal AI Infrastructure). Your job is to classify user prompts into mode and tier.
 
 ## Classification Rules
 
 **MODE:**
-- MINIMAL — greetings, ratings, single-token acknowledgments, very short (<=3 chars), bare numbers (likely ratings)
-- NATIVE — single fact lookup, simple command explanation, single definition, short question (<80 words), no multi-step work
-- ALGORITHM — everything else: implementation, refactoring, debugging, architecture, design, multi-step, ambiguous, or PAI-affecting work
+- MINIMAL — greetings, thanks, ratings, single-token acknowledgments, very short (<=3 chars), bare numbers (likely ratings)
+- NATIVE — ONE fully-specified step: run a given command, make one mechanical edit (rename a file, fix a named typo, bump a version, add/remove one line), answer a single fact or short question. The decisive test: the prompt already says exactly WHAT and WHERE — nothing needs to be discovered or decided. Imperative verbs like "fix", "rename", "run", "add" do NOT make a prompt ALGORITHM when the change is fully specified.
+- ALGORITHM — work that needs investigation, design decisions, multiple coordinated steps, or where the scope/location of the change must be discovered (debugging, refactoring, architecture, building features, audits, migrations).
 
 **TIER (ALGORITHM only):**
-- E1 — trivial, <90 seconds, single tiny change (typo fix, rename, add comment)
+- E1 — trivial, <90 seconds, single tiny change
 - E2 — single-domain, ~3 minutes, one file/module/component, single feature addition
 - E3 — multi-file substantial, ~10 minutes, refactoring across files, bug fixes, feature implementation
 - E4 — cross-cutting/doctrine, ~30 minutes, system-wide changes, breaking changes, major refactoring
 - E5 — comprehensive, >2 hours, platform/ecosystem level, complete rewrite, strategic architecture
 
 **Overrides:** If the prompt contains "/e1" through "/e5", the tier is forced to that value.
-**Fail-safe:** When uncertain, classify as ALGORITHM E3. Under-escalation is worse than over-escalation.
+**When uncertain between NATIVE and ALGORITHM, prefer NATIVE** — over-ceremony on a trivial fully-specified prompt is a guaranteed time tax. But vagueness IS a signal: an imperative whose scope or cause must be discovered ("fix the bug", "make it faster") is ALGORITHM, not NATIVE. When uncertain between adjacent tiers, pick the lower.
+
+## Examples
+<!-- NOTE: keep these DISJOINT from plugins/lib/classifier-golden.lib.js — the
+     golden eval grades the classifier and must never contain strings the
+     classifier was shown in its own instructions (train/test leakage). -->
+- "delete the print statement on line 12 of app.py" → MODE: NATIVE (one fully-specified edit — nothing to discover)
+- "roda npm install" → MODE: NATIVE (one given command; prompts may be in Portuguese)
+- "why is checkout intermittently failing in production?" → MODE: ALGORITHM, TIER: E3 (cause must be discovered)
+- "reescreve o serviço de fila para usar Redis" → MODE: ALGORITHM, TIER: E3 (multi-step design + implementation)
+- "valeu!" → MODE: MINIMAL (thanks, no new work)
 
 ## Output Format
 Respond with EXACTLY this format (no markdown, no extra text):
@@ -637,8 +649,11 @@ async function execOpencodeRun(model, message, timeoutMs = 25000) {
  * @returns {Promise<object>} Classification result
  */
 export async function classifyPromptWithLLM(prompt, providerConfig = null) {
-  // Check cache first
-  const cached = getCached(prompt);
+  // Check cache first. `noCache` bypasses both read and write — the cache is a
+  // production latency optimization; evals with repeated runs of the same prompt
+  // (bin/eval-classifier-golden.js --runs N) would otherwise replay run 1 N times.
+  const noCache = providerConfig?.noCache === true;
+  const cached = noCache ? null : getCached(prompt);
   if (cached) {
     return { ...cached, latencyMs: 0 };
   }
@@ -699,7 +714,7 @@ export async function classifyPromptWithLLM(prompt, providerConfig = null) {
     };
 
     // Cache the result
-    setCached(prompt, result);
+    if (!noCache) setCached(prompt, result);
 
     return normalizeClassification(result);
   } catch (error) {
