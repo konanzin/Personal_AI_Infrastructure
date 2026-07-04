@@ -1,3 +1,12 @@
+/**
+ * Unit tests for pai-hooks.lib.js helper functions (SmartApprover, repeat
+ * detection, Telos sync, integrity telemetry).
+ *
+ * Renamed from hooks-parity.test.ts (2026-07-04): the old name implied these
+ * verify behavioral parity with upstream Claude Code PAI — they don't. Nothing
+ * here executes a scenario on both runtimes; parity remains an ESTIMATE until a
+ * real cross-runtime comparison exists (see HARNESS_QUALITY.md §2, O4).
+ */
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
