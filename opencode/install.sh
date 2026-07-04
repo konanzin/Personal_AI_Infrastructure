@@ -41,6 +41,7 @@ CONFIG_REGENERATED=false
 EDGE_TTS_STATUS="not checked"
 RENDERER_SERVICE_STATUS="not checked"
 ROLE_STATUS="not checked"
+SANDBOX_STATUS="not checked"
 ARCHIVE_DIR=""
 ARCHIVED_AGENTS=()
 ARCHIVED_COMMANDS=()
@@ -209,6 +210,97 @@ install_bun() {
     fi
 }
 
+# ─── T1 sandbox (bubblewrap) ──────────────────────────────
+# bwrap is the kernel-level backstop under the allow-by-default bash posture.
+# pai-sandbox.sh fails OPEN when bwrap is absent (command runs unconfined), so a
+# missing bwrap is a SILENT loss of the T1 layer. The installer therefore always
+# tries to provision it and always verifies + reports the outcome — the sandbox is
+# never silently skipped. It is not a hard prerequisite (macOS has no bwrap; the
+# deny floor still runs regardless), so failure warns loudly rather than aborting.
+install_bwrap() {
+    if command -v bwrap &>/dev/null; then
+        return 0
+    fi
+    if [ "$(uname -s)" != "Linux" ]; then
+        warn "bubblewrap (bwrap) is Linux-only; T1 filesystem sandbox is unavailable on $(uname -s)"
+        return 1
+    fi
+    if [ "$BOOTSTRAP_DEPS" != true ]; then
+        warn "bwrap missing and --no-bootstrap active — T1 sandbox will fail open (commands run unconfined)"
+        return 1
+    fi
+
+    local sudo=""
+    if [ "$(id -u)" -ne 0 ]; then
+        if command -v sudo &>/dev/null; then
+            sudo="sudo"
+        else
+            warn "bwrap missing and no root/sudo to install it — T1 sandbox will fail open"
+            return 1
+        fi
+    fi
+
+    log "bubblewrap (bwrap) not found — bootstrapping T1 sandbox dependency..."
+    local ok=false
+    if command -v apt-get &>/dev/null; then
+        $sudo apt-get update -qq && $sudo apt-get install -y bubblewrap && ok=true
+    elif command -v pacman &>/dev/null; then
+        $sudo pacman -S --noconfirm --needed bubblewrap && ok=true
+    elif command -v dnf &>/dev/null; then
+        $sudo dnf install -y bubblewrap && ok=true
+    elif command -v zypper &>/dev/null; then
+        $sudo zypper --non-interactive install bubblewrap && ok=true
+    elif command -v apk &>/dev/null; then
+        $sudo apk add bubblewrap && ok=true
+    else
+        warn "No supported package manager (apt/pacman/dnf/zypper/apk) found to install bubblewrap"
+        return 1
+    fi
+
+    if [ "$ok" = true ] && command -v bwrap &>/dev/null; then
+        success "bubblewrap installed"
+        return 0
+    fi
+    warn "Failed to install bubblewrap automatically — T1 sandbox will fail open until it is present"
+    return 1
+}
+
+# Post-install liveness probe: replicates the plugin's sandboxAvailable() logic
+# (script present + bwrap on a known path) AND actually confines a command to prove
+# bwrap engages on THIS host — turning the silent fail-open into a reported status.
+verify_sandbox() {
+    local script="$PAI_DIR/bin/pai-sandbox.sh"
+
+    if [ ! -f "$script" ]; then
+        SANDBOX_STATUS="INACTIVE — pai-sandbox.sh not installed"
+        warn "T1 sandbox: wrapper script missing at $script"
+        return 1
+    fi
+    if ! command -v bwrap &>/dev/null; then
+        SANDBOX_STATUS="FAIL-OPEN — bwrap absent (commands run unconfined)"
+        warn "T1 sandbox: bwrap not present; pai-sandbox.sh will run commands unwrapped"
+        return 1
+    fi
+
+    # Confinement probe: $HOME is writable to this user normally, but read-only
+    # inside the sandbox (only $PWD/tmp/caches are rw). Run from /tmp so $HOME is
+    # NOT $PWD, then try to write into $HOME through the wrapper. CONFINED means the
+    # write was refused (bwrap engaged); LEAK means it succeeded (running unwrapped
+    # — i.e. fail-open despite bwrap being present, e.g. user namespaces disabled).
+    local probe marker="$HOME/.pai-sandbox-probe.$$"
+    probe="$(cd /tmp && bash "$script" "touch '$marker' 2>/dev/null && echo LEAK || echo CONFINED" 2>/dev/null | tail -1)"
+    rm -f "$marker" 2>/dev/null || true
+
+    if [ "$probe" = "CONFINED" ]; then
+        SANDBOX_STATUS="ACTIVE — bwrap confinement verified"
+        success "T1 sandbox: confinement verified (root fs read-only outside \$PWD)"
+        return 0
+    fi
+    SANDBOX_STATUS="DEGRADED — bwrap present but confinement probe returned '${probe:-<none>}'"
+    warn "T1 sandbox: bwrap is installed but the confinement probe did not confirm (got '${probe:-<none>}')"
+    return 1
+}
+
 find_python_runtime() {
     if command -v python3 &>/dev/null; then
         echo "python3"
@@ -270,7 +362,10 @@ check_prerequisites() {
         error "Missing: ${missing[*]}"
         exit 1
     fi
-    
+
+    # T1 sandbox backstop — attempted always, never a hard requirement (fail-open).
+    install_bwrap || true
+
     success "Prerequisites OK"
 }
 
@@ -852,6 +947,7 @@ report() {
     echo "🧹 Hygiene:"
     echo "  Config regenerated: $CONFIG_REGENERATED"
     echo "  Host role: $ROLE_STATUS"
+    echo "  T1 sandbox: $SANDBOX_STATUS"
     echo "  Edge TTS: $EDGE_TTS_STATUS"
     echo "  Desktop voice autostart: $RENDERER_SERVICE_STATUS"
     if [ ${#ARCHIVED_AGENTS[@]} -gt 0 ]; then
@@ -1025,6 +1121,26 @@ check_runtime_contracts() {
         record_check_failure "DocIntegrity validator missing or not executable"
     fi
 
+    # T1 sandbox must still be LIVE — a host that lost bwrap, or whose user
+    # namespaces got disabled, fails open silently. Presence alone is not enough:
+    # run the real confinement probe (verify_sandbox) so a degraded-but-present
+    # bwrap is caught here too, matching the post-install guarantee.
+    if [ "${PAI_SANDBOX:-}" = "off" ]; then
+        record_check_pass "T1 sandbox disabled by PAI_SANDBOX=off (operator override)"
+    elif [ ! -f "$PAI_DIR/bin/pai-sandbox.sh" ]; then
+        record_check_failure "T1 sandbox wrapper (pai-sandbox.sh) missing"
+    elif ! command -v bwrap &>/dev/null; then
+        if [ "$(uname -s)" = "Linux" ]; then
+            record_check_failure "T1 sandbox fail-open: bwrap absent (commands run unconfined)"
+        else
+            record_check_pass "T1 sandbox N/A on $(uname -s) (bwrap is Linux-only)"
+        fi
+    elif verify_sandbox >/dev/null 2>&1; then
+        record_check_pass "T1 sandbox confinement verified ($SANDBOX_STATUS)"
+    else
+        record_check_failure "T1 sandbox degraded: ${SANDBOX_STATUS:-confinement probe failed}"
+    fi
+
     if [ -x "$PAI_DIR/bin/validate-tools-manifest.js" ]; then
         record_check_pass "Tools manifest validator installed"
     else
@@ -1051,6 +1167,22 @@ check_runtime_contracts() {
 
     if [ -f "$PAI_DIR/USER/SECURITY/PATTERNS.yaml" ]; then
         record_check_pass "Security policy (PATTERNS.yaml) installed"
+        # Staleness fence: the installed policy is user-owned and seeded only when
+        # absent, so template improvements never propagate on their own (this bit
+        # us: an install ran for months without the curated reverse-shell adds).
+        # The version line is the drift signal — Patterns.example.yaml bumps it
+        # whenever patterns change; a customized install keeps its edits and merges.
+        local template_policy="${REPO_DIR}/PAI/DOCUMENTATION/Security/Patterns.example.yaml"
+        if [ -f "$template_policy" ]; then
+            local installed_ver template_ver
+            installed_ver="$(grep -m1 '^version:' "$PAI_DIR/USER/SECURITY/PATTERNS.yaml" 2>/dev/null | sed -E 's/^version:[[:space:]]*"?([^" ]*)"?.*/\1/')"
+            template_ver="$(grep -m1 '^version:' "$template_policy" 2>/dev/null | sed -E 's/^version:[[:space:]]*"?([^" ]*)"?.*/\1/')"
+            if [ -n "$template_ver" ] && [ "$installed_ver" = "$template_ver" ]; then
+                record_check_pass "Security policy version current ($installed_ver)"
+            else
+                record_check_failure "Security policy STALE: installed version '${installed_ver:-none}' != template '${template_ver}' — merge new patterns from Patterns.example.yaml (or re-seed if uncustomized)"
+            fi
+        fi
     else
         record_check_failure "Security policy (PATTERNS.yaml) missing — plugin runs on bundled default"
     fi
@@ -1116,6 +1248,7 @@ main() {
     install_commands
     install_skills
     install_pai_core
+    verify_sandbox || true
     install_broker
     install_edge_tts
     install_renderer_service

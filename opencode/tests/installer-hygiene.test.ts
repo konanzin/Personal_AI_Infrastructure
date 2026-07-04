@@ -71,13 +71,25 @@ async function seedCleanInstall(home: string) {
   write(join(paiDir, "bin/validate-tools-manifest.js"), await Bun.file(join(opencodeRoot, "bin/validate-tools-manifest.js")).text());
   chmodSync(join(paiDir, "bin/validate-tools-manifest.js"), 0o755);
   write(join(paiDir, "TOOLS/manifest.json"), JSON.stringify({ version: 1, runtime: "opencode", tools: {} }, null, 2));
-  write(join(paiDir, "USER/SECURITY/PATTERNS.yaml"), "version: \"test\"\n");
+  // Seed the REAL template — --check now compares the installed policy's version
+  // line against Patterns.example.yaml, so a synthetic version would read as stale.
+  write(
+    join(paiDir, "USER/SECURITY/PATTERNS.yaml"),
+    await Bun.file(join(repoRoot, "PAI/DOCUMENTATION/Security/Patterns.example.yaml")).text(),
+  );
+  // T1 sandbox wrapper — a real install always ships it; --check asserts its presence.
+  write(join(paiDir, "bin/pai-sandbox.sh"), "#!/usr/bin/env bash\nexec /bin/bash -c \"$1\"\n");
+  chmodSync(join(paiDir, "bin/pai-sandbox.sh"), 0o755);
 }
 
 function runCheck(home: string) {
   return Bun.spawnSync({
     cmd: ["bash", installScript, "--check"],
-    env: { ...process.env, HOME: home },
+    // PAI_SANDBOX=off makes the T1 sandbox drift check deterministic here: --check
+    // otherwise runs a live bwrap confinement probe, which would depend on the host's
+    // user-namespace support. The sandbox wiring is grep-tested separately below, and
+    // the probe itself is exercised directly; this test targets manifest/config drift.
+    env: { ...process.env, HOME: home, PAI_SANDBOX: "off" },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -110,6 +122,23 @@ describe("Installer hygiene", () => {
 
     const result = runCheck(home);
     expect(outputOf(result)).toContain("interceptor-browser");
+    expect(result.exitCode).toBe(1);
+  }, 30000);
+
+  test("install.sh --check fails when the installed security policy is STALE", async () => {
+    // The policy is seeded only when absent, so template improvements never
+    // propagate on their own — a real install ran an old policy for months.
+    // --check compares the version line against Patterns.example.yaml.
+    const home = mkdtempSync(join(tmpdir(), "pai-install-stale-policy-"));
+    await seedCleanInstall(home);
+    writeFileSync(
+      join(home, ".config/opencode/PAI/USER/SECURITY/PATTERNS.yaml"),
+      'version: "3.1-opencode"\nbash:\n  blocked:\n    - pattern: "x"\n      reason: "y"\npaths:\n  zeroAccess:\n    - "/etc/shadow"\n',
+      "utf-8",
+    );
+
+    const result = runCheck(home);
+    expect(outputOf(result)).toContain("Security policy STALE");
     expect(result.exitCode).toBe(1);
   }, 30000);
 
@@ -171,4 +200,31 @@ describe("Installer hygiene", () => {
     expect(outputOf(result)).toContain("opencode.jsonc differs");
     // Two full-validator spawns; the default 5s bun timeout is too tight.
   }, 30000);
+});
+
+// The T1 sandbox is only a real backstop if installation guarantees it. These pin
+// the wiring so it cannot silently regress out of the installer (which would return
+// the harness to a fail-open-with-no-signal state on every fresh machine).
+describe("Installer wires the T1 sandbox", () => {
+  const install = readFileSync(installScript, "utf-8");
+
+  test("bootstraps bubblewrap across the common package managers", () => {
+    expect(install).toContain("install_bwrap");
+    // Called from prerequisites so every install attempts it.
+    expect(install).toMatch(/check_prerequisites[\s\S]*install_bwrap/);
+    for (const pm of ["apt-get", "pacman", "dnf", "zypper", "apk"]) {
+      expect(install).toContain(pm);
+    }
+    expect(install).toContain("bubblewrap");
+  });
+
+  test("verifies confinement after install and reports a sandbox status", () => {
+    expect(install).toContain("verify_sandbox");
+    // verify_sandbox runs in main() after the wrapper script is installed.
+    expect(install).toMatch(/install_pai_core[\s\S]*verify_sandbox/);
+    // The outcome surfaces in the install report and in --check drift mode.
+    expect(install).toContain("SANDBOX_STATUS");
+    expect(install).toContain("T1 sandbox:");
+    expect(install).toMatch(/bwrap absent.*commands run unconfined/);
+  });
 });
