@@ -272,8 +272,12 @@ export function emitNotification({
 // runtime surfaces through OpenCode's native permission prompt.
 // ───────────────────────────────────────────────────────────────
 
+// Version is the STALENESS signal: install.sh --check compares the installed
+// PATTERNS.yaml version against the template's. Bump it (here AND in
+// Patterns.example.yaml) whenever patterns change, or existing installs will
+// keep running the old policy with no warning — that drift already happened once.
 const DEFAULT_SECURITY_POLICY_OBJ = {
-  version: '3.1-opencode',
+  version: '3.2-opencode',
   bash: {
     trusted: [
       { pattern: '^playwright-cli\\b', reason: 'Playwright CLI (Browser skill)' },
@@ -281,9 +285,23 @@ const DEFAULT_SECURITY_POLICY_OBJ = {
       { pattern: '^agent-browser\\b', reason: 'agent-browser CLI (Browser skill)' },
     ],
     blocked: [
-      { pattern: 'rm\\s.*-\\w*r.*\\s+/(\\s|$)', reason: 'Recursive deletion of system root (/)' },
-      { pattern: 'rm\\s.*-\\w*r.*\\s+~/?(\\s|$|;|&&)', reason: 'Recursive deletion of home directory (~)' },
-      { pattern: 'rm\\s.*-\\w*r.*\\s+\\$\\{?HOME\\}?/?(\\s|$|;|&&)', reason: 'Recursive deletion of home directory ($HOME)' },
+      // Terminator class ["']?(\s|$|;|&&|\|) tolerates a closing quote (bash -c 'rm -rf /')
+      // and a trailing glob (`/*` wipes the same tree `/` does but used to slip to alert).
+      { pattern: 'rm\\s.*-\\w*r.*\\s+["\']?/\\*?["\']?(\\s|$|;|&&|\\|)', reason: 'Recursive deletion of system root (/ or /*)' },
+      { pattern: 'rm\\s.*-\\w*r.*\\s+["\']?~(/\\*?)?["\']?(\\s|$|;|&&|\\|)', reason: 'Recursive deletion of home directory (~ or ~/*)' },
+      { pattern: 'rm\\s.*-\\w*r.*\\s+["\']?\\$\\{?HOME\\}?(/\\*?)?["\']?(\\s|$|;|&&|\\|)', reason: 'Recursive deletion of home directory ($HOME or $HOME/*)' },
+      // /home, /home/<user>, and their /* forms wipe an entire home tree; deeper
+      // paths (/home/user/proj) fall through to the recursive-rm alert tier.
+      { pattern: 'rm\\s.*-\\w*r.*\\s+["\']?/home(/[^/\\s*]+)?/?\\*?["\']?(\\s|$|;|&&|\\|)', reason: 'Recursive deletion of a home tree (/home...)' },
+      { pattern: 'rm\\s.*-\\w*r.*\\s+["\']?/(etc|usr|var|boot|bin|sbin|lib(64)?|opt|srv|root)/?\\*?["\']?(\\s|$|;|&&|\\|)', reason: 'Recursive deletion of a top-level system directory' },
+      // Non-rm catastrophic deletion: find -delete rooted at /, ~, $HOME or a whole
+      // home dir (deeper roots like /home/user/tmp are legitimate cleanup).
+      { pattern: '\\bfind\\s+["\']?(/home(/[^/\\s]+)?/?|/|~/?|\\$\\{?HOME\\}?/?)["\']?\\s[^|;&]*-delete\\b', reason: 'find -delete across root or an entire home directory' },
+      { pattern: '(^|[;&|]\\s*|\\bsudo\\s+)shred\\b', reason: 'Irrecoverable file destruction (shred)' },
+      // git clean needs BOTH -x (include ignored) and force to be destructive-and-run.
+      // -n/--dry-run anywhere makes it a safe preview even alongside -xf, so it is
+      // exempted up front; plain `git clean -fd` stays at the alert tier.
+      { pattern: 'git\\s+clean\\b(?![^|;&]*\\s(-[a-z]*n[a-z]*|--dry-run)\\b)(?=[^|;&]*\\s-[a-z]*x)(?=[^|;&]*\\s(-[a-z]*f|--force))', reason: 'git clean -x removes ignored+untracked files irrecoverably' },
       { pattern: 'rm\\s.*-\\w*r.*\\s(~|\\$\\{?HOME\\}?)/\\.config/opencode(/|\\s|$|;|&&)', reason: 'Recursive deletion of ~/.config/opencode (entire PAI infrastructure)' },
       { pattern: 'rm\\s.*-\\w*r.*\\s+~/Projects/?(\\s|$|;|&&)', reason: 'Recursive deletion of ~/Projects' },
       { pattern: 'rm\\s.*(PATTERNS\\.yaml|pai-hooks(\\.lib)?\\.js)', reason: 'Deletion of PAI security policy/plugin disables protection' },
@@ -298,7 +316,11 @@ const DEFAULT_SECURITY_POLICY_OBJ = {
       { pattern: 'gh\\s+repo\\s+delete', reason: 'GitHub repository deletion' },
       { pattern: 'gh\\s+repo\\s+edit\\b.*--visibility\\s+public', reason: 'Repository visibility changed to public' },
       { pattern: '(curl|wget|fetch|aria2c|httpie)\\s+[^|]*\\|\\s*(sh|bash|zsh)\\b', reason: 'Piping HTTP downloader output to shell interpreter' },
-      { pattern: '\\b(cat|grep|rg|sed|awk|source|less|head|tail)\\b[^|;&]*\\.env\\b', reason: 'Reading .env via shell (use Read tool or secrets utility)' },
+      // Matches only real dotenv secret files: the token must START a path segment
+      // with `.env` (so foo.env / app.env.example don't match) and any extension
+      // chain must not end in a template suffix (.env.sample/.example/.template/.dist
+      // are secretless by convention; .env.local/.env.production are secrets).
+      { pattern: '\\b(cat|grep|rg|sed|awk|source|less|head|tail)\\b[^|;&]*[\\s"\'=/]\\.env(\\.(?!example\\b|sample\\b|template\\b|dist\\b)[\\w-]+)*(?=$|[\\s"\';|&)])', reason: 'Reading .env via shell (use Read tool or secrets utility)' },
       // ── Curated high-severity adds (harvested from opencode-policy, MIT; corpus
       // vendored at opencode/security/reference/). Selective on purpose: only
       // low-false-positive catastrophic signatures (crypto miners, reverse shells)
@@ -317,6 +339,7 @@ const DEFAULT_SECURITY_POLICY_OBJ = {
       { pattern: 'rm\\s+.*-\\w*[rR]', reason: 'Recursive rm (logged for audit)' },
       { pattern: 'git\\s+push\\b.*(--force|\\s-f\\b)', reason: 'Force push (audit)' },
       { pattern: 'git\\s+reset\\s+--hard', reason: 'Hard reset (audit)' },
+      { pattern: 'git\\s+clean\\b[^|;&]*\\s(-[a-z]*f[a-z]*|--force)\\b', reason: 'Force clean of untracked files (audit)' },
       { pattern: '\\bDROP\\s+(DATABASE|TABLE)\\b', reason: 'Destructive SQL (audit)' },
       { pattern: '\\bTRUNCATE\\b', reason: 'Table truncate (audit)' },
       { pattern: 'terraform\\s+destroy', reason: 'Infrastructure destruction (audit)' },
@@ -338,7 +361,14 @@ const DEFAULT_SECURITY_POLICY_OBJ = {
     zeroAccess: [
       '~/.ssh/id_*', '~/.ssh/*.pem', '~/.aws/credentials', '~/.gnupg/**',
       '**/service-account*.json', '/etc/shadow', '/etc/gshadow', '/proc/kcore',
+      '/etc/ssl/private/**',
       '**/.env', '**/.env.*',
+      // Exemptions ('!'): dotenv TEMPLATES are secretless by convention and must
+      // stay readable/writable — mirrors the bash-side .env guard's suffix carve-out.
+      // They pierce only the floating '**/.env*' globs above; anchored dirs
+      // (/etc/ssl/private/**, ~/.gnupg/**) still deny template-named files inside.
+      '!**/.env.example', '!**/.env.sample', '!**/.env.template', '!**/.env.dist',
+      '!**/.env.*.example', '!**/.env.*.sample', '!**/.env.*.template', '!**/.env.*.dist',
     ],
     // log + allow on read/write (empty: .env reads are denied above, matching original PAI)
     alertAccess: [],
@@ -347,6 +377,8 @@ const DEFAULT_SECURITY_POLICY_OBJ = {
     // block write + delete (reads allowed)
     readOnly: [
       '/etc/**',
+      // authorized_keys is world-readable by design but writing it = SSH backdoor.
+      '~/.ssh/authorized_keys*',
       '~/.config/opencode/PAI/USER/SECURITY/PATTERNS.yaml',
       '~/.config/opencode/plugins/pai-hooks.js',
       '~/.config/opencode/plugins/lib/**',
@@ -449,7 +481,14 @@ function compileSecurityPolicy(obj, source) {
     const out = [];
     for (const g of Array.isArray(list) ? list : []) {
       if (typeof g !== 'string' || !g) throw new Error('path rule is not a string');
-      out.push({ glob: g, reason: `${label}: ${g}` });
+      // '!'-prefixed entries are exemptions: a path matching one is exempt from the
+      // FLOATING ('**/'-prefixed) globs of the same tier. Directory-anchored globs
+      // are absolute — exemptions cannot pierce them (see matchGlobs).
+      if (g.startsWith('!')) {
+        out.push({ glob: g.slice(1), reason: `${label} exemption: ${g}`, negate: true });
+      } else {
+        out.push({ glob: g, reason: `${label}: ${g}` });
+      }
     }
     return out;
   };
@@ -472,8 +511,9 @@ function compileSecurityPolicy(obj, source) {
     },
   };
   // Corruption guards: a structurally-valid but empty policy must NOT silently disarm.
+  // Exemption ('!') entries don't count — a tier of only exemptions protects nothing.
   if (policy.bash.blocked.length === 0) throw new Error('policy defines no blocked bash patterns');
-  if (policy.paths.zeroAccess.length === 0) throw new Error('policy defines no zero-access paths');
+  if (policy.paths.zeroAccess.filter((e) => !e.negate).length === 0) throw new Error('policy defines no zero-access paths');
   return policy;
 }
 
@@ -587,9 +627,17 @@ function matchesPathPattern(filePath, pattern) {
 }
 
 function matchGlobs(filePath, list) {
+  // Exemptions ('!') can carve out of FLOATING basename patterns ('**/...') only.
+  // Directory-anchored protections (/etc/ssl/private/**, ~/.gnupg/**) are absolute:
+  // a template-named file inside a protected directory must NOT escape the tier
+  // (an earlier tier-wide nullification made /etc/ssl/private/.env.example pass).
+  const exempt = list.some((e) => e.negate && matchesPathPattern(filePath, e.glob));
   const out = [];
   for (const entry of list) {
-    if (matchesPathPattern(filePath, entry.glob)) out.push(entry);
+    if (entry.negate) continue;
+    if (!matchesPathPattern(filePath, entry.glob)) continue;
+    if (exempt && entry.glob.startsWith('**/')) continue;
+    out.push(entry);
   }
   return out;
 }

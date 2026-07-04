@@ -16,7 +16,9 @@
 #
 # Pattern syntax: JavaScript RegExp source, matched case-insensitively anywhere
 # in the command. Edit with care — a corrupt file fails closed.
-version: "3.1-opencode"
+# version is the STALENESS signal: install.sh --check compares this against the
+# installed copy and flags drift. Bump it whenever patterns change here.
+version: "3.2-opencode"
 
 bash:
   trusted:
@@ -27,12 +29,31 @@ bash:
     - pattern: '^agent-browser\b'
       reason: 'agent-browser CLI (Browser skill)'
   blocked:
-    - pattern: 'rm\s.*-\w*r.*\s+/(\s|$)'
-      reason: 'Recursive deletion of system root (/)'
-    - pattern: 'rm\s.*-\w*r.*\s+~/?(\s|$|;|&&)'
-      reason: 'Recursive deletion of home directory (~)'
-    - pattern: 'rm\s.*-\w*r.*\s+\$\{?HOME\}?/?(\s|$|;|&&)'
-      reason: 'Recursive deletion of home directory ($HOME)'
+    # Terminator class ["']?(\s|$|;|&&|\|) tolerates a closing quote (bash -c 'rm -rf /')
+    # and a trailing glob (`/*` wipes the same tree `/` does but used to slip to alert).
+    - pattern: 'rm\s.*-\w*r.*\s+["'']?/\*?["'']?(\s|$|;|&&|\|)'
+      reason: 'Recursive deletion of system root (/ or /*)'
+    - pattern: 'rm\s.*-\w*r.*\s+["'']?~(/\*?)?["'']?(\s|$|;|&&|\|)'
+      reason: 'Recursive deletion of home directory (~ or ~/*)'
+    - pattern: 'rm\s.*-\w*r.*\s+["'']?\$\{?HOME\}?(/\*?)?["'']?(\s|$|;|&&|\|)'
+      reason: 'Recursive deletion of home directory ($HOME or $HOME/*)'
+    # /home, /home/<user>, and their /* forms wipe an entire home tree; deeper
+    # paths (/home/user/proj) fall through to the recursive-rm alert tier.
+    - pattern: 'rm\s.*-\w*r.*\s+["'']?/home(/[^/\s*]+)?/?\*?["'']?(\s|$|;|&&|\|)'
+      reason: 'Recursive deletion of a home tree (/home...)'
+    - pattern: 'rm\s.*-\w*r.*\s+["'']?/(etc|usr|var|boot|bin|sbin|lib(64)?|opt|srv|root)/?\*?["'']?(\s|$|;|&&|\|)'
+      reason: 'Recursive deletion of a top-level system directory'
+    # Non-rm catastrophic deletion: find -delete rooted at /, ~, $HOME or a whole
+    # home dir (deeper roots like /home/user/tmp are legitimate cleanup).
+    - pattern: '\bfind\s+["'']?(/home(/[^/\s]+)?/?|/|~/?|\$\{?HOME\}?/?)["'']?\s[^|;&]*-delete\b'
+      reason: 'find -delete across root or an entire home directory'
+    - pattern: '(^|[;&|]\s*|\bsudo\s+)shred\b'
+      reason: 'Irrecoverable file destruction (shred)'
+    # git clean needs BOTH -x (include ignored) and force to be destructive-and-run.
+    # -n/--dry-run anywhere makes it a safe preview even alongside -xf, so it is
+    # exempted up front; plain `git clean -fd` stays at the alert tier.
+    - pattern: 'git\s+clean\b(?![^|;&]*\s(-[a-z]*n[a-z]*|--dry-run)\b)(?=[^|;&]*\s-[a-z]*x)(?=[^|;&]*\s(-[a-z]*f|--force))'
+      reason: 'git clean -x removes ignored+untracked files irrecoverably'
     - pattern: 'rm\s.*-\w*r.*\s(~|\$\{?HOME\}?)/\.config/opencode(/|\s|$|;|&&)'
       reason: 'Recursive deletion of ~/.config/opencode (entire PAI infrastructure)'
     - pattern: 'rm\s.*-\w*r.*\s+~/Projects/?(\s|$|;|&&)'
@@ -62,7 +83,11 @@ bash:
     - pattern: '(curl|wget|fetch|aria2c|httpie)\s+[^|]*\|\s*(sh|bash|zsh)\b'
       reason: 'Piping HTTP downloader output to shell interpreter'
     # ── Credential access via shell (deny — matches original PAI) ──
-    - pattern: '\b(cat|grep|rg|sed|awk|source|less|head|tail)\b[^|;&]*\.env\b'
+    # Matches only real dotenv secret files: the token must START a path segment
+    # with `.env` (so foo.env / app.env.example don't match) and any extension
+    # chain must not end in a template suffix (.env.sample/.example/.template/.dist
+    # are secretless by convention; .env.local/.env.production are secrets).
+    - pattern: '\b(cat|grep|rg|sed|awk|source|less|head|tail)\b[^|;&]*[\s"''=/]\.env(\.(?!example\b|sample\b|template\b|dist\b)[\w-]+)*(?=$|[\s"'';|&)])'
       reason: 'Reading .env via shell (use Read tool or secrets utility)'
     # ── Curated high-severity adds (harvested from opencode-policy, MIT) ──
     # Selective: only low-false-positive catastrophic signatures the base
@@ -92,6 +117,8 @@ bash:
       reason: 'Force push (audit)'
     - pattern: 'git\s+reset\s+--hard'
       reason: 'Hard reset (audit)'
+    - pattern: 'git\s+clean\b[^|;&]*\s(-[a-z]*f[a-z]*|--force)\b'
+      reason: 'Force clean of untracked files (audit)'
     - pattern: '\bDROP\s+(DATABASE|TABLE)\b'
       reason: 'Destructive SQL (audit)'
     - pattern: '\bTRUNCATE\b'
@@ -132,8 +159,21 @@ paths:
     - '/etc/shadow'
     - '/etc/gshadow'
     - '/proc/kcore'
+    - '/etc/ssl/private/**'
     - '**/.env'
     - '**/.env.*'
+    # Exemptions ('!'): dotenv TEMPLATES are secretless by convention and must
+    # stay readable/writable — mirrors the bash-side .env guard's suffix carve-out.
+    # They pierce only the floating '**/.env*' globs above; anchored dirs
+    # (/etc/ssl/private/**, ~/.gnupg/**) still deny template-named files inside.
+    - '!**/.env.example'
+    - '!**/.env.sample'
+    - '!**/.env.template'
+    - '!**/.env.dist'
+    - '!**/.env.*.example'
+    - '!**/.env.*.sample'
+    - '!**/.env.*.template'
+    - '!**/.env.*.dist'
   # log + allow on read/write (empty: .env reads are denied above, matching original PAI)
   alertAccess: []
   # require approval (native prompt) on read/write
@@ -142,6 +182,8 @@ paths:
   # block write + delete (reads allowed)
   readOnly:
     - '/etc/**'
+    # authorized_keys is world-readable by design but writing it = SSH backdoor.
+    - '~/.ssh/authorized_keys*'
     - '~/.config/opencode/PAI/USER/SECURITY/PATTERNS.yaml'
     - '~/.config/opencode/plugins/pai-hooks.js'
     - '~/.config/opencode/plugins/lib/**'
