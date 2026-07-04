@@ -13,16 +13,34 @@ import { describe, test, expect } from "bun:test";
 import {
   GOLDEN_SET,
   scoreGolden,
+  aggregateRuns,
   DEFAULT_GOLDEN_THRESHOLDS,
 } from "../plugins/lib/classifier-golden.lib.js";
-import { classifyPrompt, normalizeClassification } from "../plugins/lib/mode-classifier.lib.js";
+import {
+  classifyPrompt,
+  normalizeClassification,
+  buildClassificationPrompt,
+} from "../plugins/lib/mode-classifier.lib.js";
 
 const VALID_MODES = ["MINIMAL", "NATIVE", "ALGORITHM"];
 const VALID_TIERS = ["E1", "E2", "E3", "E4", "E5"];
 
 describe("GOLDEN_SET shape", () => {
   test("has enough cases to mean anything", () => {
-    expect(GOLDEN_SET.length).toBeGreaterThanOrEqual(20);
+    // 2026-07-04 expansion: mined from real mode-classifier.jsonl usage. At 50
+    // cases one flip is 2pp; do not shrink the set back to where one case can
+    // move the ok/warn status.
+    expect(GOLDEN_SET.length).toBeGreaterThanOrEqual(45);
+  });
+
+  test("covers both languages real usage runs in (PT-BR + EN)", () => {
+    // Real history is bilingual; an all-English set silently stops measuring
+    // half the traffic. Detection heuristic: at least a few prompts with
+    // PT-BR-specific words/diacritics.
+    const ptish = GOLDEN_SET.filter((c) =>
+      /\b(rode|renomeie|mostra|corrige|manda|investiga|refatora|obrigado|beleza|qual|como)\b|[ãõçéíô]/i.test(c.prompt),
+    );
+    expect(ptish.length).toBeGreaterThanOrEqual(8);
   });
 
   test("every case is well-formed", () => {
@@ -49,6 +67,36 @@ describe("GOLDEN_SET shape", () => {
   test("covers all three modes", () => {
     const modes = new Set(GOLDEN_SET.map((c) => c.mode));
     for (const m of VALID_MODES) expect(modes.has(m)).toBe(true);
+  });
+
+  test("NO train/test leakage: golden prompts never appear in the classifier's own instructions", () => {
+    // Caught in review 2026-07-04: few-shot examples in the classification
+    // prompt were VERBATIM golden cases, so those cases graded copying, not
+    // classifying — the exact proxy-drift this project exists to catch, inside
+    // the tool built to catch it. This fence fails if any golden prompt (or a
+    // case-insensitive substring of one) reappears in the instructions.
+    const instructions = buildClassificationPrompt("__PROBE__")
+      .replace('"""__PROBE__"""', "")
+      .toLowerCase();
+    for (const c of GOLDEN_SET) {
+      const p = c.prompt.toLowerCase();
+      if (p.length <= 8) {
+        // Tiny prompts ("ok", "beleza") would substring-match inside unrelated
+        // words (e.g. "ok" in "token") — require a whole-token occurrence.
+        const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        expect(instructions).not.toMatch(new RegExp(`(^|[\\s"'\`])${escaped}($|[\\s"'\`.,!?])`));
+      } else {
+        expect(instructions).not.toContain(p);
+      }
+    }
+  });
+
+  test("includes escalation-risk probes (short vague imperatives must stay ALGORITHM)", () => {
+    // The prompt biases toward NATIVE under uncertainty; the set must keep
+    // measuring the under-escalation side that bias could introduce.
+    const probes = GOLDEN_SET.filter((c) => c.note?.startsWith("escalation-risk"));
+    expect(probes.length).toBeGreaterThanOrEqual(5);
+    for (const p of probes) expect(p.mode).toBe("ALGORITHM");
   });
 });
 
@@ -119,6 +167,67 @@ describe("scoreGolden", () => {
     expect(r.modeAccuracy).toBe(1);
     expect(r.tierAccuracy).toBe(0);
     expect(r.status).toBe("warn");
+  });
+});
+
+describe("aggregateRuns", () => {
+  test("unanimous runs aggregate to that result, not flaky", () => {
+    const a = aggregateRuns([
+      { mode: "NATIVE", tier: null, source: "llm" },
+      { mode: "NATIVE", tier: null, source: "llm" },
+      { mode: "NATIVE", tier: null, source: "llm" },
+    ]);
+    expect(a.result).toEqual({ mode: "NATIVE", tier: null, source: "llm" });
+    expect(a.disagreed).toBe(false);
+    expect(a.votes).toEqual({ NATIVE: 3 });
+  });
+
+  test("majority wins and the case is marked flaky", () => {
+    const a = aggregateRuns([
+      { mode: "ALGORITHM", tier: "E2", source: "llm" },
+      { mode: "NATIVE", tier: null, source: "llm" },
+      { mode: "ALGORITHM", tier: "E2", source: "llm" },
+    ]);
+    expect(a.result!.mode).toBe("ALGORITHM");
+    expect(a.result!.tier).toBe("E2");
+    expect(a.disagreed).toBe(true);
+  });
+
+  test("mode ties break toward the MORE escalated mode (against us)", () => {
+    const a = aggregateRuns([
+      { mode: "NATIVE", tier: null, source: "llm" },
+      { mode: "ALGORITHM", tier: "E1", source: "llm" },
+    ]);
+    // A tie must never flatter the NATIVE-boundary numbers.
+    expect(a.result!.mode).toBe("ALGORITHM");
+  });
+
+  test("tier is voted only among runs of the winning mode; ties go higher", () => {
+    const a = aggregateRuns([
+      { mode: "ALGORITHM", tier: "E2", source: "llm" },
+      { mode: "ALGORITHM", tier: "E3", source: "llm" },
+      { mode: "NATIVE", tier: null, source: "llm" },
+      { mode: "ALGORITHM", tier: "E3", source: "llm" },
+      { mode: "ALGORITHM", tier: "E2", source: "llm" },
+    ]);
+    expect(a.result!.mode).toBe("ALGORITHM");
+    expect(a.result!.tier).toBe("E3"); // 2-2 tie → higher tier
+  });
+
+  test("null runs are dropped; all-null aggregates to null result", () => {
+    expect(aggregateRuns([null, null]).result).toBeNull();
+    const a = aggregateRuns([null, { mode: "MINIMAL", tier: null, source: "llm" }]);
+    expect(a.result!.mode).toBe("MINIMAL");
+    expect(a.disagreed).toBe(false);
+  });
+
+  test("modal source is surfaced for degradation reporting", () => {
+    const a = aggregateRuns([
+      { mode: "ALGORITHM", tier: "E3", source: "fail-safe" },
+      { mode: "ALGORITHM", tier: "E3", source: "fail-safe" },
+      { mode: "ALGORITHM", tier: "E3", source: "llm" },
+    ]);
+    expect(a.result!.source).toBe("fail-safe");
   });
 });
 
