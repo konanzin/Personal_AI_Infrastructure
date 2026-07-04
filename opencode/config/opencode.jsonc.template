@@ -144,6 +144,11 @@
       "description": "Choose the PAI desktop voice",
       "agent": "build"
     },
+    "feedback": {
+      "template": "Recall past low-rating feedback ON DEMAND (read-only; this does not change any setting). Run `bun ~/.config/opencode/PAI/bin/recall-feedback.js --json` (append `--query \"$ARGUMENTS\"` when $ARGUMENTS is non-empty; add `--since-days 30` if the user asks for recent). Summarize the recurring themes and the specific low-rating comments, then suggest how to avoid repeating them in this session. Do NOT modify config, rules, or memory — only surface what the user already reported.",
+      "description": "Recall past low-rating feedback (read-only)",
+      "agent": "build"
+    },
 
     "e1": {
       "template": "Run PAI effort E1 for: $ARGUMENTS",
