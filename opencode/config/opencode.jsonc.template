@@ -150,7 +150,7 @@
       "agent": "build"
     },
     "calibrate": {
-      "template": "The user is reporting that the HARNESS misbehaved (wrong mode/tier classification, a legitimate action blocked, a dangerous action allowed, sandbox friction, lying telemetry, or upstream-parity drift). Load and follow the HarnessCalibration skill (~/.config/opencode/skills/HarnessCalibration/SKILL.md) end to end: capture the exact evidence, route it to the correct artifact in the repo checkout, apply the fix TEST-FIRST through the regression fences, re-measure, and deploy. Complaint context: $ARGUMENTS",
+      "template": "The user is reporting that the HARNESS misbehaved (wrong mode/tier classification, a legitimate action blocked, a dangerous action allowed, sandbox friction, lying telemetry, or upstream-parity drift). MANDATORY FIRST STEP, before answering anything: READ the file ~/.config/opencode/skills/HarnessCalibration/SKILL.md with the read tool — it contains the authoritative symptom→artifact routing table and hard rules, and your prior knowledge about where harness changes go is NOT reliable (changes go in the REPO checkout recorded in ~/.config/opencode/PAI/.repo, never in the installed copies under ~/.config/opencode). Then follow the skill end to end: capture the exact evidence, route it to the correct artifact, apply the fix TEST-FIRST through the regression fences, re-measure, and deploy. Complaint context: $ARGUMENTS",
       "description": "Turn a harness complaint into a permanent regression fence",
       "agent": "build"
     },
