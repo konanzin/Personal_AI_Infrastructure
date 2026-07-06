@@ -29,7 +29,7 @@ Each layer overrides the previous. The final resolved values are written to ISA 
 | `generativeTemperature` | 0.0–1.0 | 0.5 | Yes | Wildness of DREAM/DAYDREAM phases |
 | `maxCycles` | 1–20 | 3 | Yes* | Evolutionary cycles before completing |
 
-**Behavioral tiers** (LLMs respond to qualitative bands, not continuous floats):
+**Behavioral tiers** (LLMs respond to qualitative bands, not continuous floats). W2.8 note: the band descriptions below are calibration DEFAULTS, not walls — when a task sits between bands or argues for behavior outside them, interpolate or deviate and say so in `## Decisions`; the bands exist to make parameters legible, not to outrank judgment:
 
 **problemConnection:**
 - 0.0–0.2: "Explore tangential and unrelated domains freely. Connection to the problem can be discovered later or never."

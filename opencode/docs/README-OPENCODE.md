@@ -50,7 +50,7 @@ The port does this through two native surfaces:
 The port now uses a **two-tier classification approach**:
 
 1. **Explicit Classifier** (`mode-classifier.lib.js`): runs on every top-level prompt via the `chat.message` hook, producing a structured `{ MODE, TIER, REASON, SOURCE }` result. This is persisted to session state and injected into the system context.
-2. **Model self-selection**: the injected system context includes the mode rules and the classifier result as a **suggestion** — the model adopts it when it matches its own read of the request and overrides it (either direction) when it does not. Only an explicit user `/e1`–`/e5` override is binding, including its expanded slash-command form "Run PAI effort EN for: …" (drift register W1.2, Algorithm v6.3.3).
+2. **Model self-selection**: the injected system context includes the mode rules and the classifier result as a **suggestion** — the model adopts it when it matches its own read of the request and overrides it (either direction) when it does not. Only an explicit user `/e1`–`/e5` override is binding, including its expanded slash-command form "Run PAI effort EN for: …" (drift register W1.2, Algorithm v6.3.3; thinking floor soft since v6.3.4, W2.8).
 
 The classifier is **provider-agnostic** with two tiers:
 
