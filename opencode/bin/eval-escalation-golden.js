@@ -24,6 +24,7 @@
  *   bun bin/eval-escalation-golden.js --model X --kind under     # one kind: under|tier-under|over|control|none
  *   bun bin/eval-escalation-golden.js --model X --limit 5        # quick smoke
  *   bun bin/eval-escalation-golden.js --model X --runs 3         # majority vote per case
+ *   bun bin/eval-escalation-golden.js --model X --concurrency 2  # in-flight opencode runs (default 2)
  *   bun bin/eval-escalation-golden.js --model X --json           # machine-readable
  *
  * Exit codes: 0 ok · 1 warn · 2 alert.
@@ -65,7 +66,10 @@ if (kindFilter) cases = cases.filter((c) => c.kind === kindFilter);
 const limit = parseInt(val("--limit", String(cases.length)), 10);
 cases = cases.slice(0, limit);
 
-const CONCURRENCY = 4;
+// Each in-flight case is a full `opencode run` instance (heavy: node + session
+// state). 4 concurrent instances exhausted a workstation's tmpfs quota once
+// (2026-07-06) — default conservatively and let --concurrency raise it.
+const CONCURRENCY = Math.max(1, parseInt(val("--concurrency", "2"), 10) || 2);
 
 async function decideCase(c) {
   // kind 'none' has no suggestion: the classification block is omitted and
