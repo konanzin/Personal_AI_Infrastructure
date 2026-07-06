@@ -91,7 +91,7 @@
       "status": "implemented",
       "layer": "B",
       "required_by": ["Relationship memory reflection"],
-      "contract": "Aggregates recent relationship notes + ratings into OPINIONS.md confidence deltas and OUR_STORY milestones. Returns unavailable when sources are absent; supports --opinions-only/--milestones-only/--dry-run/--json.",
+      "contract": "Aggregates recent relationship notes + ratings into OPINIONS.md confidence deltas and OUR_STORY milestones. Returns unavailable when sources are absent; supports --opinions-only/--milestones-only/--dry-run/--json. Non-dry-run writes exit 2 with status 'blocked' pending the W2.12 audit verdict (BitterLesson/REGISTER.md).",
       "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/RelationshipReflect.ts --json --dry-run"]
     },
     "GenerateTelosSummary.ts": {

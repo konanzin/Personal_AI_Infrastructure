@@ -529,6 +529,9 @@ Options:
   --dry-run          Show what would change without making changes
   --help, -h         Show this help
 
+NOTE: non-dry-run writes are currently BLOCKED pending the W2.12 audit
+verdict (PAI/DOCUMENTATION/BitterLesson/REGISTER.md).
+
 This tool:
   1. Scans MEMORY/RELATIONSHIP/ for recent notes
   2. Updates OPINIONS.md confidence based on evidence
@@ -540,6 +543,25 @@ This tool:
 
   const asJson = args.includes('--json');
   if (asJson) QUIET = true;
+
+  // W2.12-P1 (drift register, 2026-07-06): non-dry-run writes are BLOCKED
+  // pending the Bitter Lesson audit verdict on this tool. It regex-mutates
+  // persisted confidence scores in USER/OPINIONS.md from hardcoded evidence
+  // patterns and magic deltas — fabricated precision that persists (worse than
+  // the removed W1.8 score). Dry-run remains available for inspection. Lift
+  // this gate only via the audit verdict recorded in
+  // PAI/DOCUMENTATION/BitterLesson/REGISTER.md (W2.12).
+  if (!options.dryRun) {
+    if (asJson) {
+      console.log(JSON.stringify({
+        status: 'blocked',
+        reason: 'Writes gated pending W2.12 audit verdict (drift register). Use --dry-run to inspect.',
+      }, null, 2));
+    } else {
+      console.log('RelationshipReflect: writes are gated pending the W2.12 audit verdict (see BitterLesson/REGISTER.md). Use --dry-run to inspect.');
+    }
+    process.exit(2);
+  }
 
   // A reflection is only meaningful with at least one source present.
   const relationshipDir = join(PAI_DIR, 'MEMORY/RELATIONSHIP');
