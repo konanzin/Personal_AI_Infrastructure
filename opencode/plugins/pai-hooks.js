@@ -1329,18 +1329,6 @@ ${activeWork}`);
             metadata: skillResult.metadata,
           });
 
-          if (skillResult.action === 'deny') {
-            console.error(`[PAI] 🛡️ SkillGuard: BLOCKED skill invocation`);
-            console.error(`[PAI]   Skill: ${skillName}`);
-            console.error(`[PAI]   Reason: ${skillResult.rationale}`);
-            emitNotification({
-              event: 'guard_denied',
-              sessionId,
-              data: { guard: 'skill', target: skillName, reason: skillResult.rationale },
-            });
-            throw new Error(`[PAI SKILLGUARD] BLOCKED: ${skillResult.rationale}`);
-          }
-
           if (skillResult.action === 'warn') {
             console.warn(`[PAI] ⚠️ SkillGuard: WARNED on skill invocation`);
             console.warn(`[PAI]   Skill: ${skillName}`);
@@ -1353,8 +1341,7 @@ ${activeWork}`);
         // Re-throw blocking errors, log others
         const isBlockingError = e.message && (
           e.message.includes('[PAI SECURITY] BLOCKED') ||
-          e.message.includes('[PAI AGENTGUARD] BLOCKED') ||
-          e.message.includes('[PAI SKILLGUARD] BLOCKED')
+          e.message.includes('[PAI AGENTGUARD] BLOCKED')
         );
         if (isBlockingError) {
           throw e;

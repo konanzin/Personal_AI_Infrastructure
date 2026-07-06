@@ -336,25 +336,25 @@ describe("AgentGuard — inspectAgentSpawn", () => {
 });
 
 describe("SkillGuard — inspectSkillInvocation", () => {
-  describe("DENY patterns", () => {
-    test("denies obvious skill misfire", () => {
+  describe("misfire is advisory, never a gate (drift register W1.1a)", () => {
+    test("skill misfire warns instead of denying", () => {
       const result = inspectSkillInvocation({
         skillName: "ArXiv",
         userRequest: "find a good italian restaurant nearby",
         context: "",
       });
-      expect(result.action).toBe("deny");
+      expect(result.action).toBe("warn");
       expect(result.rationale).toContain("specific");
     });
 
-    test("denies arxiv for non-research request", () => {
+    test("guard never emits deny for any skill invocation shape", () => {
+      // Correctly-chosen skill phrased without any listed keyword must flow through.
       const result = inspectSkillInvocation({
         skillName: "ArXiv",
-        userRequest: "write a poem about spring",
+        userRequest: "pull up what academia has been publishing about state-space models",
         context: "",
       });
-      expect(result.action).toBe("deny");
-      expect(result.rationale).toContain("specific");
+      expect(result.action).not.toBe("deny");
     });
   });
 

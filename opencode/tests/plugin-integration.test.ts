@@ -185,7 +185,7 @@ describe("Plugin Integration — Security Blocking", () => {
     }).toThrow(/PAI SECURITY.*BLOCKED/);
   });
 
-  test("tool.execute.before blocks obvious skill misfire", async () => {
+  test("tool.execute.before lets a skill misfire flow through as a warning", async () => {
     const plugin = await loadPlugin();
     const hook = plugin["tool.execute.before"];
 
@@ -196,9 +196,9 @@ describe("Plugin Integration — Security Blocking", () => {
     };
     const output = {};
 
-    expect(async () => {
-      await hook(input, output);
-    }).toThrow(/PAI SKILLGUARD.*BLOCKED/);
+    // Must NOT throw — SkillGuard is advisory-only (drift register W1.1a)
+    await hook(input, output);
+    expect(output).toBeDefined();
   });
 
   test("tool.execute.before warns on trivial agent spawn", async () => {

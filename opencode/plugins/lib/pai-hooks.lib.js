@@ -1392,13 +1392,16 @@ const TRIVIAL_REQUEST_PATTERNS = [
 ];
 
 /**
- * Inspects a skill invocation request and returns allow/warn/deny.
+ * Inspects a skill invocation request and returns allow/warn.
  *
  * Contract:
  *   Input:  { skillName, userRequest, context }
- *   Output: { action: 'allow'|'warn'|'deny', rationale, metadata }
+ *   Output: { action: 'allow'|'warn', rationale, metadata }
  *
- * Philosophy: warn-first. Deny only on unambiguous misfires.
+ * Philosophy: advisory-only. Skill choice is the model's tool-selection
+ * judgment; this guard is telemetry, never a gate (drift register W1.1a —
+ * the keyword corpus matches a stringified-args proxy, not the real prompt,
+ * and a deny here blocks correctly-chosen skills on unlisted phrasings).
  */
 export function inspectSkillInvocation({ skillName, userRequest, context = '' }) {
   const request = (userRequest || '').toLowerCase().trim();
@@ -1444,17 +1447,6 @@ export function inspectSkillInvocation({ skillName, userRequest, context = '' })
       action: 'allow',
       rationale: 'No guard rules triggered',
       metadata: { skill, requestLength: request.length },
-    };
-  }
-
-  const highConfidenceHits = hits.filter(h => h.confidence === 'high');
-
-  // Deny only on unambiguous misfires with high confidence
-  if (highConfidenceHits.some(h => h.rule === 'skill_misfire')) {
-    return {
-      action: 'deny',
-      rationale: highConfidenceHits.map(h => h.reason).join('; '),
-      metadata: { skill, hits, requestLength: request.length },
     };
   }
 
