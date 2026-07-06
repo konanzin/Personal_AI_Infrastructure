@@ -1856,9 +1856,12 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
             }
           }
 
-          // Fast path: positive praise
+          // Fast path: positive praise — recorded as a QUALITATIVE event.
+          // No fabricated numeric score (drift register W1.8): a keyword hit
+          // is a satisfaction signal, not an 8/10 with 0.95 confidence.
+          // Explicit /rate N (parseExplicitRating above) stays numeric.
           if (detectPositivePraise(content)) {
-            console.log(`[PAI] ⭐ Positive praise detected → rating 8`);
+            console.log(`[PAI] ⭐ Positive praise detected (qualitative signal)`);
 
             let lastResponse = '';
             try {
@@ -1869,25 +1872,18 @@ This response was rated ${explicitResult.rating}/10. Use this as an improvement 
 
             appendJsonL(ratingsPath, {
               timestamp,
-              rating: 8,
+              event: 'praise_detected',
               session_id: sessionId,
               source: 'implicit',
               sentiment_summary: `Direct praise: "${content.trim()}"`,
-              confidence: 0.95,
               response_preview: lastResponse ? truncate(lastResponse, 500) : undefined,
             });
 
-            // Update work.json
+            // Update work.json (session housekeeping only — no synthetic rating)
             try {
               const registry = readWorkRegistry();
               for (const [, session] of Object.entries(registry.sessions)) {
                 if (session.sessionUUID === sessionId) {
-                  if (!session.ratings) session.ratings = [];
-                  session.ratings.push({
-                    value: 8,
-                    timestamp: Date.now(),
-                    message: content.trim().slice(0, 32),
-                  });
                   session.minimalCount = (session.minimalCount || 0) + 1;
                   writeWorkRegistry(registry);
                   break;

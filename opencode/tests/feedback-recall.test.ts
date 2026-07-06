@@ -82,6 +82,19 @@ describe("analyzeFeedback", () => {
     expect(analyzeFeedback([{ foo: 1 } as any]).total).toBe(0); // no numeric rating → dropped
   });
 
+  test("qualitative praise events (W1.8) are ignored — no fabricated score enters the archive", () => {
+    const praise = {
+      timestamp: "2026-07-05T12:00:00Z",
+      event: "praise_detected",
+      session_id: "s1",
+      source: "implicit",
+      sentiment_summary: 'Direct praise: "perfect, thanks"',
+    };
+    const out = analyzeFeedback([praise as any, r(2, "bad")]);
+    expect(out.total).toBe(1);      // only the explicit numeric rating counts
+    expect(out.lowTotal).toBe(1);
+  });
+
   test("does NOT mutate or inject — pure read (returns a plain summary object)", () => {
     const input = [r(2, "x")];
     const snapshot = JSON.stringify(input);
