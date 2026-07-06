@@ -120,12 +120,13 @@ beforeAll(() => {
   records.classifier = lastRecord("MEMORY/OBSERVABILITY/mode-classifier.jsonl");
   records.failure = lastRecord("MEMORY/OBSERVABILITY/tool-failures.jsonl");
   records.trace = lastRecord("MEMORY/OBSERVABILITY/subagent-trace.jsonl");
+  records.execution = lastRecord("MEMORY/SKILLS/execution.jsonl");
 });
 
 describe("Observability schema round-trip (real emitters → disk → strict schema)", () => {
   test("the driver produced every stream", () => {
     expect(driverOutput).toContain("EMIT_OK");
-    for (const key of ["security", "notification", "session", "classifier", "failure", "trace"]) {
+    for (const key of ["security", "notification", "session", "classifier", "failure", "trace", "execution"]) {
       expect(records[key], `stream '${key}' produced no record`).toBeDefined();
     }
   });
@@ -137,6 +138,7 @@ describe("Observability schema round-trip (real emitters → disk → strict sch
     ["classifier", "mode-classifier-event.schema.json"],
     ["failure", "tool-failure-event.schema.json"],
     ["trace", "subagent-trace-event.schema.json"],
+    ["execution", "skill-execution-event.schema.json"],
   ];
 
   for (const [key, schemaFile] of cases) {

@@ -67,9 +67,3 @@
 - **Domain selection is structurally random.** Don't ask the LLM to "pick interesting domains" — the lottery defeats LLM bias toward training-distribution-favored domains.
 - **The mapping IS the creative act.** The pattern exists in the foreign domain; the cross-domain application is novel. If a pattern can't be mapped, it's not borrowed — it's noise.
 - **No scoring here.** Steal produces raw cross-pollination material. Use Test (or FullCycle) to score these against fitness criteria.
-
-## Execution Log
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Ideate","workflow":"Steal","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
-```

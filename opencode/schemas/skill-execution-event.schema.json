@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pai.skill-execution-event.v1",
+  "title": "PAI Skill Execution Event",
+  "description": "Runtime-owned rows in MEMORY/SKILLS/execution.jsonl (W2.6). Historical rows were model-written via prompt-instructed echo and carry no `source` field; consumers should treat source:'runtime' as the trustworthy population.",
+  "type": "object",
+  "required": ["ts", "skill", "input", "status", "duration_s", "session_id", "source"],
+  "properties": {
+    "ts": { "type": "string" },
+    "skill": { "type": "string", "minLength": 1 },
+    "input": { "type": "string" },
+    "status": { "enum": ["ok", "error"] },
+    "duration_s": { "type": ["number", "null"], "minimum": 0 },
+    "session_id": { "type": ["string", "null"] },
+    "source": { "enum": ["runtime"] }
+  }
+}

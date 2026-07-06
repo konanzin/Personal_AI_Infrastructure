@@ -292,11 +292,3 @@ Passes all major bot detection:
 | "update", "check version", "rebuild" | `Workflows/Update.md` | Rebuild interceptor from source and verify |
 
 ---
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Interceptor","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
-```

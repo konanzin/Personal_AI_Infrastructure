@@ -6,7 +6,7 @@
  * writes. A renamed or dropped field here fails the schema round-trip.
  *
  * Invoked as: PAI_DIR=<tmp> PAI_CLASSIFIER_USE_LLM=false bun emit-observability-events.mjs
- * Emits one record to each of the six observability streams, then prints "EMIT_OK".
+ * Emits one record to each of the seven observability streams, then prints "EMIT_OK".
  */
 import { fileURLToPath } from "url";
 import {
@@ -63,7 +63,9 @@ await plugin["tool.execute.after"](
   { args: { command: "false" }, error: { message: "boom: an exception was thrown" } },
 );
 
-// 6. subagent-trace.jsonl — real tool.execute.after handler for a skill invocation.
+// 6 + 7. subagent-trace.jsonl AND MEMORY/SKILLS/execution.jsonl — the same real
+// tool.execute.after skill invocation feeds both (execution.jsonl is
+// runtime-owned since W2.6).
 await plugin["tool.execute.after"](
   { tool: "skill", sessionID: sid, callID: "call_skill" },
   { args: { name: "TestSkill" }, title: "skill run" },

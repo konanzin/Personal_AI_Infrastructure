@@ -82,9 +82,3 @@
 - **Multi-judge defeats single-judge bias.** One judge's ceiling becomes the system's ceiling. Three or more judges with averaging neutralizes this.
 - **Variance IS information.** High inter-judge variance means the idea is polarizing — judges legitimately disagree. Low variance means consensus. Both are signal.
 - **Skip external validation for fast iteration.** Hooks add real-world signal but cost latency. For brainstorming, internal scoring alone is fine.
-
-## Execution Log
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Ideate","workflow":"Test","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
-```

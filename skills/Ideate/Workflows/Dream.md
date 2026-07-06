@@ -59,9 +59,3 @@
 - **DREAM has NO awareness of the problem.** If you want gentle problem-tethering, use `Daydream.md` instead (noise=0.5, problem held loosely).
 - **Structural randomness is the point.** Two agents with the same input will produce more similar output than two agents with genuinely different random subsets. The randomness comes from WHICH ideas they see, not from LLM temperature.
 - **Output is raw material, not solutions.** Downstream consumers (Mate, Test, or a human reviewer) judge applicability.
-
-## Execution Log
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Ideate","workflow":"Dream","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
-```

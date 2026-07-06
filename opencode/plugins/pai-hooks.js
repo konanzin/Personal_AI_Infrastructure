@@ -65,6 +65,8 @@ import {
   resolveClassifierConfig,
 } from './lib/mode-classifier.lib.js';
 
+import { emitSkillExecution } from './lib/execution-log.lib.js';
+
 const PAI_DEBUG_UI = process.env.PAI_DEBUG_UI === 'true';
 const console = PAI_DEBUG_UI
   ? globalThis.console
@@ -1507,6 +1509,18 @@ ${activeWork}`);
         if (tool === 'skill') {
           const skillName = args?.name || 'unknown';
           console.log(`[PAI] 🎯 Skill used: ${skillName}`);
+
+          // W2.6: MEMORY/SKILLS/execution.jsonl is runtime-owned. The model
+          // used to hand-echo this row from a prompt template (fabrication-
+          // prone — observed literal 00:00:00 timestamps); the hook sees the
+          // real outcome and duration, so it writes the row.
+          emitSkillExecution({
+            skillName,
+            args: args?.args,
+            success,
+            durationMs: duration,
+            sessionId,
+          });
 
           // Subagent trace telemetry
           appendJsonL(subagentTracePath, {

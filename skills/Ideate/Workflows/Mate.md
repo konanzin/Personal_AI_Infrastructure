@@ -80,9 +80,3 @@
 - **Pairing randomness defeats LLM bias.** "Interesting pairs" picked by an LLM converge on training-distribution patterns. Random pairs surface the surprises.
 - **Cross-phase enforcement is the convergence brake.** Without it, the gene pool narrows to one phase's flavor. The 20% floor is empirical.
 - **Bad offspring are wanted here.** Selection is downstream. Filtering at MATE collapses diversity.
-
-## Execution Log
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"Ideate","workflow":"Mate","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> ~/.config/opencode/PAI/MEMORY/SKILLS/execution.jsonl
-```
