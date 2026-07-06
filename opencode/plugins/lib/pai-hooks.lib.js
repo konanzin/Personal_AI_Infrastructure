@@ -1176,20 +1176,16 @@ export function inspectPrompt(prompt) {
 
   if (hits.length === 0) return { action: 'allow', violations: [] };
 
-  const hasBlock = hits.some(h => h.severity === 'block');
   const categories = [...new Set(hits.map(h => h.category))];
   const descriptions = hits.map(h => h.description);
 
-  if (hasBlock) {
-    return {
-      action: 'deny',
-      violations: hits.filter(h => h.severity === 'block'),
-      reason: `Prompt security: ${categories.join('+')} — ${descriptions.join(', ')}`,
-    };
-  }
-
+  // Advisory by design (drift register W1.1b): natural-language intent is
+  // never a gate. Blocking lives in the action-level floor (bash/write/egress
+  // inspectors); this inspector logs and annotates so the model judges text
+  // it can actually read. `severity: 'block'` marks the high-signal hits.
   return {
     action: 'alert',
+    severity: hits.some(h => h.severity === 'block') ? 'block' : 'warn',
     violations: hits,
     reason: `Prompt security: ${categories.join('+')} — ${descriptions.join(', ')}`,
   };
