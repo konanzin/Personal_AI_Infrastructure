@@ -177,6 +177,26 @@ describe("Mode Classifier — classifyPrompt", () => {
       const result = classifyPrompt("explain what the PAI effort tiers mean");
       expect(result.source).not.toBe("override");
     });
+
+    // The Principal's /eN is the ONE binding tier signal (v6.3.3): a prompt
+    // that also contains a meta-command signature phrase must still bind as an
+    // override — the meta-command bypass may not outrank it (audit 2026-07-06:
+    // Layer 0a ran first and force-routed these NATIVE at confidence 0.95).
+    test("explicit override outranks the meta-command bypass (literal)", () => {
+      const result = classifyPrompt("/e4 update the prompt-classifier model docs");
+      expect(result.mode).toBe("ALGORITHM");
+      expect(result.tier).toBe("E4");
+      expect(result.source).toBe("override");
+    });
+
+    test("explicit override outranks the meta-command bypass (expanded template)", () => {
+      const result = classifyPrompt(
+        "Run PAI effort E4 for: update the prompt-classifier model docs",
+      );
+      expect(result.mode).toBe("ALGORITHM");
+      expect(result.tier).toBe("E4");
+      expect(result.source).toBe("override");
+    });
   });
 
   describe("Fail-safe", () => {

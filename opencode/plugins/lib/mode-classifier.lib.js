@@ -129,7 +129,10 @@ const WORD_COUNT_THRESHOLDS = {
 // HEURISTIC CLASSIFIER
 // ═══════════════════════════════════════════════════════════════
 
-function checkOverride(prompt) {
+// Exported: pai-hooks.js must resolve the Principal's explicit /eN
+// deterministically BEFORE the meta-command bypass and the LLM classifier —
+// neither may outrank the one binding tier signal (Algorithm v6.3.3).
+export function checkOverride(prompt) {
   const match = prompt.match(OVERRIDE_PATTERN) || prompt.match(EXPANDED_OVERRIDE_PATTERN);
   if (match) {
     const tier = match[1].toUpperCase();
@@ -392,19 +395,21 @@ export function classifyPrompt(prompt, options = {}) {
 
   const startTime = performance.now();
 
-  // Layer 0a: PAI meta/config command → NATIVE (never escalate a config task)
-  const metaCommand = classifyPaiMetaCommand(prompt);
-  if (metaCommand) {
-    return { ...metaCommand, latencyMs: Math.round(performance.now() - startTime) };
-  }
-
-  // Layer 0: Explicit override (/e1–/e5)
+  // Layer 0: Explicit override (/e1–/e5, literal or expanded slash-command
+  // template). Checked before the meta-command bypass: the Principal's /eN is
+  // the one binding tier signal (v6.3.3) and outranks every routing heuristic.
   const override = checkOverride(prompt);
   if (override) {
     return {
       ...override,
       latencyMs: Math.round(performance.now() - startTime),
     };
+  }
+
+  // Layer 0a: PAI meta/config command → NATIVE (never escalate a config task)
+  const metaCommand = classifyPaiMetaCommand(prompt);
+  if (metaCommand) {
+    return { ...metaCommand, latencyMs: Math.round(performance.now() - startTime) };
   }
 
   // Layer 1: Deterministic heuristic

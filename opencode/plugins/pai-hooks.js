@@ -58,6 +58,7 @@ import {
   classifyPrompt,
   classifyPromptWithLLM,
   classifyPaiMetaCommand,
+  checkOverride,
   normalizeClassification,
   formatClassificationContext,
   getEffortLabel,
@@ -545,11 +546,21 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
       try {
         let classification;
 
+        // The Principal's explicit /eN — literal or the expanded slash-command
+        // template "Run PAI effort EN for: …" — is the one binding tier signal
+        // (Algorithm v6.3.3). It is resolved deterministically HERE, before the
+        // meta-command bypass and before the LLM classifier: neither a prose
+        // signature nor an LLM opinion may outrank it, and on the LLM-primary
+        // path it must never degrade into a discardable suggestion.
+        const override = checkOverride(content);
+
         // Bypass: PAI meta/config commands (/classifier, /status, /voice, /pu,
         // /pulse, /context, /cs) are explicit intents — classify NATIVE and skip
         // the LLM classifier entirely (no subprocess, no ALGORITHM escalation).
-        const metaCommand = classifyPaiMetaCommand(content);
-        if (metaCommand) {
+        const metaCommand = override ? null : classifyPaiMetaCommand(content);
+        if (override) {
+          classification = normalizeClassification(override);
+        } else if (metaCommand) {
           classification = normalizeClassification(metaCommand);
         } else if (classifierConfig.useLLM) {
           try {
