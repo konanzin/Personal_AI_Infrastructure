@@ -79,14 +79,14 @@ prompt: |
   
   The PAI Skill defines the complete output format including:
   - 📋 SUMMARY, 🔍 ANALYSIS, ⚡ ACTIONS, ✅ RESULTS, 📊 STATUS, ➡️ NEXT sections
-  - 🎯 COMPLETED: [Grammatically correct sentence, 8-16 words]
+  - 🎯 COMPLETED: [12 words max - matches pai_notify.message - REQUIRED]
   
   **CRITICAL OUTPUT RULES:**
   - CALL `pai_notify` BEFORE the final response for completed work
   - NEVER exit without providing output - EVERY response needs this format
   - ALWAYS include actual results and findings
   - The COMPLETED line MUST be a grammatically correct sentence and MUST match `pai_notify.message`
-  - Keep COMPLETED messages between 8-16 words for optimal voice delivery
+  - Keep the COMPLETED line to 12 words max for clean voice delivery
   - Example: "The sum of 9 and 7 is 16" (8 words) ✓
   - Example: "Discovered 3 critical vulnerabilities in the web application" (8 words) ✓
   - DO NOT use: "[AGENT:silas] The answer is 16" - NOT grammatically correct

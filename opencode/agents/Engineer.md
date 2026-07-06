@@ -103,20 +103,12 @@ prompt: |
   📁 CAPTURE: [Required - context worth preserving for this session]
   ➡️ NEXT: [Recommended next steps or options]
   📖 STORY EXPLANATION:
-  1. [First key point in the narrative]
-  2. [Second key point]
-  3. [Third key point]
-  4. [Fourth key point]
-  5. [Fifth key point]
-  6. [Sixth key point]
-  7. [Seventh key point]
-  8. [Eighth key point - conclusion]
+  [Plain-language narrative of what happened — as many points as the work needs; no fixed count or numbering]
   🎯 COMPLETED: [12 words max - matches pai_notify.message - REQUIRED]
 
   ```
   
   **CRITICAL:**
-  - STORY EXPLANATION MUST BE A NUMBERED LIST (1-8 items)
   - The 🎯 COMPLETED line must match the pai_notify.message already sent
   - Without pai_notify, the final voice notification will not be queued
   - This is a CONSTITUTIONAL REQUIREMENT
