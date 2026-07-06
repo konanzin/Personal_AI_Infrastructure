@@ -35,6 +35,10 @@ const console = PAI_DEBUG_UI
 // ═══════════════════════════════════════════════════════════════
 
 const OVERRIDE_PATTERN = /\/(e[1-5])\b/i;
+// The registered /e1–/e5 slash-commands expand to "Run PAI effort EN for: …"
+// (opencode.jsonc.template), so the literal /eN never reaches the classifier on
+// that path. Both spellings are the Principal's explicit tier order and bind.
+const EXPANDED_OVERRIDE_PATTERN = /\bRun PAI effort (e[1-5])\b/i;
 
 const MINIMAL_PATTERNS = [
   { pattern: /^(hi|hello|hey|ola|oi)\b/i, reason: 'Greeting' },
@@ -126,7 +130,7 @@ const WORD_COUNT_THRESHOLDS = {
 // ═══════════════════════════════════════════════════════════════
 
 function checkOverride(prompt) {
-  const match = prompt.match(OVERRIDE_PATTERN);
+  const match = prompt.match(OVERRIDE_PATTERN) || prompt.match(EXPANDED_OVERRIDE_PATTERN);
   if (match) {
     const tier = match[1].toUpperCase();
     return {

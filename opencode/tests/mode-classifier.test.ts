@@ -152,6 +152,31 @@ describe("Mode Classifier — classifyPrompt", () => {
       expect(result.tier).toBe("E5");
       expect(result.source).toBe("override");
     });
+
+    // The /eN slash-commands never deliver a literal "/eN" to the classifier:
+    // OpenCode expands them to the template "Run PAI effort EN for: $ARGUMENTS"
+    // (opencode.jsonc.template). The override must bind on that path too, or
+    // the Principal's explicit tier order silently degrades to a heuristic
+    // suggestion (audit finding, 2026-07-05).
+    test("expanded /e4 slash-command template binds as override", () => {
+      const result = classifyPrompt("Run PAI effort E4 for: refactor the auth module");
+      expect(result.mode).toBe("ALGORITHM");
+      expect(result.tier).toBe("E4");
+      expect(result.source).toBe("override");
+    });
+
+    test("expanded template binds for every tier and any case", () => {
+      for (const n of [1, 2, 3, 4, 5]) {
+        const result = classifyPrompt(`run pai effort e${n} for: some task`);
+        expect(result.tier).toBe(`E${n}`);
+        expect(result.source).toBe("override");
+      }
+    });
+
+    test("prose mentioning effort levels without the command shape is not an override", () => {
+      const result = classifyPrompt("explain what the PAI effort tiers mean");
+      expect(result.source).not.toBe("override");
+    });
   });
 
   describe("Fail-safe", () => {
