@@ -310,8 +310,10 @@ run_test "tool.execute.before inspects reads" \
 run_test "Containment inspector exists in lib" \
     "grep -q 'inspectWriteContent' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
 
-run_test "chat.message pre-sanitizes blocked prompts" \
-    "grep -q 'PAI SECURITY BLOCKED' ${PLUGINS_DIR}/pai-hooks.js"
+# W1.1b: PromptGuard is advisory — the user's prompt is never rewritten or
+# denied; a block-severity hit appends an advisory annotation instead.
+run_test "chat.message annotates suspicious prompts (advisory, no rewrite)" \
+    "grep -q 'PAI PromptGuard advisory' ${PLUGINS_DIR}/pai-hooks.js && ! grep -q 'PAI SECURITY BLOCKED' ${PLUGINS_DIR}/pai-hooks.js"
 
 READ_GUARD_TEST=$(cat <<EOF
 import { inspectBashCommand, inspectReadPath, inspectWriteContent } from '${PLUGINS_DIR}/lib/pai-hooks.lib.js';
@@ -384,7 +386,7 @@ const ag2 = inspectAgentSpawn({
   sessionAgentCount: 0,
 });
 
-// SkillGuard: obvious misfire should deny
+// SkillGuard: obvious misfire warns — never denies (W1.1a demoted the hard-deny)
 const sg1 = inspectSkillInvocation({
   skillName: 'ArXiv',
   userRequest: 'find italian restaurant',
@@ -400,7 +402,7 @@ const sg2 = inspectSkillInvocation({
 
 console.log(
   ag1.action === 'warn' && ag2.action === 'allow' &&
-  sg1.action === 'deny' && sg2.action === 'allow'
+  sg1.action === 'warn' && sg2.action === 'allow'
   ? 'PASS' : 'FAIL'
 );
 ENDTEST

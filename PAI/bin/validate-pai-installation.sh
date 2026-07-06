@@ -69,10 +69,41 @@ manifest_count() {
     manifest_values "$key" | sed '/^$/d' | wc -l | tr -d ' '
 }
 
+# Must mirror install.sh's render_expected_config so --check / this validator and
+# generate_config produce byte-identical output (no false drift). Currently:
+# pai-hooks path rewrite + per-machine primary-model injection.
 render_expected_config() {
     local output="$1"
     sed "s|\"./plugins/pai-hooks.js\"|\"${OPENCODE_DIR}/plugins/pai-hooks.js\"|" \
         "$CONFIG_TEMPLATE" > "$output"
+
+    local model_file="$PAI_DIR/USER/Config/primary-model"
+    if [ -f "$model_file" ]; then
+        local m
+        m="$(tr -d '[:space:]' < "$model_file" 2>/dev/null)"
+        if [ -n "$m" ]; then
+            sed -i "/PAI_MODEL_INJECTION_POINT/a\\  \"model\": \"${m}\"," "$output"
+        fi
+    fi
+}
+
+edge_tts_available() {
+    local venv_python="${OPENCODE_DIR}/tts-venv/bin/python"
+    if [ -x "$venv_python" ] && "$venv_python" -c 'import edge_tts' >/dev/null 2>&1; then
+        return 0
+    fi
+    if command -v edge-tts &>/dev/null; then
+        return 0
+    fi
+
+    local python
+    for python in python3 python; do
+        if command -v "$python" &>/dev/null && "$python" -c 'import edge_tts' >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 # ═══════════════════════════════════════════════════════════
@@ -461,11 +492,22 @@ check_plugins() {
     fi
     checks=$((checks + 1))
 
-    if grep -q 'deepseek-v4-flash-free' "${OPENCODE_DIR}/plugins/pai-hooks.js"; then
-        pass "Plugin uses deepseek as default LLM"
+    # Default classifier model lives in the resolver (mode-classifier.lib.js),
+    # not pai-hooks.js, since classifier config resolution was centralized there.
+    # Assert the PROPERTY (a centralized default resolves), never a pinned
+    # model id — the id is configurable and validators must not freeze it (W1.5).
+    # Shape-check the resolved id (provider/model), so an empty or mangled
+    # default fails here instead of at first runtime classification. A typo'd
+    # but well-formed id still passes — existence is only checkable online.
+    resolver_out=$(bun -e "const m = await import('${OPENCODE_DIR}/plugins/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (typeof c.model !== 'string' || !/^[\\w.-]+\\/[\\w.-]+$/.test(c.model)) { console.error('bad model: ' + JSON.stringify(c.model)); process.exit(1); } console.log(c.model);" 2>&1)
+    resolver_rc=$?
+    if [ $resolver_rc -eq 0 ]; then
+        pass "Classifier resolves a default LLM model (${resolver_out})"
         passed=$((passed + 1))
+    elif echo "$resolver_out" | grep -q '^bad model:'; then
+        fail "Classifier resolver default is not a provider/model id: ${resolver_out}"
     else
-        fail "Plugin does not use deepseek"
+        fail "Could not evaluate classifier resolver (toolchain?): ${resolver_out}"
     fi
     checks=$((checks + 1))
 
@@ -486,8 +528,8 @@ check_plugins() {
     fi
     checks=$((checks + 1))
 
-    # Check rm -rf is in BLOCKED_PATTERNS (explicit model-visible block)
-    if grep -q 'rm -rf detected' "${OPENCODE_DIR}/plugins/lib/pai-hooks.lib.js"; then
+    # Check rm -rf is in BLOCKED_PATTERNS (policy-driven deny, model-visible reason)
+    if grep -q 'Recursive deletion of system root' "${OPENCODE_DIR}/plugins/lib/pai-hooks.lib.js"; then
         pass "rm -rf in BLOCKED_PATTERNS (explicit fail)"
         passed=$((passed + 1))
     else
@@ -597,7 +639,7 @@ check_commands() {
     fi
     checks=$((checks + 1))
 
-    for cmd in "context-search" "cs" "pu"; do
+    for cmd in "context-search" "cs" "pu" "voice"; do
         if grep -q "\"${cmd}\"" "${OPENCODE_DIR}/opencode.jsonc"; then
             pass "/${cmd} command registered"
             passed=$((passed + 1))
@@ -606,6 +648,14 @@ check_commands() {
         fi
         checks=$((checks + 1))
     done
+
+    if [ -x "$PAI_DIR/bin/voice-config.sh" ]; then
+        pass "Voice config helper installed"
+        passed=$((passed + 1))
+    else
+        fail "Voice config helper missing or not executable"
+    fi
+    checks=$((checks + 1))
 
     local stale_commands=()
     local command_file
@@ -800,13 +850,29 @@ check_pulse() {
     fi
     checks=$((checks + 1))
 
-    if [ -f "$PAI_DIR/broker/pulse-broker.ts" ] && [ -f "$PAI_DIR/broker/broker-lib.ts" ]; then
-        pass "Pulse Broker installed (optional runtime, PAI/broker/)"
+    if [ -f "$PAI_DIR/broker/pulse-broker.ts" ] \
+        && [ -f "$PAI_DIR/broker/broker-lib.ts" ] \
+        && [ -f "$PAI_DIR/broker/renderer-desktop.ts" ] \
+        && [ -f "$PAI_DIR/broker/edge-tts-lib.ts" ] \
+        && [ -f "$PAI_DIR/broker/edge-tts-speaker.ts" ]; then
+        pass "Pulse Broker and Edge TTS renderer files installed"
         passed=$((passed + 1))
     else
-        fail "Pulse Broker files missing from PAI/broker/"
+        fail "Pulse Broker or Edge TTS renderer files missing from PAI/broker/"
     fi
     checks=$((checks + 1))
+
+    # Edge TTS is an OPTIONAL desktop-voice dependency: the renderer is opt-in
+    # (--tts) and auto-installs edge-tts lazily on first use, and headless
+    # servers are provisioned with --no-tts-bootstrap on purpose. Its absence is
+    # therefore a soft warning, never a validation failure.
+    if edge_tts_available; then
+        pass "Edge TTS provider dependency available (desktop voice ready)"
+        passed=$((passed + 1))
+        checks=$((checks + 1))
+    else
+        warn "Edge TTS provider not installed — optional desktop voice; auto-installs on first --tts use, or rerun installer without --no-tts-bootstrap"
+    fi
     
     # Installed content must have no legacy Claude Code paths anywhere —
     # PAI core, skills, agents, and commands (install.sh patch_installed_paths

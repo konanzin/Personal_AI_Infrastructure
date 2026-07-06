@@ -178,8 +178,8 @@ run_test "Classifier has fail-safe to ALGORITHM E3" \
 run_test "Classifier supports /e1-/e5 overrides" \
     "grep -q '/e1' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
 
-run_test "Classifier uses deepseek as default LLM" \
-    "grep -q 'deepseek-v4-flash-free' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
+run_test "Classifier resolves a default LLM model (id not pinned — W1.5)" \
+    "bun -e \"const m = await import('${PLUGINS_DIR}/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (typeof c.model !== 'string' || !/^[\\w.-]+\\/[\\w.-]+$/.test(c.model)) process.exit(1);\""
 
 run_test "pai-hooks imports mode-classifier" \
     "grep -q 'mode-classifier.lib.js' ${PLUGINS_DIR}/pai-hooks.js"
@@ -310,8 +310,10 @@ run_test "tool.execute.before inspects reads" \
 run_test "Containment inspector exists in lib" \
     "grep -q 'inspectWriteContent' ${PLUGINS_DIR}/lib/pai-hooks.lib.js"
 
-run_test "chat.message pre-sanitizes blocked prompts" \
-    "grep -q 'PAI SECURITY BLOCKED' ${PLUGINS_DIR}/pai-hooks.js"
+# W1.1b: PromptGuard is advisory — the user's prompt is never rewritten or
+# denied; a block-severity hit appends an advisory annotation instead.
+run_test "chat.message annotates suspicious prompts (advisory, no rewrite)" \
+    "grep -q 'PAI PromptGuard advisory' ${PLUGINS_DIR}/pai-hooks.js && ! grep -q 'PAI SECURITY BLOCKED' ${PLUGINS_DIR}/pai-hooks.js"
 
 READ_GUARD_TEST=$(cat <<EOF
 import { inspectBashCommand, inspectReadPath, inspectWriteContent } from '${PLUGINS_DIR}/lib/pai-hooks.lib.js';
@@ -321,8 +323,8 @@ const catEnv = inspectBashCommand('cat .env');
 const leak = inspectWriteContent('public/leak.txt', '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----');
 console.log(
   shadow.action === 'deny' &&
-  env.action === 'require_approval' &&
-  catEnv.action === 'require_approval' &&
+  env.action === 'deny' &&
+  catEnv.action === 'deny' &&
   leak.action === 'deny'
   ? 'PASS' : 'FAIL'
 );
@@ -384,7 +386,7 @@ const ag2 = inspectAgentSpawn({
   sessionAgentCount: 0,
 });
 
-// SkillGuard: obvious misfire should deny
+// SkillGuard: obvious misfire warns — never denies (W1.1a demoted the hard-deny)
 const sg1 = inspectSkillInvocation({
   skillName: 'ArXiv',
   userRequest: 'find italian restaurant',
@@ -400,7 +402,7 @@ const sg2 = inspectSkillInvocation({
 
 console.log(
   ag1.action === 'warn' && ag2.action === 'allow' &&
-  sg1.action === 'deny' && sg2.action === 'allow'
+  sg1.action === 'warn' && sg2.action === 'allow'
   ? 'PASS' : 'FAIL'
 );
 ENDTEST
@@ -522,8 +524,8 @@ TOTAL=$((TOTAL + 1))
 echo ""
 echo "${BLUE}Pulse Broker${RESET}"
 
-run_test "Broker daemon and lib installed" \
-    "[ -f ${PAI_DIR}/broker/pulse-broker.ts ] && [ -f ${PAI_DIR}/broker/broker-lib.ts ]"
+run_test "Broker daemon, renderer, and Edge TTS files installed" \
+    "[ -f ${PAI_DIR}/broker/pulse-broker.ts ] && [ -f ${PAI_DIR}/broker/broker-lib.ts ] && [ -f ${PAI_DIR}/broker/renderer-desktop.ts ] && [ -f ${PAI_DIR}/broker/edge-tts-lib.ts ] && [ -f ${PAI_DIR}/broker/edge-tts-speaker.ts ]"
 
 run_test "Pulse config declares optional broker scope" \
     "grep -q 'status = \"optional-broker\"' ${PAI_DIR}/PULSE/PULSE.toml"
@@ -534,7 +536,16 @@ run_test "Pulse config has no legacy jobs or missing tool calls" \
 run_test "Broker serves /health and legacy /api/pulse/health" \
     "grep -q \"'/health'\" ${PAI_DIR}/broker/pulse-broker.ts && grep -q '/api/pulse/health' ${PAI_DIR}/broker/pulse-broker.ts"
 
-# Functional: routing policy v1 (attention always; focused suppresses)
+run_test "Desktop renderer defaults to Edge TTS with command override" \
+    "grep -q 'edge-tts-speaker.ts' ${PAI_DIR}/broker/renderer-desktop.ts && grep -q 'PULSE_TTS_CMD' ${PAI_DIR}/broker/renderer-desktop.ts"
+
+run_test "Voice config helper installed" \
+    "[ -x ${PAI_DIR}/bin/voice-config.sh ]"
+
+run_test "Edge TTS provider dependency available" \
+    "([ -x \"${OPENCODE_DIR}/tts-venv/bin/python\" ] && \"${OPENCODE_DIR}/tts-venv/bin/python\" -c 'import edge_tts') || command -v edge-tts || (command -v python3 && python3 -c 'import edge_tts') || (command -v python && python -c 'import edge_tts')"
+
+# Functional: routing policy v1 (attention always; focused suppresses others)
 BROKER_TEST=$(cat <<EOF
 import { decideRender } from '${PAI_DIR}/broker/broker-lib.ts';
 const ev = (level) => ({ v:1, timestamp:'t', level, event:'x', session_id:'s1', slug:null, title:null, speak:'s', data:{} });
@@ -549,7 +560,7 @@ EOF
 
 BROKER_RESULT=$(echo "$BROKER_TEST" | bun run - 2>/dev/null || echo "FAIL")
 if [ "$BROKER_RESULT" = "PASS" ]; then
-    pass "Routing policy functional test (attention-always, session-on-screen)"
+    pass "Routing policy functional test (attention-always, focused suppresses others)"
     PASSED=$((PASSED + 1))
 else
     fail "Routing policy functional test"
