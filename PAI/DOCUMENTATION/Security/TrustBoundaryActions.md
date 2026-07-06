@@ -6,7 +6,7 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 |---|---:|---|---|
 | `allow` | Low risk, local, reversible | Run without asking after normal tool validation | Read repo source, grep docs, edit project tests, run scoped `bun test` |
 | `ask` | Medium risk or ambiguous leverage | Ask before proceeding; user intent can authorize it | External-directory reads outside the repo, writes to credentials-adjacent config, deploy/publish/push class commands |
-| `deny` | High risk, credential/private-data exposure, irreversible blast radius | Block and log; do not ask the model to decide | Private keys, `.env` secrets, OpenCode/Claude/GitHub token stores, installed `PAI_CONFIG.yaml`, `CONTACTS`, `FINANCES`, `HEALTH`, catastrophic deletes |
+| `deny` | High risk, credential exposure, irreversible blast radius | Block and log; do not ask the model to decide | Private keys, `.env` secrets, OpenCode/Claude/GitHub token stores, installed `PAI_CONFIG.yaml`, catastrophic deletes |
 | `escalate` | High leverage but sometimes legitimate | Route to deterministic owner or human approval; no LLM-only release | Arthur credential decisions, corrupt security-policy repair, publishing/deploying, policy version drift |
 
 ## Agent boundaries
@@ -19,8 +19,8 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 ## Policy boundaries
 
 - `PATTERNS.yaml` path tiers are the installed policy contract; `Patterns.example.yaml` and the bundled default must share the same version whenever path rules change.
-- Private installed PAI user-data is not general Read-tool substrate. Runtime startup may expose selected summaries, but raw credential and sensitive personal stores stay denied.
-- Machine workflow config such as `USER/Config/classifier.json` stays outside the deny floor; secret-bearing config such as `PAI_CONFIG.yaml` and `voice.env` stays denied.
+- The deny floor separates CREDENTIALS from PERSONAL CONTEXT (policy 3.4, Principal's decision 2026-07-06). Credential stores (auth tokens, `PAI_CONFIG.yaml`) stay denied — their legitimate use never requires the model to read them raw. Personal context (`CONTACTS`, `FINANCES`, `HEALTH`, `BUSINESS`, `OUR_STORY`, `voice.env`) is readable: a Life OS assistant that cannot know its Principal is capped where it matters most; what it does with that context is governed by the Principal's prompts, and the egress/secret-content floors still catch anything key-shaped leaving.
+- Machine workflow config such as `USER/Config/classifier.json` and `voice.env` (edge-tts voice names, no secrets) stays outside the deny floor; secret-bearing config such as `PAI_CONFIG.yaml` stays denied.
 - Security alerts are not "done" when written; `monitor-security-events.ts` is the scheduled consumer that turns bursty alert/block activity into health-check warnings.
 
 ## Risk/leverage action matrix
@@ -35,7 +35,7 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 | Forge/Anvil helper execution | Prose said helper-only, but permissions did not enforce it | `edit: deny`, `task: deny`, bash scoped to helper/prereq commands | Medium | High | `allow` only through helper |
 | Research agents | Prose said research-only/read-only | `edit: deny`, `task: deny`, `webfetch/websearch: allow`, bash asks | Medium | Medium | `allow` read/web, `ask` bash |
 | Cato/Arthur auditor/custodian | Prose said read-only/custodian | `edit: deny`, `task: deny`, bash scoped to deterministic helper | High | Medium | scoped `allow`, otherwise `deny` |
-| Credential/private-data reads | Some stores were reachable by Read despite bash sandbox masking | OpenCode/Claude/GitHub auth stores and sensitive PAI USER stores are `zeroAccess` | Critical | Low | `deny` |
+| Credential reads | Some stores were reachable by Read despite bash sandbox masking | OpenCode/Claude/GitHub auth stores and `PAI_CONFIG.yaml` are `zeroAccess`; personal-context stores readable since 3.4 | Critical | Low | `deny` (credentials only) |
 | Non-secret machine config | Broad `USER/Config/**` deny would have broken `/classifier` | `classifier.json` remains allowed; secret-bearing config denied | Medium | High | `allow` for known non-secret config |
 | Publish/deploy/push commands | Mostly normal bash allow plus audit on some destructive variants | Template asks on exact `git push`, release/publish/deploy, external-message CLIs | High | Medium | `ask` |
 | Recursive local cleanup | Alert tier logs and runs | Still logs and runs; burst monitor consumes alerts | Medium | High | `alert` + health consumer |
@@ -45,7 +45,7 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 ## Authority leaks closed
 
 - Prose-only read-only agents now have frontmatter permissions; future prose-boundary agents fail `agent-permissions.test.ts` if permission metadata is missing.
-- Raw installed credential stores now deny through `zeroAccess`: OpenCode auth, Claude credentials, GitHub CLI token store, PAI credential config, contacts, finances, health, business notes, and `OUR_STORY`.
+- Raw installed credential stores now deny through `zeroAccess`: OpenCode auth, Claude credentials, GitHub CLI token store, and the PAI credential config. (Personal-context stores were denied in 3.3 and deliberately re-opened in 3.4 — see Policy boundaries above.)
 - Helper-wrapper code agents no longer have direct edit authority; their code path is the helper they claim to use.
 - Publish/deploy/social-code-host mutation commands now ask through the rendered OpenCode bash permission template.
 - Security alert telemetry now has a scheduled consumer, not just a JSONL sink.

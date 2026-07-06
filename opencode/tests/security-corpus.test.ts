@@ -119,11 +119,6 @@ const MUST_BLOCK_READ: BlockCase[] = [
   { cmd: join(homedir(), ".config/claude/credentials.json"), note: "alternate Claude credentials store" },
   { cmd: join(homedir(), ".config/gh/hosts.yml"), note: "GitHub CLI token store" },
   { cmd: join(homedir(), ".config/opencode/PAI/USER/Config/PAI_CONFIG.yaml"), note: "PAI credential config" },
-  { cmd: join(homedir(), ".config/opencode/PAI/USER/Config/voice.env"), note: "PAI voice/env config" },
-  { cmd: join(homedir(), ".config/opencode/PAI/USER/CONTACTS.md"), note: "private PAI contacts" },
-  { cmd: join(homedir(), ".config/opencode/PAI/USER/FINANCES/accounts.md"), note: "private PAI financial data" },
-  { cmd: join(homedir(), ".config/opencode/PAI/USER/HEALTH/labs.md"), note: "private PAI health data" },
-  { cmd: join(homedir(), ".config/opencode/PAI/USER/BUSINESS/client-notes.md"), note: "private PAI business data" },
 ];
 
 const MUST_BLOCK_WRITE: BlockCase[] = [
@@ -193,6 +188,15 @@ const MUST_ALLOW_READ: AllowCase[] = [
   { cmd: "/srv/app/.env.local.example", note: "template of a local dotenv via Read tool" },
   { cmd: join(homedir(), ".config/opencode/PAI/USER/TELOS/GOALS.md"), note: "routed TELOS context remains outside the private-data deny floor" },
   { cmd: join(homedir(), ".config/opencode/PAI/USER/Config/classifier.json"), note: "/classifier machine config remains writable/readable by its workflow" },
+  // Policy 3.4 (Principal's call, 2026-07-06): PERSONAL context is the point of
+  // a Life OS — an assistant that cannot know its Principal is capped where it
+  // matters most. Only CREDENTIAL stores stay on the deny floor above.
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/CONTACTS.md"), note: "personal context readable (3.4)" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/FINANCES/accounts.md"), note: "personal context readable (3.4)" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/HEALTH/labs.md"), note: "personal context readable (3.4)" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/BUSINESS/client-notes.md"), note: "personal context readable (3.4)" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/OUR_STORY.md"), note: "personal context readable (3.4)" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/Config/voice.env"), note: "edge-tts voice names, no secrets; /voice workflow config" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
