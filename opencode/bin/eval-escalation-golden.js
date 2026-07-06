@@ -21,7 +21,7 @@
  *
  * Usage:
  *   bun bin/eval-escalation-golden.js --model <provider/model>   # REQUIRED: the executor model to probe
- *   bun bin/eval-escalation-golden.js --model X --kind under     # one kind only
+ *   bun bin/eval-escalation-golden.js --model X --kind under     # one kind: under|tier-under|over|control|none
  *   bun bin/eval-escalation-golden.js --model X --limit 5        # quick smoke
  *   bun bin/eval-escalation-golden.js --model X --runs 3         # majority vote per case
  *   bun bin/eval-escalation-golden.js --model X --json           # machine-readable
@@ -68,7 +68,9 @@ cases = cases.slice(0, limit);
 const CONCURRENCY = 4;
 
 async function decideCase(c) {
-  const ctx = formatClassificationContext(c.suggestion);
+  // kind 'none' has no suggestion: the classification block is omitted and
+  // the executor self-selects — the W2.2 end-state under measurement.
+  const ctx = c.suggestion ? formatClassificationContext(c.suggestion) : undefined;
   const prompt = buildExecutorPrompt(c, ctx);
   const out = await execOpencodeRun(model, prompt, timeoutMs);
   return parseDecision(out);
@@ -119,9 +121,11 @@ if (has("--json")) {
 
 const icon = { ok: "✅", warn: "⚠️", alert: "🚨" }[report.status];
 console.log(`${icon} escalation golden eval: ${report.status.toUpperCase()}  [executor via ${model}]`);
-console.log(`   under-correction (wrong-LOW suggestion overridden UP — the incident class): ${report.byKind.under.correct}/${report.byKind.under.total} (${pct(report.byKind.under.rate)})`);
-console.log(`   over-correction  (wrong-HIGH suggestion overridden DOWN): ${report.byKind.over.correct}/${report.byKind.over.total} (${pct(report.byKind.over.rate)})`);
+console.log(`   under-correction (wrong-LOW mode overridden UP — the incident class): ${report.byKind.under.correct}/${report.byKind.under.total} (${pct(report.byKind.under.rate)})`);
+console.log(`   tier-under      (wrong-LOW tier corrected into accepted set): ${report.byKind["tier-under"].correct}/${report.byKind["tier-under"].total} (${pct(report.byKind["tier-under"].rate)})`);
+console.log(`   over-correction (wrong-HIGH suggestion overridden DOWN): ${report.byKind.over.correct}/${report.byKind.over.total} (${pct(report.byKind.over.rate)})`);
 console.log(`   control adoption (correct suggestion adopted): ${report.byKind.control.correct}/${report.byKind.control.total} (${pct(report.byKind.control.rate)})`);
+console.log(`   none / self-selection (no classifier block — the W2.2 gate): ${report.byKind.none.correct}/${report.byKind.none.total} (${pct(report.byKind.none.rate)})`);
 if (report.failures.length) {
   console.log("   FAILURES:");
   for (const f of report.failures) {

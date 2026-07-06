@@ -127,13 +127,17 @@ bun bin/eval-classifier-golden.js         # O3 correctness on the PRODUCTION LLM
 bun bin/monitor-classifier-health.js      # O3/O5 liveness of the LLM path from the live stream
 bun bin/eval-escalation-golden.js --model <executor>  # O3 EXECUTOR side (on-demand): does the model
                                           #   override wrong-LOW suggestions (the 2026-04 incident class),
-                                          #   override wrong-HIGH ones, and adopt correct ones? Guards the
-                                          #   W1.2 suggestion posture; run before any W2.2 change.
+                                          #   correct wrong-LOW TIERS (kind tier-under — right mode, E1
+                                          #   suggested for E3+ work: the incident's actual shape),
+                                          #   override wrong-HIGH ones, adopt correct ones, and — kind
+                                          #   none — self-select correctly with NO classifier block at
+                                          #   all. `none` is the W2.2 gate: do not remove the classifier
+                                          #   from the loop while that bucket warns (<80%).
                                           #   Pure parts fenced free in tests/escalation-golden.test.ts.
-                                          #   First probe (2026-07-06, deepseek-v4-flash-free, 8 under
-                                          #   cases): 8/8 corrected — even a small model overrides
-                                          #   wrong-low suggestions under the W1.2 prose. Full baseline
-                                          #   with the production executor model still to run.
+                                          #   Probes (2026-07-06, deepseek-v4-flash-free): under 8/8,
+                                          #   over 2/2, tier-under 2/2, none 4/4. Full all-kinds baseline
+                                          #   with the production executor model still to run — REQUIRED
+                                          #   before flipping W2.2.
 ```
 
 **How the `knownGap` fences work (self-healing):** a confirmed gap is pinned with

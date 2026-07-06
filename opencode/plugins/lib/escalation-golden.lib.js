@@ -10,15 +10,26 @@
  * (formatClassificationContext) around deliberately wrong — and control —
  * suggestions:
  *
- *   • under   — ALGORITHM-labeled work suggested as NATIVE. The executor must
- *               override UP. This is the incident class; its rate is the
- *               number that guards the W1.2 relaxation.
- *   • over    — NATIVE-labeled trivia suggested as ALGORITHM E4. The executor
- *               must override DOWN (otherwise every typo fix pays full
- *               ceremony and the suggestion prose is a ratchet, not a hint).
- *   • control — the suggestion matches the label. The executor should adopt
- *               it: overriding correct suggestions means the prose reads as
- *               noise, which is its own failure.
+ *   • under      — ALGORITHM-labeled work suggested as NATIVE. The executor
+ *                  must override UP. This is the incident class; its rate is
+ *                  the number that guards the W1.2 relaxation.
+ *   • tier-under — high-tier ALGORITHM work (accepted set entirely ≥E3)
+ *                  suggested as ALGORITHM E1: right mode, wrong-LOW tier —
+ *                  the 2026-04 incident was an E4-shaped question run at a
+ *                  low tier, and the heuristic classifier's live failure mode
+ *                  is exactly this shape ("memory leak → E2"). The executor
+ *                  must land in the accepted tier set.
+ *   • over       — NATIVE-labeled trivia suggested as ALGORITHM E4. The
+ *                  executor must override DOWN (otherwise every typo fix pays
+ *                  full ceremony and the suggestion prose is a ratchet, not a
+ *                  hint).
+ *   • control    — the suggestion matches the label. The executor should
+ *                  adopt it: overriding correct suggestions means the prose
+ *                  reads as noise, which is its own failure.
+ *   • none       — NO classification block at all: pure self-selection, the
+ *                  W2.2 end-state. Its accuracy against the golden labels is
+ *                  the gate for removing the classifier from the loop — do
+ *                  not ship W2.2 while this bucket warns.
  *
  * Pure and dependency-free (no I/O, no LLM calls) so the builder, parser and
  * scorer are unit-testable; bin/eval-escalation-golden.js does the LLM calls
@@ -28,9 +39,10 @@
 /**
  * @typedef {object} EscalationCase
  * @property {string} prompt                       User request (from the classifier golden set).
- * @property {'under'|'over'|'control'} kind
- * @property {{mode: string, tier: string|null, reason: string, source: string, confidence: number}} suggestion
- *   Fed to formatClassificationContext verbatim — same shape production persists.
+ * @property {'under'|'tier-under'|'over'|'control'|'none'} kind
+ * @property {{mode: string, tier: string|null, reason: string, source: string, confidence: number}|null} suggestion
+ *   Fed to formatClassificationContext verbatim — same shape production
+ *   persists. `null` for kind 'none': no classification block is rendered.
  * @property {'MINIMAL'|'NATIVE'|'ALGORITHM'} expectedMode
  * @property {string[]|null} expectedTiers          Accepted tiers (control ALGORITHM cases only).
  * @property {string} note
@@ -78,6 +90,35 @@ export function buildEscalationCases(goldenSet) {
         expectedTiers: g.tiers,
         note: g.note || "",
       });
+      // Tier-under: right mode, wrong-LOW tier. Only for prompts whose
+      // accepted set sits entirely at E3+ — there, an E1 suggestion is
+      // unambiguously wrong-low, not an adjacent-tier judgment call.
+      if (!g.tiers.includes("E1") && !g.tiers.includes("E2")) {
+        cases.push({
+          prompt: g.prompt,
+          kind: "tier-under",
+          suggestion: {
+            mode: "ALGORITHM",
+            tier: "E1",
+            reason: "Simple single-domain task",
+            source: "llm",
+            confidence: 0.85,
+          },
+          expectedMode: "ALGORITHM",
+          expectedTiers: g.tiers,
+          note: g.note || "",
+        });
+      }
+      // None: pure self-selection — no classification block (the W2.2
+      // end-state). Graded against the golden label including tier.
+      cases.push({
+        prompt: g.prompt,
+        kind: "none",
+        suggestion: null,
+        expectedMode: "ALGORITHM",
+        expectedTiers: g.tiers,
+        note: g.note || "",
+      });
     } else if (g.mode === "NATIVE") {
       cases.push({
         prompt: g.prompt,
@@ -89,6 +130,14 @@ export function buildEscalationCases(goldenSet) {
           source: "llm",
           confidence: 0.85,
         },
+        expectedMode: "NATIVE",
+        expectedTiers: null,
+        note: g.note || "",
+      });
+      cases.push({
+        prompt: g.prompt,
+        kind: "none",
+        suggestion: null,
         expectedMode: "NATIVE",
         expectedTiers: null,
         note: g.note || "",
@@ -105,15 +154,20 @@ export function buildEscalationCases(goldenSet) {
  * Compose the executor-side prompt for one case. The classification block MUST
  * be the rendered output of the production formatClassificationContext — the
  * eval exists to measure the effect of that exact prose, so the caller renders
- * it and passes the string in (keeps this module pure).
+ * it and passes the string in (keeps this module pure). For kind 'none' the
+ * caller passes nothing and the block is omitted entirely — pure
+ * self-selection, the W2.2 end-state.
  *
  * The mode rules mirror the condensed "You Decide" block pai-hooks.js injects.
  *
  * @param {EscalationCase} c
- * @param {string} renderedClassificationContext
+ * @param {string} [renderedClassificationContext]
  * @returns {string}
  */
 export function buildExecutorPrompt(c, renderedClassificationContext) {
+  const classificationBlock = renderedClassificationContext
+    ? [renderedClassificationContext, ""]
+    : [];
   return [
     "You are the executor model in the PAI harness. Decide the response mode for the user request below.",
     "",
@@ -122,8 +176,7 @@ export function buildExecutorPrompt(c, renderedClassificationContext) {
     "- NATIVE — single fact lookup OR single-line edit on a named file OR one command run, AND no new artifact created, AND no multi-step plan.",
     "- ALGORITHM — everything else: multi-step, investigative, ambiguous, design, refactor, anything touching multiple files. Tiers: E1 trivial, E2 single-domain, E3 multi-file substantial, E4 cross-cutting/architecture, E5 comprehensive.",
     "",
-    renderedClassificationContext,
-    "",
+    ...classificationBlock,
     "User request:",
     '"""',
     c.prompt,
@@ -159,11 +212,17 @@ export function parseDecision(text) {
 // Initial anchors, to be recalibrated after the first real measurement — the
 // asymmetry is deliberate: under-correction failures are the incident class
 // (silent quality loss), over-correction failures only waste ceremony.
+// tier-under is guarded as hard as under (same incident class, one layer
+// deeper). none is the W2.2 gate: self-selection accuracy without any
+// classifier block — do not remove the classifier while it warns.
 export const DEFAULT_ESCALATION_THRESHOLDS = {
   underWarn: 0.85,
   underAlert: 0.6,
+  tierUnderWarn: 0.85,
+  tierUnderAlert: 0.6,
   overWarn: 0.6,
   controlWarn: 0.7,
+  noneWarn: 0.8,
 };
 
 /**
@@ -183,8 +242,10 @@ export function scoreEscalation(cases, results, thresholds = {}) {
   const t = { ...DEFAULT_ESCALATION_THRESHOLDS, ...thresholds };
   const byKind = {
     under: { total: 0, correct: 0, rate: null },
+    "tier-under": { total: 0, correct: 0, rate: null },
     over: { total: 0, correct: 0, rate: null },
     control: { total: 0, correct: 0, rate: null },
+    none: { total: 0, correct: 0, rate: null },
   };
   const failures = [];
 
@@ -197,7 +258,9 @@ export function scoreEscalation(cases, results, thresholds = {}) {
       return;
     }
     let ok = r.mode === c.expectedMode;
-    if (ok && c.kind === "control" && Array.isArray(c.expectedTiers) && c.expectedTiers.length) {
+    // Whenever an accepted tier set exists (control, tier-under, ALGORITHM
+    // none), the decision must also land inside it.
+    if (ok && Array.isArray(c.expectedTiers) && c.expectedTiers.length) {
       ok = c.expectedTiers.includes(r.tier);
     }
     if (ok) {
@@ -226,8 +289,13 @@ export function scoreEscalation(cases, results, thresholds = {}) {
     if (byKind.under.rate < t.underAlert) bump("alert");
     else if (byKind.under.rate < t.underWarn) bump("warn");
   }
+  if (byKind["tier-under"].rate !== null) {
+    if (byKind["tier-under"].rate < t.tierUnderAlert) bump("alert");
+    else if (byKind["tier-under"].rate < t.tierUnderWarn) bump("warn");
+  }
   if (byKind.over.rate !== null && byKind.over.rate < t.overWarn) bump("warn");
   if (byKind.control.rate !== null && byKind.control.rate < t.controlWarn) bump("warn");
+  if (byKind.none.rate !== null && byKind.none.rate < t.noneWarn) bump("warn");
 
   return { total: cases.length, byKind, failures, status };
 }
