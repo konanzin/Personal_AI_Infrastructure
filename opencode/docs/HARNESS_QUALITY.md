@@ -134,10 +134,12 @@ bun bin/eval-escalation-golden.js --model <executor>  # O3 EXECUTOR side (on-dem
                                           #   all. `none` is the W2.2 gate: do not remove the classifier
                                           #   from the loop while that bucket warns (<80%).
                                           #   Pure parts fenced free in tests/escalation-golden.test.ts.
-                                          #   Probes (2026-07-06, deepseek-v4-flash-free): under 8/8,
-                                          #   over 2/2, tier-under 2/2, none 4/4. Full all-kinds baseline
-                                          #   with the production executor model still to run — REQUIRED
-                                          #   before flipping W2.2.
+                                          #   BASELINE (2026-07-06, openai/gpt-5.5, runs=1): under 24/24,
+                                          #   tier-under 7/10 (70% — wrong-low suggestions ANCHOR the
+                                          #   executor down to E2 on E3+ work), over 22/23, control 24/24,
+                                          #   none 47/47 (100%). The W2.2 gate (none ≥80%) passed with
+                                          #   room: pure self-selection beats suggestion-following exactly
+                                          #   where the classifier errs low. Re-run per model bump (W3.1).
 ```
 
 **How the `knownGap` fences work (self-healing):** a confirmed gap is pinned with
