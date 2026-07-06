@@ -8,7 +8,6 @@ import {
   inspectReadPath,
   inspectWriteContent,
   inspectAgentSpawn,
-  inspectSkillInvocation,
   inspectPrompt,
   detectPositivePraise,
   loadSecurityPolicy,
@@ -249,95 +248,43 @@ describe("Security Pipeline — inspectWriteContent containment", () => {
   });
 });
 
-describe("AgentGuard — inspectAgentSpawn", () => {
-  describe("WARN patterns", () => {
-    test("warns on trivial file lookup", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "explore",
-        description: "find file named config.ts",
-        prompt: "",
-        sessionAgentCount: 0,
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("glob");
+describe("AgentGuard — inspectAgentSpawn (resource floor only, W2.1)", () => {
+  // W2.1 removed the keyword corpora (trivial-lookup/vague-prompt/expensive-
+  // agent) that second-guessed the model's delegation judgment. The one rule
+  // left is the per-session fan-out cap — budget advice, never a gate.
+  test("warns on fan-out threshold", () => {
+    const result = inspectAgentSpawn({
+      subagent_type: "general",
+      description: "do complex analysis",
+      prompt: "long detailed prompt here",
+      sessionAgentCount: 5,
     });
-
-    test("warns on simple text search", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "explore",
-        description: "search for 'TODO' in codebase",
-        prompt: "",
-        sessionAgentCount: 0,
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("grep");
-    });
-
-    test("warns on trivial read request", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "explore",
-        description: "read the contents of package.json",
-        prompt: "",
-        sessionAgentCount: 0,
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("read");
-    });
-
-    test("warns on vague prompt", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "general",
-        description: "help me",
-        prompt: "",
-        sessionAgentCount: 0,
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("Vague");
-    });
-
-    test("warns on fan-out threshold", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "general",
-        description: "do complex analysis",
-        prompt: "long detailed prompt here",
-        sessionAgentCount: 5,
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("threshold");
-    });
-
-    test("warns on expensive agent for trivial task", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "research",
-        description: "find where errors are handled",
-        prompt: "",
-        sessionAgentCount: 0,
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("Expensive");
-    });
+    expect(result.action).toBe("warn");
+    expect(result.rationale).toContain("threshold");
+    expect(result.metadata.hits[0].rule).toBe("fanout_threshold");
   });
 
-  describe("ALLOW patterns", () => {
-    test("allows complex multi-step task", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "engineer",
-        description: "refactor the authentication module to use JWT tokens instead of session cookies, including tests",
-        prompt: "This is a detailed prompt with multiple steps and requirements",
-        sessionAgentCount: 0,
-      });
-      expect(result.action).toBe("allow");
+  test("never denies — the cap is advice, not a gate", () => {
+    const result = inspectAgentSpawn({
+      subagent_type: "research",
+      description: "x",
+      prompt: "",
+      sessionAgentCount: 999,
     });
+    expect(result.action).toBe("warn");
+    expect(result.action).not.toBe("deny");
+  });
 
-    test("allows research task", () => {
-      const result = inspectAgentSpawn({
-        subagent_type: "research",
-        description: "investigate competitive landscape for vector databases in 2024",
-        prompt: "We need to understand pricing, performance benchmarks, and ecosystem maturity",
-        sessionAgentCount: 0,
-      });
+  test("allows everything under the cap — including the shapes the old keyword rules flagged", () => {
+    for (const probe of [
+      { subagent_type: "explore", description: "find file named config.ts" },
+      { subagent_type: "general", description: "help me" },
+      { subagent_type: "research", description: "find where errors are handled" },
+      { subagent_type: "engineer", description: "refactor the authentication module to use JWT" },
+    ]) {
+      const result = inspectAgentSpawn({ ...probe, prompt: "", sessionAgentCount: 0 });
       expect(result.action).toBe("allow");
-    });
+    }
   });
 });
 
@@ -371,83 +318,6 @@ describe("PromptGuard — advisory only, never a gate (drift register W1.1b)", (
 
   test("clean prompt still allows", () => {
     expect(inspectPrompt("Refactor the auth module into two files please").action).toBe("allow");
-  });
-});
-
-describe("SkillGuard — inspectSkillInvocation", () => {
-  describe("misfire is advisory, never a gate (drift register W1.1a)", () => {
-    test("skill misfire warns instead of denying", () => {
-      const result = inspectSkillInvocation({
-        skillName: "ArXiv",
-        userRequest: "find a good italian restaurant nearby",
-        context: "",
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("specific");
-    });
-
-    test("guard never emits deny for any skill invocation shape", () => {
-      // Correctly-chosen skill phrased without any listed keyword must flow through.
-      const result = inspectSkillInvocation({
-        skillName: "ArXiv",
-        userRequest: "pull up what academia has been publishing about state-space models",
-        context: "",
-      });
-      expect(result.action).not.toBe("deny");
-    });
-  });
-
-  describe("WARN patterns", () => {
-    test("warns on trivial request", () => {
-      const result = inspectSkillInvocation({
-        skillName: "Research",
-        userRequest: "what time is it",
-        context: "",
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("Trivial");
-    });
-
-    test("warns on high-cost skill for simple lookup", () => {
-      const result = inspectSkillInvocation({
-        skillName: "Research",
-        userRequest: "find config.json",
-        context: "",
-      });
-      expect(result.action).toBe("warn");
-      expect(result.rationale).toContain("High-cost");
-    });
-
-    test("warns on simple count request", () => {
-      const result = inspectSkillInvocation({
-        skillName: "Browser",
-        userRequest: "count how many lines are in this file",
-        context: "",
-      });
-      expect(result.action).toBe("warn");
-      // Browser is high-cost but not high-specificity, so it hits high_cost_trivial
-      expect(result.rationale).toContain("High-cost");
-    });
-  });
-
-  describe("ALLOW patterns", () => {
-    test("allows matching skill request", () => {
-      const result = inspectSkillInvocation({
-        skillName: "ArXiv",
-        userRequest: "find recent papers on transformer architectures",
-        context: "",
-      });
-      expect(result.action).toBe("allow");
-    });
-
-    test("allows research skill for research task", () => {
-      const result = inspectSkillInvocation({
-        skillName: "Research",
-        userRequest: "investigate the latest developments in quantum computing",
-        context: "",
-      });
-      expect(result.action).toBe("allow");
-    });
   });
 });
 

@@ -39,7 +39,7 @@ import {
   shouldSandboxCommand, sandboxAvailable, wrapBashInSandbox,
   isTrustedPath, permissionCacheAllowRead,
   inspectPrompt, inspectContent,
-  inspectAgentSpawn, inspectSkillInvocation,
+  inspectAgentSpawn,
   parseExplicitRating, isSystemText, detectPositivePraise,
   getLearningCategory,
   readWorkRegistry, writeWorkRegistry, findArtifactPath,
@@ -382,7 +382,6 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
   const classifierTelemetryPath = join(OBSERVABILITY_DIR, 'mode-classifier.jsonl');
   const getCurrentWorkPath = (sid) => join(STATE_DIR, `current-work-${sid}.json`);
   const agentGuardPath = join(OBSERVABILITY_DIR, 'agent-guard.jsonl');
-  const skillGuardPath = join(OBSERVABILITY_DIR, 'skill-guard.jsonl');
   const sessionEventsPath = join(OBSERVABILITY_DIR, 'session-events.jsonl');
   const toolFailuresPath = join(OBSERVABILITY_DIR, 'tool-failures.jsonl');
   const subagentTracePath = join(OBSERVABILITY_DIR, 'subagent-trace.jsonl');
@@ -1307,73 +1306,25 @@ ${activeWork}`);
             metadata: agentResult.metadata,
           });
 
-          if (agentResult.action === 'deny') {
-            console.error(`[PAI] 🛡️ AgentGuard: BLOCKED agent spawn`);
-            console.error(`[PAI]   Agent: ${args.subagent_type || args.agent}`);
-            console.error(`[PAI]   Reason: ${agentResult.rationale}`);
-            emitNotification({
-              event: 'guard_denied',
-              sessionId,
-              data: { guard: 'agent', target: args.subagent_type || args.agent || 'unknown', reason: agentResult.rationale },
-            });
-            throw new Error(`[PAI AGENTGUARD] BLOCKED: ${agentResult.rationale}`);
-          }
-
           if (agentResult.action === 'warn') {
-            console.warn(`[PAI] ⚠️ AgentGuard: WARNED on agent spawn`);
+            console.warn(`[PAI] ⚠️ AgentGuard: WARNED on agent spawn (fan-out cap)`);
             console.warn(`[PAI]   Agent: ${args.subagent_type || args.agent}`);
             console.warn(`[PAI]   Reason: ${agentResult.rationale}`);
             // Warn flows through — execution continues, but decision is logged
           }
 
-          // Increment counter on allow/warn (actual spawn is proceeding)
-          if (agentResult.action !== 'deny') {
-            sessionAgentCounts.set(sessionId, currentCount + 1);
-          }
+          // Increment counter — the spawn always proceeds (resource floor
+          // warns, never gates; W2.1 removed the keyword deny surface).
+          sessionAgentCounts.set(sessionId, currentCount + 1);
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // F1.6: SkillGuard — Validate skill invocation decisions
-        // ═══════════════════════════════════════════════════════════════
-        if (tool === 'skill') {
-          const skillName = args?.name || 'unknown';
-          // Try to reconstruct the user request from session context
-          // We don't have direct access to the original user prompt here,
-          // so we use the skill args as a proxy for the request intent
-          const userRequest = args?.args?.prompt || args?.args?.request || args?.args?.query || JSON.stringify(args?.args || {});
-
-          const skillResult = inspectSkillInvocation({
-            skillName,
-            userRequest,
-            context: '', // Could be enriched later with session classification
-          });
-
-          // Log every guard decision
-          appendJsonL(skillGuardPath, {
-            timestamp: getISOTimestamp(),
-            event: 'skill_guard_decision',
-            session_id: sessionId,
-            requested_skill: skillName,
-            decision: skillResult.action,
-            rationale: skillResult.rationale,
-            request_preview: truncate(userRequest, 200),
-            metadata: skillResult.metadata,
-          });
-
-          if (skillResult.action === 'warn') {
-            console.warn(`[PAI] ⚠️ SkillGuard: WARNED on skill invocation`);
-            console.warn(`[PAI]   Skill: ${skillName}`);
-            console.warn(`[PAI]   Reason: ${skillResult.rationale}`);
-            // Warn flows through — execution continues, but decision is logged
-          }
-        }
+        // F1.6 (SkillGuard) removed — W2.1: its keyword corpora second-guessed
+        // the model's skill choice over a stringified-args proxy and never
+        // denied. Skill telemetry: subagent-trace + execution.jsonl (W2.6).
 
       } catch (e) {
         // Re-throw blocking errors, log others
-        const isBlockingError = e.message && (
-          e.message.includes('[PAI SECURITY] BLOCKED') ||
-          e.message.includes('[PAI AGENTGUARD] BLOCKED')
-        );
+        const isBlockingError = e.message && e.message.includes('[PAI SECURITY] BLOCKED');
         if (isBlockingError) {
           throw e;
         }

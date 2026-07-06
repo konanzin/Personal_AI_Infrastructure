@@ -1266,214 +1266,52 @@ export function inspectContent(content) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// AGENT GUARD (Orchestration Inspector)
+// AGENT GUARD (Orchestration Inspector — resource floor only)
 // ═══════════════════════════════════════════════════════════════
+// W2.1 (drift register, 2026-07-06): the keyword corpora that second-guessed
+// the model's delegation and skill choices are gone — trivial-lookup/vague-
+// prompt regexes, expensive-agent tables, and the whole SkillGuard
+// (inspectSkillInvocation) with its high-cost/high-specificity skill lists:
+// once the keyword rules left, nothing non-keyword remained in it. They were
+// frozen judgment over a stringified-args proxy and advisory-only in practice
+// (AgentGuard deny was env-gated off by default; SkillGuard never denied) —
+// warn noise, not safety. The security floor (bash/secrets/egress/paths) is
+// untouched; skill telemetry lives in subagent-trace and execution.jsonl.
+// What stays is the one resource floor: the per-session fan-out cap.
 
-// Configuration
 const AGENTGUARD_FANOUT_MAX = parseInt(process.env.PAI_AGENTGUARD_FANOUT_MAX || '3', 10);
-const AGENTGUARD_DENY_CONFIDENCE = process.env.PAI_AGENTGUARD_DENY_CONFIDENCE === 'true';
-
-// Patterns that indicate a task should use native tools instead of agents
-const TRIVIAL_LOOKUP_PATTERNS = [
-  // File location / existence
-  { regex: /\b(find|locate|where is|search for)\s+(the\s+)?(file|files?)\s+(named|called|with|matching)\b/i, reason: 'Trivial file lookup — use glob/read/grep instead of agent', confidence: 'high' },
-  { regex: /\b(find|locate|where is|search for)\s+(a\s+)?(file|files?)\b/i, reason: 'Trivial file lookup — use glob/read/grep instead of agent', confidence: 'medium' },
-  // Simple content search
-  { regex: /\b(search|grep|find)\s+(for\s+)?[\"']?[a-z0-9_.\-*]{1,30}[\"']?\s+in\s+(files?|code|codebase|project|repo)\b/i, reason: 'Simple text search — use grep/glob directly', confidence: 'high' },
-  // Read file content
-  { regex: /\b(read|show|display|get|output)\s+(the\s+)?(contents?|content|text|lines?)\s+(of\s+)?[a-zA-Z0-9_\-\.\/]{1,60}\b/i, reason: 'Trivial read — use read tool directly', confidence: 'high' },
-  { regex: /\b(read|show|display|get)\s+(me\s+)?(the\s+)?file\b/i, reason: 'Trivial read — use read tool directly', confidence: 'medium' },
-  // Simple counting/listing
-  { regex: /\b(count|how many)\s+(files?|lines?|occurrences?|matches?)\b/i, reason: 'Simple counting — use bash wc/grep -c', confidence: 'medium' },
-  { regex: /\b(list all|show all|enumerate)\s+(files?|directories?)\s+(matching|with|in)\b/i, reason: 'Simple listing — use glob/ls instead of agent', confidence: 'medium' },
-];
-
-// Patterns indicating vague or underspecified delegation
-const VAGUE_PROMPT_PATTERNS = [
-  { regex: /^.{1,30}$/, reason: 'Prompt too short for meaningful delegation (< 30 chars)', confidence: 'medium' },
-  { regex: /\b(do something|help me|fix this|check this|look at this|handle this)\b/i, reason: 'Vague delegation — prompt lacks specificity', confidence: 'medium' },
-  { regex: /\b(just|simply|only)\s+\w+\s+(it|this|that)\b/i, reason: 'Vague delegation — underspecified task', confidence: 'low' },
-];
-
-// Agent types that are expensive or specialized
-const EXPENSIVE_AGENT_TYPES = ['research', 'extensive_research', 'deep_investigation', 'council', 'redteam', 'worldthreatmodel'];
-
-// Agent types suitable for trivial tasks
-const LIGHTWEIGHT_AGENT_TYPES = ['explore', 'quick', 'fast'];
 
 /**
- * Inspects an agent spawn request and returns allow/warn/deny.
+ * Inspects an agent spawn request. Resource floor ONLY: warns when the
+ * session's spawn count crosses the fan-out cap. Never denies — the cap is
+ * budget advice; which agent to spawn is the model's judgment (W2.1).
  *
- * Contract:
+ * Contract (unchanged):
  *   Input:  { subagent_type, description, prompt, sessionAgentCount }
- *   Output: { action: 'allow'|'warn'|'deny', rationale, metadata }
- *
- * Philosophy: warn-first. Deny only when confidence is very high and
- * the misuse is unambiguous.
+ *   Output: { action: 'allow'|'warn', rationale, metadata }
  */
 export function inspectAgentSpawn({ subagent_type, description, prompt, sessionAgentCount = 0 }) {
-  const text = `${description || ''} ${prompt || ''}`.toLowerCase().trim();
   const agentType = (subagent_type || '').toLowerCase();
-  const hits = [];
+  const textLength = `${description || ''} ${prompt || ''}`.trim().length;
 
-  // Rule 1: Trivial lookup → should use native tools
-  for (const { regex, reason, confidence } of TRIVIAL_LOOKUP_PATTERNS) {
-    if (regex.test(text)) {
-      hits.push({ rule: 'trivial_lookup', reason, confidence });
-    }
-  }
-
-  // Rule 2: Vague delegation
-  for (const { regex, reason, confidence } of VAGUE_PROMPT_PATTERNS) {
-    if (regex.test(text)) {
-      hits.push({ rule: 'vague_prompt', reason, confidence });
-    }
-  }
-
-  // Rule 3: Fan-out threshold
   if (sessionAgentCount >= AGENTGUARD_FANOUT_MAX) {
-    hits.push({
-      rule: 'fanout_threshold',
-      reason: `Session already spawned ${sessionAgentCount} agents (threshold: ${AGENTGUARD_FANOUT_MAX}) — consider serializing or using native tools`,
-      confidence: 'medium',
-    });
-  }
-
-  // Rule 4: Expensive agent for trivial-looking task
-  const isExpensiveAgent = EXPENSIVE_AGENT_TYPES.some(t => agentType.includes(t));
-  const looksTrivial = /\b(find|read|show|get|list|count|check|search for)\b/i.test(text) && text.length < 120;
-  if (isExpensiveAgent && looksTrivial) {
-    hits.push({
-      rule: 'expensive_agent_trivial_task',
-      reason: `Expensive agent '${subagent_type}' used for apparently trivial task — consider lighter alternative`,
-      confidence: 'medium',
-    });
-  }
-
-  // Decision logic
-  if (hits.length === 0) {
+    const reason = `Session already spawned ${sessionAgentCount} agents (threshold: ${AGENTGUARD_FANOUT_MAX}) — consider serializing or using native tools`;
     return {
-      action: 'allow',
-      rationale: 'No guard rules triggered',
-      metadata: { agentType, textLength: text.length, sessionAgentCount },
-    };
-  }
-
-  const highConfidenceHits = hits.filter(h => h.confidence === 'high');
-  const hasDeny = AGENTGUARD_DENY_CONFIDENCE && highConfidenceHits.length > 0;
-
-  if (hasDeny) {
-    return {
-      action: 'deny',
-      rationale: highConfidenceHits.map(h => h.reason).join('; '),
-      metadata: { agentType, hits, textLength: text.length, sessionAgentCount },
+      action: 'warn',
+      rationale: reason,
+      metadata: {
+        agentType,
+        hits: [{ rule: 'fanout_threshold', reason, confidence: 'medium' }],
+        textLength,
+        sessionAgentCount,
+      },
     };
   }
 
   return {
-    action: 'warn',
-    rationale: hits.map(h => h.reason).join('; '),
-    metadata: { agentType, hits, textLength: text.length, sessionAgentCount },
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SKILL GUARD (Skill Invocation Inspector)
-// ═══════════════════════════════════════════════════════════════
-
-// Skills that are expensive or have high startup cost
-const HIGH_COST_SKILLS = [
-  'research', 'extensive_research', 'deep_investigation',
-  'apify', 'brightdata', 'browser', 'interceptor',
-  'remotion', 'worldthreatmodel', 'council', 'redteam',
-];
-
-// Skills with very specific domains — easy to misfire
-const HIGH_SPECIFICITY_SKILLS = [
-  { name: 'arxiv', keywords: ['paper', 'research', 'academic', 'arxiv', 'citation', 'journal'] },
-  { name: 'apify', keywords: ['scrape', 'scraping', 'instagram', 'linkedin', 'tiktok', 'social media', 'platform'] },
-  { name: 'brightdata', keywords: ['scrape', 'crawl', 'bot', 'capcha', 'residential proxy'] },
-  { name: 'remotion', keywords: ['video', 'animation', 'mp4', 'motion', 'render'] },
-  { name: 'audioeditor', keywords: ['audio', 'podcast', 'transcribe', 'wav', 'mp3', 'cleanup'] },
-  { name: 'usmetrics', keywords: ['gdp', 'inflation', 'fred', 'economy', 'unemployment', 'treasury'] },
-  { name: 'privateinvestigator', keywords: ['find person', 'people search', 'background check', 'reverse lookup'] },
-  { name: 'sales', keywords: ['pitch', 'sales deck', 'proposal', 'value proposition'] },
-  { name: 'writestory', keywords: ['fiction', 'novel', 'story', 'character', 'plot', 'prose'] },
-];
-
-// Patterns indicating a request is trivial enough for native tools
-const TRIVIAL_REQUEST_PATTERNS = [
-  { regex: /^(what time is it|what day is it|what's the date)\b/i, reason: 'Trivial time/date query — native tool or no tool needed', confidence: 'high' },
-  { regex: /^(count|how many)\b.*?\b(files?|lines?|words?|directories?)\b/i, reason: 'Simple count — use bash wc/ls', confidence: 'high' },
-  { regex: /^(list|show)\s+(all\s+)?(files?|dirs?|directories?)\b/i, reason: 'Simple listing — use glob or ls', confidence: 'high' },
-  { regex: /^(read|show|display)\s+(the\s+)?(contents?|content)\s+(of\s+)?[a-zA-Z0-9_\-\.\/]+\b/i, reason: 'Simple read — use read tool', confidence: 'high' },
-  { regex: /^(find|grep|search)\s+(for\s+)?[\"']?[a-z0-9_.\-]+\.(?:ts|js|json|md|txt|yaml|yml|py|rs|go)[\"']?\b/i, reason: 'Simple file search — use grep/glob', confidence: 'medium' },
-  { regex: /^(delete|remove|rm)\s+(the\s+)?(file|directory)\b/i, reason: 'Simple delete — use bash rm', confidence: 'medium' },
-];
-
-/**
- * Inspects a skill invocation request and returns allow/warn.
- *
- * Contract:
- *   Input:  { skillName, userRequest, context }
- *   Output: { action: 'allow'|'warn', rationale, metadata }
- *
- * Philosophy: advisory-only. Skill choice is the model's tool-selection
- * judgment; this guard is telemetry, never a gate (drift register W1.1a —
- * the keyword corpus matches a stringified-args proxy, not the real prompt,
- * and a deny here blocks correctly-chosen skills on unlisted phrasings).
- */
-export function inspectSkillInvocation({ skillName, userRequest, context = '' }) {
-  const request = (userRequest || '').toLowerCase().trim();
-  const skill = (skillName || '').toLowerCase().trim();
-  const hits = [];
-
-  // Rule 1: Obvious skill misfire (high-specificity skill in wrong context)
-  const specificityMatch = HIGH_SPECIFICITY_SKILLS.find(s => skill.includes(s.name));
-  if (specificityMatch) {
-    const hasDomainKeyword = specificityMatch.keywords.some(kw => request.includes(kw.toLowerCase()));
-    const hasContextKeyword = context.toLowerCase().includes(specificityMatch.name);
-    if (!hasDomainKeyword && !hasContextKeyword) {
-      hits.push({
-        rule: 'skill_misfire',
-        reason: `Skill '${skillName}' is highly specific (${specificityMatch.keywords.slice(0, 3).join(', ')}) but request context shows no matching keywords`,
-        confidence: 'high',
-      });
-    }
-  }
-
-  // Rule 2: Trivial request — should use native tools
-  for (const { regex, reason, confidence } of TRIVIAL_REQUEST_PATTERNS) {
-    if (regex.test(request)) {
-      hits.push({ rule: 'trivial_request', reason, confidence });
-    }
-  }
-
-  // Rule 3: High-cost skill on trivial-looking request
-  const isHighCost = HIGH_COST_SKILLS.some(hc => skill.includes(hc));
-  const isShortRequest = request.length < 80;
-  const hasSimpleVerb = /\b(find|read|show|get|list|count|check|search|grep|where)\b/i.test(request);
-  if (isHighCost && isShortRequest && hasSimpleVerb) {
-    hits.push({
-      rule: 'high_cost_trivial',
-      reason: `High-cost skill '${skillName}' invoked for short/simple request — consider native tool`,
-      confidence: 'medium',
-    });
-  }
-
-  // Decision logic
-  if (hits.length === 0) {
-    return {
-      action: 'allow',
-      rationale: 'No guard rules triggered',
-      metadata: { skill, requestLength: request.length },
-    };
-  }
-
-  return {
-    action: 'warn',
-    rationale: hits.map(h => h.reason).join('; '),
-    metadata: { skill, hits, requestLength: request.length },
+    action: 'allow',
+    rationale: 'Within fan-out budget',
+    metadata: { agentType, textLength, sessionAgentCount },
   };
 }
 
@@ -2215,7 +2053,6 @@ export default {
   inspectPrompt,
   inspectContent,
   inspectAgentSpawn,
-  inspectSkillInvocation,
   parseExplicitRating,
   isSystemText,
   detectPositivePraise,
