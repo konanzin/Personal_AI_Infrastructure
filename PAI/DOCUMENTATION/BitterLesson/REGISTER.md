@@ -31,3 +31,17 @@ Piso determinístico de bash/secrets/egress e sandbox bwrap (incidente `rm -rf $
 ## Probes de aposentadoria (W3.1 — a construir)
 
 A cada bump de modelo, rodar e comparar: (a) roteamento de skill/agente correto SEM keywords mágicas; (b) detecção de injection por leitura do modelo vs corpus; (c) self-selection de modo/tier vs golden set. Probe verde por 2 bumps consecutivos = PR de deleção agendado. Host natural: `pai-health.timer` + skill HarnessCalibration.
+
+## Fase 2 (estrutural — consolidar contratos, virar heurística→modelo)
+
+| ID | Mecanismo | Local | Mudança | Status |
+|---|---|---|---|---|
+| W2.3 | Bloco CONSTITUTIONAL / STORY-1-8 duplicado em 10+ agentes | `opencode/agents/*.md` | dropar STORY-1-8 rígido; canonicalizar cap de 12 palavras; fence de drift | **feito** `cf4d96b` — suíte 543/0; teste agent-output-contract; calibração deixada não-commitada |
+| W2.4 | Idioma capado en/pt em 2 normalizers + schema | `pai-hooks.lib.js`, `broker-lib.ts`, `notification-event.schema.json` | preservar qualquer BCP-47; schema geral | **feito** `47bfd83` — suíte 545/0; es-ES/fr preservados |
+| W2.1 | Gates de keyword AgentGuard/SkillGuard (relevância) | `pai-hooks.lib.js` inspectAgentSpawn | dropar tabelas de keyword; manter só piso de recurso (fan-out cap) | **pendente — comportamental, precisa teste vivo** |
+| W2.2 | Classificador de modo como gate (2º modelo) | `mode-classifier.lib.js`, `pai-hooks.js` | self-selection default; classificador → telemetria opt-in | **pendente — comportamental, precisa teste vivo + golden LLM** |
+| W2.5 | Corpora de trigger/routing nas skills; roster de agentes em prosa | `skills/*/SKILL.md` | manter USE WHEN; suavizar MANDATORY; roster em fonte única | pendente |
+| W2.6 | Notificação + execution-log emitidos por prompt | 38 skills + hook | mover emissão pro runtime | pendente |
+| W2.7 | Coreografia por minuto / IMMUTABLE nos agentes | `Engineer.md`, `ClaudeResearcher.md`, `Algorithm.md` | trocar por meta funcional; suavizar absolutos | pendente |
+| W2.8 | Prose bands do parameter-schema; piso HARD de thinking; whitelists | `PAI/ALGORITHM/*` | afinar bands; piso relaxável; descobrir paths | pendente |
+| W2.9 | Counts mágicos nos validators | `validate-pai-installation.sh` | checagem de contrato, não de contagem | pendente |
