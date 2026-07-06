@@ -71,78 +71,27 @@ FOR: Multi-step, complex, or difficult work. Troubleshooting, debugging, buildin
 
 This file is the global OpenCode operational instruction surface for PAI. Runtime-only behavior is injected by the OpenCode plugin; do not assume a separate system-prompt file is loaded.
 
-Startup context is `@`-imported above (PRINCIPAL_IDENTITY, DA_IDENTITY, PROJECTS, PRINCIPAL_TELOS) — always available. Use the routing table below to find file paths for any additional specialized context. Load on-demand only.
+Startup context is `@`-imported above (PRINCIPAL_IDENTITY, DA_IDENTITY, PROJECTS, PRINCIPAL_TELOS) — always available. For anything else, **discover paths from the filesystem instead of trusting a frozen list** (drift register W2.11: the old ~48-row topic→path table here had accumulated 12+ dead paths, including an entire upstream TELOS schema this port does not use). Load on-demand only.
 
-## PAI System
+**Discovery conventions** (the filesystem is the source of truth — `ls` it):
+
+- **System docs:** `~/.config/opencode/PAI/DOCUMENTATION/` — one PascalCase subdirectory per system (`Algorithm/`, `Memory/`, `Skills/`, `Security/`, …), main doc named `<System>System.md` inside. Top-level: `PAISystemArchitecture.md` (master), `ARCHITECTURE_SUMMARY.md` (@-imported above), `IsaFormat.md`.
+- **User context:** `~/.config/opencode/PAI/USER/` — shape contract in `DOCUMENTATION/LifeOs/LifeOsSchema.md` (biography-flat, PascalCase, frontmatter). List the directory for what this Principal actually has; files beyond the @-imported set exist only if onboarding (`/interview`) created them. Do not assume a file exists because a doc names it.
+- **Tools:** `~/.config/opencode/PAI/TOOLS/manifest.json` is the runtime contract — verify a helper is `implemented` there before calling it (`DOCUMENTATION/Tools/Tools.md` for prose).
+
+**Curation the filesystem can't express** (the only entries worth pinning):
 
 | Topic | Path |
 |-------|------|
 | **Life OS thesis (what PAI is for)** | `~/.config/opencode/PAI/DOCUMENTATION/LifeOs/LifeOsThesis.md` — canonical source of truth |
-| **Life OS schema (USER/ shape)** | `~/.config/opencode/PAI/DOCUMENTATION/LifeOs/LifeOsSchema.md` — biography-flat, PascalCase, frontmatter contract |
 | **Runtime constitution** | `~/.config/opencode/PAI/RUNTIME_CONSTITUTION.md` — provider-neutral invariants loaded by the OpenCode plugin |
 | **OpenCode runtime plugin** | `~/.config/opencode/plugins/pai-hooks.js` — system context, classifier, guards, notifications |
-| **System architecture (master doc)** | `~/.config/opencode/PAI/DOCUMENTATION/PAISystemArchitecture.md` |
-| Architecture summary | `~/.config/opencode/PAI/DOCUMENTATION/ARCHITECTURE_SUMMARY.md` **(loaded via @-import)** |
-| Algorithm system | `~/.config/opencode/PAI/DOCUMENTATION/Algorithm/AlgorithmSystem.md` |
-| Memory system | `~/.config/opencode/PAI/DOCUMENTATION/Memory/MemorySystem.md` |
-| Skill system | `~/.config/opencode/PAI/DOCUMENTATION/Skills/SkillSystem.md` |
-| Hook system | `~/.config/opencode/PAI/DOCUMENTATION/Hooks/HookSystem.md` — legacy docs unless marked OpenCode-native |
-| Agent system | `~/.config/opencode/PAI/DOCUMENTATION/Agents/AgentSystem.md` |
-| Delegation system | `~/.config/opencode/PAI/DOCUMENTATION/Delegation/DelegationSystem.md` |
 | User credentials | `~/.config/opencode/PAI/USER/Config/PAI_CONFIG.yaml` |
-| Security system | `~/.config/opencode/PAI/DOCUMENTATION/Security/SecuritySystem.md` |
-| Notification system | `~/.config/opencode/PAI/DOCUMENTATION/Notifications/NotificationSystem.md` |
-| Observability system | `~/.config/opencode/PAI/DOCUMENTATION/Observability/ObservabilitySystem.md` |
-| Pulse system | `~/.config/opencode/PAI/DOCUMENTATION/Pulse/PulseSystem.md` — legacy desktop Pulse docs; current runtime is broker/notifications |
 | Browser automation | `Skill("Browser")` for batch scraping; `Skill("Interceptor")` for verification (mandatory) |
-| CLI architecture | `~/.config/opencode/PAI/DOCUMENTATION/Tools/CliFirstArchitecture.md` |
-| Arbol (cloud execution) | `~/.config/opencode/PAI/DOCUMENTATION/Arbol/ArbolSystem.md` |
-| Feed system | `~/.config/opencode/PAI/DOCUMENTATION/Feed/FeedSystem.md` |
-| Fabric system | `~/.config/opencode/PAI/DOCUMENTATION/Fabric/FabricSystem.md` |
-| Terminal tabs | `~/.config/opencode/PAI/DOCUMENTATION/Pulse/TerminalTabs.md` — legacy terminal surface, not active runtime |
-| Tools reference | `~/.config/opencode/PAI/DOCUMENTATION/Tools/Tools.md` — verify each `PAI/TOOLS` helper exists before use |
-| ISA format spec | `~/.config/opencode/PAI/DOCUMENTATION/IsaFormat.md` |
-| OpenCode runtime docs | `~/.config/opencode/docs/README-OPENCODE.md` |
+| OpenCode runtime docs | `~/.config/opencode/docs/README-OPENCODE.md` (lives outside PAI/) |
+| Legacy (read as history, not runtime) | `DOCUMENTATION/Hooks/HookSystem.md` unless marked OpenCode-native; `DOCUMENTATION/Pulse/PulseSystem.md` and `DOCUMENTATION/Pulse/TerminalTabs.md` — desktop Pulse surfaces; current runtime is broker/notifications |
 
-## {PRINCIPAL.NAME} — Identity & Voice
-
-| Topic | Path |
-|-------|------|
-| Career & resume | `~/.config/opencode/PAI/USER/RESUME.md` |
-| Contacts | `~/.config/opencode/PAI/USER/CONTACTS.md` |
-| Opinions | `~/.config/opencode/PAI/USER/OPINIONS.md` |
-| Definitions | `~/.config/opencode/PAI/USER/DEFINITIONS.md` |
-| Core content themes | `~/.config/opencode/PAI/USER/CORECONTENT.md` |
-| Writing style | `~/.config/opencode/PAI/USER/WRITINGSTYLE.md` |
-| AI writing patterns | `~/.config/opencode/PAI/USER/AI_WRITING_PATTERNS.md` |
-| Rhetorical style | `~/.config/opencode/PAI/USER/RHETORICALSTYLE.md` |
-
-## {PRINCIPAL.NAME} — Life Goals (Telos)
-
-| Topic | Path |
-|-------|------|
-| Telos overview | `~/.config/opencode/PAI/USER/TELOS/README.md` |
-| Mission | `~/.config/opencode/PAI/USER/TELOS/MISSION.md` |
-| Goals | `~/.config/opencode/PAI/USER/TELOS/GOALS.md` |
-| Challenges | `~/.config/opencode/PAI/USER/TELOS/CHALLENGES.md` |
-| Beliefs | `~/.config/opencode/PAI/USER/TELOS/BELIEFS.md` |
-| Wisdom | `~/.config/opencode/PAI/USER/TELOS/WISDOM.md` |
-| Favorite books | `~/.config/opencode/PAI/USER/TELOS/BOOKS.md` |
-
-## {DA_IDENTITY.NAME} (DA Identity)
-
-| Topic | Path |
-|-------|------|
-| Our relationship | `~/.config/opencode/PAI/USER/OUR_STORY.md` |
-
-## {PRINCIPAL.NAME} — Work
-
-| Topic | Path |
-|-------|------|
-| Feed system | `~/.config/opencode/PAI/USER/FEED.md` |
-| Business context | `~/.config/opencode/PAI/USER/BUSINESS/` |
-| Health data | `~/.config/opencode/PAI/USER/HEALTH/` |
-| Financial context | `~/.config/opencode/PAI/USER/FINANCES/` |
+Sensitive user data (`USER/FINANCES/`, `USER/HEALTH/`, security config) is zero-access by security policy — do not route reads there; the floor denies them regardless of what any doc says.
 
 ## Project-Specific Rules
 
