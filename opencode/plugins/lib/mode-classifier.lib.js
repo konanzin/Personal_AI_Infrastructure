@@ -834,12 +834,19 @@ export function formatClassificationContext(classification) {
   const { mode, tier, reason, source } = classification;
   const tierLine = tier ? `\n**Tier:** ${tier}` : '';
 
-  return `## Explicit Mode/Tier Classification
+  // An explicit /eN token is the Principal's own instruction — authoritative.
+  // Every other source is a pre-classifier guess; the primary model has read
+  // the full prompt and owns the final mode/tier call (drift register W1.2).
+  const stance = source === 'override'
+    ? '> This tier was explicitly requested by the user (/eN override). Honor it.'
+    : '> Suggested by the PAI Mode/Tier pre-classifier. Treat it as a starting point: adopt it when it matches your own read of the request, and override it (either direction) when it does not. Note the discrepancy when you override.';
+
+  return `## Mode/Tier Classification (${source === 'override' ? 'user override' : 'suggestion'})
 **Mode:** ${mode}${tierLine}
 **Reason:** ${reason}
 **Source:** ${source}
 
-> This classification was computed by the PAI Mode/Tier Classifier. When present, it is the authoritative source. The model should honor this classification above self-selection. If this classification seems wrong, note the discrepancy but still follow it.`;
+${stance}`;
 }
 
 /**

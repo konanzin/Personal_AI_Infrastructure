@@ -250,6 +250,28 @@ describe("Mode Classifier — formatClassificationContext", () => {
     expect(ctx).toContain("NATIVE");
     expect(ctx).not.toContain("Tier:");
   });
+
+  // Drift register W1.2: the pre-classifier is advisory — the primary model
+  // self-selects. Only an explicit user /eN override is binding.
+  test("non-override classification is presented as a suggestion, never authoritative", () => {
+    for (const source of ["heuristic", "llm", "fail-safe"]) {
+      const ctx = formatClassificationContext({
+        mode: "ALGORITHM", tier: "E3", reason: "x", source,
+      });
+      expect(ctx).toContain("suggestion");
+      expect(ctx).toContain("override it");
+      expect(ctx).not.toContain("above self-selection");
+      expect(ctx).not.toContain("still follow it");
+    }
+  });
+
+  test("user /eN override remains binding", () => {
+    const ctx = formatClassificationContext({
+      mode: "ALGORITHM", tier: "E4", reason: "Explicit override", source: "override",
+    });
+    expect(ctx).toContain("explicitly requested by the user");
+    expect(ctx).toContain("Honor it");
+  });
 });
 
 describe("Mode Classifier — getEffortLabel", () => {

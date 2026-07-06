@@ -497,10 +497,10 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
     // F0: Default PAI Runtime — make normal OpenCode prompts behave like PAI
     //
     // Two-tier approach:
-    //   1. Explicit mode/tier classifier runs on every top-level prompt
+    //   1. Mode/tier pre-classifier runs on every top-level prompt
     //   2. Result is persisted to session state and injected into system context
-    //   3. Model honors explicit classification when present, falls back to
-    //      self-selection only if classifier is unavailable
+    //   3. The primary model self-selects mode/tier; the injected classification
+    //      is a suggestion (only an explicit user /eN override is authoritative)
     // ═══════════════════════════════════════════════════════════════
     "chat.message": async (input, output) => {
       const sessionId = input.sessionID;
