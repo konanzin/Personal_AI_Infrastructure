@@ -141,6 +141,24 @@ describe("analyzeClassifierHealth", () => {
     expect(r.status).toBe("insufficient");
   });
 
+  test("discarded pre-v2 rows are counted and surfaced, never silently dropped", () => {
+    // A v1-only machine with a genuinely dead LLM path (audit finding, 2026-07-05):
+    // every row is unjudgeable, so the monitor cannot say "alert" — but it must not
+    // read as a clean green either. The discard count and a reason make it visible.
+    const v1OnlyBroken = mk("fail-safe", 45).concat(mk("heuristic", 5)); // no use_llm
+    const r = analyzeClassifierHealth(v1OnlyBroken as any, {
+      expectLLM: true,
+      requireIntentField: true,
+    });
+    expect(r.status).toBe("insufficient");
+    expect(r.discarded).toBe(50);
+    expect(r.reasons.join(" ")).toContain("50 pre-v2 rows excluded");
+
+    // Judged windows also carry the count (zero when everything is v2).
+    const allV2 = mk("llm", 20).map((row) => ({ ...row, use_llm: true }));
+    expect(analyzeClassifierHealth(allV2 as any, { expectLLM: true, requireIntentField: true }).discarded).toBe(0);
+  });
+
   test("thresholds are configurable", () => {
     const strict = { ...DEFAULT_THRESHOLDS, failSafeWarn: 0.01, failSafeAlert: 0.02 };
     const r = analyzeClassifierHealth([...mk("llm", 39), ...mk("fail-safe", 1)], {

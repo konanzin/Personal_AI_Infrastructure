@@ -49,7 +49,7 @@ export const DEFAULT_THRESHOLDS = {
  * @param {object}  [opts.thresholds]
  * @returns {{
  *   status: 'ok'|'warn'|'alert'|'insufficient',
- *   total: number, considered: number,
+ *   total: number, considered: number, discarded: number,
  *   bySource: Record<string, number>,
  *   degradedRate: number, failSafeRate: number, llmRate: number|null,
  *   reasons: string[],
@@ -59,9 +59,13 @@ export function analyzeClassifierHealth(entries, opts = {}) {
   const { expectLLM = true, requireIntentField = false } = opts;
   const t = { ...DEFAULT_THRESHOLDS, ...(opts.thresholds || {}) };
 
-  const rows = (Array.isArray(entries) ? entries : [])
-    .filter((e) => e && e.event === "mode_classification" && typeof e.source === "string")
+  const classifications = (Array.isArray(entries) ? entries : [])
+    .filter((e) => e && e.event === "mode_classification" && typeof e.source === "string");
+  const rows = classifications
     .filter((e) => !requireIntentField || typeof e.use_llm === "boolean");
+  // Pre-v2 rows are excluded from judgment, never silently: the count travels in
+  // the report so a v1-only machine reads as "N rows unjudgeable", not "all clear".
+  const discarded = classifications.length - rows.length;
 
   // Most recent `window` by timestamp when present, else input order (already appended
   // chronologically). Slicing the tail is correct for an append-only JSONL stream.
@@ -109,7 +113,12 @@ export function analyzeClassifierHealth(entries, opts = {}) {
   if (considered < t.minSamples) {
     status = "insufficient";
     reasons.push(`only ${considered} automated classifications (need ${t.minSamples} to judge)`);
-    return { status, total, considered, bySource, degradedRate, failSafeRate, llmRate, reasons };
+    if (discarded > 0) {
+      reasons.push(
+        `${discarded} pre-v2 rows excluded from judgment — if this machine should be emitting v2 telemetry, investigate instead of trusting this green`,
+      );
+    }
+    return { status, total, considered, discarded, bySource, degradedRate, failSafeRate, llmRate, reasons };
   }
 
   const bump = (level) => {
@@ -145,7 +154,7 @@ export function analyzeClassifierHealth(entries, opts = {}) {
     );
   }
 
-  return { status, total, considered, bySource, degradedRate, failSafeRate, llmRate, reasons };
+  return { status, total, considered, discarded, bySource, degradedRate, failSafeRate, llmRate, reasons };
 }
 
 function pct(x) {

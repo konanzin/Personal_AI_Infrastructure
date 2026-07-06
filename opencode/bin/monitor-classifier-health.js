@@ -85,7 +85,7 @@ if (!has("--quiet")) {
   const icon = { ok: "✅", warn: "⚠️", alert: "🚨", insufficient: "ℹ️" }[report.status];
   console.log(`${icon} classifier health: ${report.status.toUpperCase()}`);
   console.log(
-    `   window=${window}  considered=${report.considered}/${report.total}  expectLLM=${config.useLLM}`,
+    `   window=${window}  considered=${report.considered}/${report.total}  discarded-pre-v2=${report.discarded}  expectLLM=${config.useLLM}`,
   );
   const srcs = Object.entries(report.bySource)
     .sort((a, b) => b[1] - a[1])
