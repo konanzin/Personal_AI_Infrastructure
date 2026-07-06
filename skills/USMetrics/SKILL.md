@@ -11,26 +11,6 @@ effort: medium
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
-
-## Optional Legacy Pulse Progress Notification
-
-If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
-
-1. **Send optional progress notification**:
-   ```bash
-   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the USMetrics skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 || true) &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **WorkflowName** workflow in the **USMetrics** skill to ACTION...
-   ```
-
-This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
-
 # US Metrics - Economic & Social Indicator Analysis
 
 **Purpose:** Analyze U.S. economic and social metrics using the Substrate US-Common-Metrics dataset. Provides trend analysis, cross-metric correlation, pattern detection, and research recommendations.
@@ -42,7 +22,6 @@ All metrics sourced from:
 - **Master Document:** `US-Common-Metrics.md` (68 metrics across 10 categories)
 - **Source Documentation:** `source.md` (full methodology)
 - **Underlying APIs:** FRED, EIA, Treasury FiscalData, BLS, Census, CDC, EPA
-
 
 ## Workflow Routing
 

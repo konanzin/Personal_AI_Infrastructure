@@ -12,26 +12,6 @@ context: fork
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
-
-## Optional Legacy Pulse Progress Notification
-
-If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
-
-1. **Send optional progress notification**:
-   ```bash
-   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the Council skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 || true) &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **WorkflowName** workflow in the **Council** skill to ACTION...
-   ```
-
-This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
-
 # Council Skill
 
 Multi-agent debate system where custom-composed agents discuss topics in rounds, respond to each other's points, and surface insights through intellectual friction.
@@ -48,7 +28,6 @@ Built-in types are generic and topic-ignorant. Council debates require agents wi
 See `CouncilMembers.md` for full agent composition instructions.
 
 **Key Differentiator from RedTeam:** Council is collaborative-adversarial (debate to find best path), while RedTeam is purely adversarial (attack the idea). Council produces visible conversation transcripts; RedTeam produces steelman + counter-argument.
-
 
 ## Workflow Routing
 

@@ -5,15 +5,6 @@ description: "Intakes existing content from external sources, classifies each ch
 
 # Migrate — external-content intake and classification
 
-## Optional Legacy Pulse Progress Notification
-
-```bash
-(curl -s --max-time 2 -X POST http://localhost:31337/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Starting the migration. Scanning source and classifying chunks.", "language": "en-US"}' \
-  > /dev/null 2>&1 || true) &
-```
-
 ## What this skill does
 
 Migrates content into the PAI structure from external sources. Unlike `/interview` (which asks the user questions to fill gaps), `/migrate` **already has the content** — it just needs to classify each chunk and route it to the right PAI destination.

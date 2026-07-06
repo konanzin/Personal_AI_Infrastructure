@@ -5,17 +5,6 @@ description: "Runs a phased conversational interview across all PAI context file
 
 # Interview — phased conversational context review + fill
 
-## Optional Legacy Pulse Progress Notification
-
-Before running the workflow, send:
-
-```bash
-(curl -s --max-time 2 -X POST http://localhost:31337/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Starting the interview. Scanning phases first.", "language": "en-US"}' \
-  > /dev/null 2>&1 || true) &
-```
-
 ## What this skill does
 
 Runs a **phased conversational interview** across every PAI context file. Phase 1 (foundational TELOS) is the core — the DA always reviews it first, even if files look "complete," because foundational context is never actually done. Only after Phase 1 does the interview move to IDEAL_STATE dimensions, preferences, and identity.

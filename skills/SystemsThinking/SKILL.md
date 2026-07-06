@@ -12,28 +12,6 @@ context: fork
 
 If this directory exists, load and apply any `PREFERENCES.md`, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
-
-## Optional Legacy Pulse Progress Notification
-
-If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
-
-1. **Send optional progress notification:**
-   ```bash
-   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the SystemsThinking skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 || true) &
-   ```
-
-2. **Output text notification:**
-   ```
-   Running the **WorkflowName** workflow in the **SystemsThinking** skill to ACTION...
-   ```
-
-This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
-
----
-
 # SystemsThinking Skill
 
 Structured analysis of complex systems — the tools that reveal *why the same problem keeps coming back* and *where a small change produces a large result*. Grounded in Donella Meadows, Peter Senge, Jay Forrester, Russell Ackoff, and the Santa Fe Institute tradition.

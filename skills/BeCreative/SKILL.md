@@ -11,32 +11,11 @@ effort: medium
 
 If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
 
-
-## Optional Legacy Pulse Progress Notification
-
-If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
-
-1. **Send optional progress notification**:
-   ```bash
-   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the BeCreative skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 || true) &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **WorkflowName** workflow in the **BeCreative** skill to ACTION...
-   ```
-
-This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
-
 # BeCreative Skill
 
 Enhance AI creativity using deep thinking + Verbalized Sampling. Combines research-backed techniques (Zhang et al., 2024) for 1.6-2.1x diversity increase and extended thinking for quality.
 
 ---
-
 
 ## Workflow Routing
 

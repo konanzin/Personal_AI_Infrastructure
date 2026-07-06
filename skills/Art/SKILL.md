@@ -20,26 +20,6 @@ If this directory exists, load and apply:
 
 These override default behavior. If the directory does not exist, proceed with skill defaults.
 
-
-## Optional Legacy Pulse Progress Notification
-
-If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
-
-1. **Send optional progress notification**:
-   ```bash
-   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the Art skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 || true) &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **WorkflowName** workflow in the **Art** skill to ACTION...
-   ```
-
-This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
-
 ## 🚨🚨🚨 CONSTITUTIONAL: ALWAYS RUN A NAMED WORKFLOW. NEVER FREEFORM. 🚨🚨🚨
 
 ```
@@ -126,7 +106,6 @@ The blog page background is sepia #EAE9DF. Inline images MUST be transparent PNG
 - Frontmatter: `thumbnail: https://example.com/images/blog/[slug]/header-thumb.png` — always the `-thumb.png` (opaque sepia).
 
 Never reuse the opaque thumbnail for the inline slot. Never reuse the transparent file for the social thumbnail. These are two distinct outputs from one `--thumbnail` run.
-
 
 ## Workflow Routing
 

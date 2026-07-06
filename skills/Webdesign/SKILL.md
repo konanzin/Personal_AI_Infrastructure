@@ -5,14 +5,6 @@ license: Complete terms in LICENSE.txt
 effort: medium
 ---
 
-## Optional Legacy Pulse Progress Notification
-
-```bash
-(curl -s --max-time 2 -X POST http://localhost:31337/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Running the Webdesign skill", "language": "en-US", "voice_enabled": true}' > /dev/null 2>&1 || true) &
-```
-
 ## What This Skill Is
 
 Webdesign is the PAI orchestration layer around **Claude Design** — Anthropic's web-based visual design product launched in April 2026 at `claude.ai/design`. Claude Design is not a CLI tool or plugin; it is a surface on claude.ai powered by Claude Opus 4.7 vision. This skill bridges the gap by:
@@ -158,7 +150,6 @@ skills/Webdesign/
 ```
 
 ## Execution Log
-
 
 ```json
 {"ts":"ISO8601","workflow":"CreatePrototype","brief":"one-line","outputs":["path1","path2"],"duration_s":42}

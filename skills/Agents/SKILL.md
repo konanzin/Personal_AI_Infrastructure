@@ -23,25 +23,6 @@ effort: medium
 
 ---
 
-## Optional Legacy Pulse Progress Notification
-
-If the optional Pulse broker is running, you may send this progress notification before doing substantial work. Skip it silently if the broker is unavailable.
-
-1. **Send optional progress notification**:
-   ```bash
-   (curl -s --max-time 2 -X POST http://localhost:31337/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the Agents skill to ACTION", "language": "en-US"}' \
-     > /dev/null 2>&1 || true) &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **WorkflowName** workflow in the **Agents** skill to ACTION...
-   ```
-
-This notification is optional compatibility only. Do not fail the skill if it cannot be delivered; final completion voice is handled by the primary agent via `pai_notify`.
-
 # Agents - Custom Agent Composition System
 
 **Auto-routes when user mentions custom agents, agent creation, or specialized personalities.**
@@ -118,7 +99,6 @@ voice_mappings:
 | Analytical | 0.65 | 0.08 | 0.95 | Clear, structured |
 | Bold | 0.45 | 0.35 | 1.05 | Confident, dynamic |
 | Cautious | 0.70 | 0.05 | 0.90 | Careful, deliberate |
-
 
 ## Overview
 
