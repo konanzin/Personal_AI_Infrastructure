@@ -178,8 +178,8 @@ run_test "Classifier has fail-safe to ALGORITHM E3" \
 run_test "Classifier supports /e1-/e5 overrides" \
     "grep -q '/e1' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
 
-run_test "Classifier uses deepseek as default LLM" \
-    "grep -q 'deepseek-v4-flash-free' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
+run_test "Classifier resolves a default LLM model (id not pinned — W1.5)" \
+    "bun -e \"const m = await import('${PLUGINS_DIR}/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (!c.model) process.exit(1);\""
 
 run_test "pai-hooks imports mode-classifier" \
     "grep -q 'mode-classifier.lib.js' ${PLUGINS_DIR}/pai-hooks.js"

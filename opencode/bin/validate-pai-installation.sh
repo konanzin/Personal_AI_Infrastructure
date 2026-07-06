@@ -494,11 +494,13 @@ check_plugins() {
 
     # Default classifier model lives in the resolver (mode-classifier.lib.js),
     # not pai-hooks.js, since classifier config resolution was centralized there.
-    if grep -q 'deepseek-v4-flash-free' "${OPENCODE_DIR}/plugins/lib/mode-classifier.lib.js"; then
-        pass "Classifier uses deepseek as default LLM"
+    # Assert the PROPERTY (a centralized default resolves), never a pinned
+    # model id — the id is configurable and validators must not freeze it (W1.5).
+    if bun -e "const m = await import('${OPENCODE_DIR}/plugins/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (!c.model || typeof c.model !== 'string') process.exit(1);" 2>/dev/null; then
+        pass "Classifier resolves a default LLM model"
         passed=$((passed + 1))
     else
-        fail "Classifier does not use deepseek default"
+        fail "Classifier resolver has no default model"
     fi
     checks=$((checks + 1))
 
