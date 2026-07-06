@@ -173,7 +173,7 @@ SECTION ROUTING:
 - Other → 'OTHER'
 
 Weight by signal:
-- implied_sentiment <= 5 → HIGH signal
+- satisfaction <= 5 (legacy: implied_sentiment) → HIGH signal
 - within_budget: false → BOOST
 - criteria_failed > 0 → BOOST
 

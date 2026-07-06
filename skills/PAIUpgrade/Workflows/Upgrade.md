@@ -125,7 +125,7 @@ Spawn 1 parallel agent (`subagent_type=general-purpose`):
 
 Read `~/.config/opencode/PAI/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl`. Full methodology: `Workflows/MineReflections.md`. Quick summary:
 1. Parse each line as JSON.
-2. Prioritize entries with `implied_sentiment <= 5`, `within_budget: false`, or `criteria_failed > 0`.
+2. Prioritize entries with `satisfaction <= 5` (legacy field: `implied_sentiment`), `within_budget: false`, or `criteria_failed > 0`.
 3. Cluster Q2 answers (algorithm improvements) by similarity.
 4. Cluster Q1 answers (execution patterns).
 5. Themes with 2+ occurrences (or 1 if sentiment ≤ 4) become upgrade candidates.

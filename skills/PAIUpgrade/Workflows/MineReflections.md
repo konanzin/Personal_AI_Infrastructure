@@ -42,7 +42,8 @@ Each JSONL entry contains:
   "criteria_passed": 12,
   "criteria_failed": 0,
   "prd_id": "ISA-YYYYMMDD-slug",
-  "implied_sentiment": 8,
+  "satisfaction": 8,
+  "satisfaction_basis": "explicit positive reaction after delivery",
   "reflection_q1": "Self-reflection on algorithm execution",
   "reflection_q2": "What a smarter algorithm would do differently",
   "reflection_q3": "What a fundamentally smarter AI would do",
@@ -68,11 +69,13 @@ Report: "Found N reflections spanning [date range]"
 
 **Not all reflections are equally valuable.** Weight entries by signal strength:
 
+(W3.2: `satisfaction` is judged against a rubric with a stated `satisfaction_basis`; legacy rows carry `implied_sentiment`, which was template-filled — treat those numbers as unreliable and lean on the boolean/count signals for them. `null` satisfaction = no evidence, not "fine".)
+
 | Signal | Weight | Rationale |
 |--------|--------|-----------|
-| `implied_sentiment` <= 5 | HIGH | Low satisfaction = something went wrong worth fixing |
-| `implied_sentiment` 6-7 | MEDIUM | Room for improvement |
-| `implied_sentiment` 8-10 | LOW | Things went well — less urgent |
+| `satisfaction` <= 5 (or legacy `implied_sentiment` <= 5) | HIGH | Low satisfaction = something went wrong worth fixing |
+| `satisfaction` 6-7 | MEDIUM | Room for improvement |
+| `satisfaction` 8-10 | LOW | Things went well — less urgent |
 | `within_budget: false` | BOOST | Over-budget = structural issue |
 | `criteria_failed > 0` | BOOST | Failed criteria = verification gap |
 | `rework_count > 0` | BOOST | Rework = initial approach was wrong |
