@@ -26,9 +26,9 @@
       "status": "implemented",
       "layer": "A",
       "required_by": ["Anvil"],
-      "contract": "Moonshot/Kimi wrapper. Returns structured unavailable when MOONSHOT_API_KEY is absent.",
-      "external_dependencies": ["MOONSHOT_API_KEY"],
-      "smoke": ["PAI_DIR=$(mktemp -d) env -u MOONSHOT_API_KEY bash -lc 'echo prompt | bun PAI/TOOLS/AnvilProgress.ts --slug smoke'"]
+      "contract": "Model-agnostic delegate engine (any OpenAI-compatible API; per-machine USER/Config/anvil.json or PAI_ANVIL_* env). Returns structured unavailable when no engine is configured.",
+      "external_dependencies": ["USER/Config/anvil.json (baseUrl/model/apiKeyEnv)"],
+      "smoke": ["PAI_DIR=$(mktemp -d) env -u PAI_ANVIL_BASE_URL -u PAI_ANVIL_MODEL -u PAI_ANVIL_API_KEY bash -lc 'echo prompt | bun PAI/TOOLS/AnvilProgress.ts --slug smoke'"]
     },
     "CrossVendorAudit.ts": {
       "status": "implemented",

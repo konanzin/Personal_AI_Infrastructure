@@ -20,7 +20,7 @@ one `provider/model` per line. Never invent or guess model IDs.
 opencode models
 ```
 
-Use `opencode models <provider>` to filter (e.g. `opencode models kimi-for-coding`).
+Use `opencode models <provider>` to filter (e.g. `opencode models openai`).
 Present the actual list. If the principal already has a classifier set, read the
 current value first so you can show it:
 
@@ -44,7 +44,7 @@ Write `~/.config/opencode/PAI/USER/Config/classifier.json` with only the fields 
 principal chose. Merge — don't clobber unrelated keys if the file already exists.
 
 ```json
-{ "model": "kimi-for-coding/k2p6", "useLLM": true }
+{ "model": "openai/gpt-5.4-mini-fast", "useLLM": true }
 ```
 
 - `model` — a `provider/model` string from Step 1. Omit (or pick 'default') to fall
@@ -62,7 +62,7 @@ Voice-confirm the change, e.g.:
 ```bash
 (curl -s --max-time 2 -X POST http://localhost:31337/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Classifier set to kimi-for-coding/k2p6 — live now.", "language": "en-US"}' \
+  -d '{"message": "Classifier set to openai/gpt-5.4-mini-fast — live now.", "language": "en-US"}' \
   > /dev/null 2>&1 || true) &
 ```
 

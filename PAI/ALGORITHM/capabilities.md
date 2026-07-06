@@ -37,7 +37,7 @@ Use after code changes or before PR creation.
 | Capability | When | Invoke |
 |------------|------|--------|
 | **Forge (code producer)** | **MANDATORY at E3/E4/E5 for any coding task (implement, refactor, debug, build). Also invoke whenever {{PRINCIPAL_NAME}} names "Forge" at any tier. OpenAI-family coder — GPT-5.4 via `codex exec` at `model_reasoning_effort=high`. Specialization: quality + completeness. Distinct from Engineer (Claude-family) and Cato (auditor, read-only). DO NOT invoke at E1/E2 — cost/latency prohibitive.** | `Agent(subagent_type="Forge", prompt="...")` |
-| **Anvil (Kimi K2.6 code producer)** | **Sibling to Forge, Moonshot-family.** Runs `kimi-k2.6` (reasoning model, Moonshot enforces temperature=1) via `PAI/TOOLS/AnvilProgress.ts` with Moonshot's 256K context. Pick Anvil over Forge when the task benefits from whole-project context breadth — cross-file refactors, architecture-fitting changes, long-range reasoning. Always invoke when {{PRINCIPAL_NAME}} names "Anvil" (name-match overrides tier gate). At E3/E4/E5, Forge remains the default producer; Anvil is chosen instead of or in parallel with Forge. Skip at E1/E2 unless {{PRINCIPAL_NAME}} named him. | `Agent(subagent_type="Anvil", prompt="...")` |
+| **Anvil (long-context code producer)** | **Sibling to Forge, engine per-machine.** Runs whatever OpenAI-compatible engine `USER/Config/anvil.json` names (ideally long-context, from a family different from the session) via `PAI/TOOLS/AnvilProgress.ts`. Pick Anvil over Forge when the task benefits from whole-project context breadth — cross-file refactors, architecture-fitting changes, long-range reasoning. Always invoke when {{PRINCIPAL_NAME}} names "Anvil" (name-match overrides tier gate). At E3/E4/E5, Forge remains the default producer; Anvil is chosen instead of or in parallel with Forge. Skip at E1/E2 unless {{PRINCIPAL_NAME}} named him. | `Agent(subagent_type="Anvil", prompt="...")` |
 | /simplify | After code changes | `Skill("simplify")` |
 | /batch | 3+ files with similar changes | `Skill("batch", "instruction")` |
 | /code-review | After code changes, before PR | `Skill("code-review")` |
@@ -63,10 +63,10 @@ Use after code changes or before PR creation.
 
 **Behavior:** At PLAN phase, add Anvil to `🏹 CAPABILITIES SELECTED` with target phase EXECUTE. At EXECUTE, spawn Anvil via `Agent(subagent_type="Anvil", ...)`. Anvil's report becomes part of the VERIFY bundle.
 
-**Picking Forge vs Anvil (both Moonshot-family and OpenAI-family are non-Anthropic, which satisfies the cross-vendor goal):**
+**Picking Forge vs Anvil (any engine family different from the session satisfies the cross-vendor goal):**
 
 - **Forge (GPT-5.4, codex exec):** localized completion speed, quality/completeness focus. Default producer at E3/E4/E5. Pick when the change is bounded to a small surface and the verification bar is "every branch is real."
-- **Anvil (Kimi K2.6, Moonshot API):** long-context breadth, project-shape focus. Pick when the correctness depends on the surrounding architecture more than the local code — "does this fit" is the dominant question.
+- **Anvil (configured long-context engine):** long-context breadth, project-shape focus. Pick when the correctness depends on the surrounding architecture more than the local code — "does this fit" is the dominant question.
 - **Parallel both:** at E4/E5 on the hardest work, {{DA_NAME}} may spawn Forge AND Anvil on the same task in isolated worktrees, then pick the stronger diff in VERIFY. Cross-vendor cross-coder diversity compounds.
 
 **Explicit-name override:** If {{PRINCIPAL_NAME}} mentions "Anvil" in the request, invoke regardless of tier (even E1/E2). Name-match always wins.

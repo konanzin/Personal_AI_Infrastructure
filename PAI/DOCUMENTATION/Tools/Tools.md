@@ -10,7 +10,7 @@ The active source of truth is `~/.config/opencode/PAI/TOOLS/manifest.json`.
 |------|--------|---------------------------|
 | `Inference.ts` | implemented | Provider-neutral command adapter. Returns structured `unavailable` unless `PAI_INFERENCE_CMD` or `OPENCODE_INFERENCE_CMD` is set. |
 | `ForgeProgress.ts` | implemented | Codex CLI wrapper for Forge. Returns structured `unavailable` when `codex` cannot be resolved. |
-| `AnvilProgress.ts` | implemented | Moonshot/Kimi wrapper. Returns structured `unavailable` when `MOONSHOT_API_KEY` is absent. |
+| `AnvilProgress.ts` | implemented | Model-agnostic delegate engine (OpenAI-compatible; per-machine `USER/Config/anvil.json`). Returns structured `unavailable` when no engine is configured. |
 | `CrossVendorAudit.ts` | implemented | Read-only Codex audit wrapper for Cato. Returns `skipped` when Codex is unavailable. |
 | `Arthur.ts` | implemented | Deterministic credential-policy narrator. Never emits raw credentials. |
 | `MemoryRetriever.ts` | implemented | Read-only BM25-lite retrieval over `MEMORY/KNOWLEDGE`. |

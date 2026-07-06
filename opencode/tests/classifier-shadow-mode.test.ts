@@ -26,6 +26,10 @@ function drive(sid: string, prompt: string, extraEnv: Record<string, string> = {
     env: { ...process.env, PAI_DIR: home, PAI_CLASSIFIER_USE_LLM: "false", ...extraEnv },
     stdout: "pipe",
     stderr: "pipe",
+    // spawnSync blocks the JS thread, so bun's test timeout cannot fire — cap
+    // the child here or a hung opencode subprocess hangs the whole suite
+    // (observed under heavy system load, 2026-07-06).
+    timeout: 90_000,
   });
   const out = new TextDecoder().decode(proc.stdout) + new TextDecoder().decode(proc.stderr);
   expect(out).toContain("DRIVE_OK");
@@ -93,7 +97,7 @@ describe("classifier shadow mode (real hook, subprocess)", () => {
     expect(row).toBeDefined();
     expect(row.applied).toBe(false);
     expect(row.use_llm).toBe(true);
-  }, 20000);
+  }, 120000);
 
   test("shadow: explicit /eN override still binds (persisted, applied)", () => {
     const { work, rows } = drive(

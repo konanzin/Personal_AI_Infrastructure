@@ -57,7 +57,7 @@ Skill("Agents")  // → CreateCustomAgent workflow with unique traits per agent
 | "use Remy", "get Ava to" | Named agent | Use appropriate researcher subagent_type |
 | (Code implementation, standard) | Engineer | `Task({ subagent_type: "Engineer" })` |
 | (Production-grade code, E3+, "no shortcuts" directive, OR named "Forge") | Forge (cross-vendor, OpenAI-family GPT-5.4 via `codex exec`) | `Agent({ subagent_type: "Forge" })` |
-| (Whole-project long-context coding, OR named "Anvil") | Anvil (cross-vendor, Kimi K2.6 via Moonshot API) | `Agent({ subagent_type: "Anvil" })` |
+| (Whole-project long-context coding, OR named "Anvil") | Anvil (cross-vendor; engine from USER/Config/anvil.json) | `Agent({ subagent_type: "Anvil" })` |
 | (Cross-vendor audit, MANDATORY at E4/E5 in VERIFY) | Cato (read-only auditor, OpenAI-family GPT-5.x) | `Agent({ subagent_type: "Cato" })` |
 | (Architecture/design) | Architect | `Task({ subagent_type: "Architect" })` |
 | (Claude Code hooks, settings, commands, MCP, agents, API) | Claude Code Guide | `Task({ subagent_type: "claude-code-guide" })` — verify latest features before implementing |
@@ -98,7 +98,7 @@ filesystem cannot express:
 |------|--------|
 | `general-purpose` | Not an installed file — the generic Task type used for ComposeAgent custom agents |
 | `Cato` | MANDATORY at E4/E5 in VERIFY (doctrine binding, not a preference) |
-| Cross-vendor pair | `Forge` (OpenAI-family via `codex exec`) and `Anvil` (Kimi via Moonshot) exist to break same-family blind spots — pick by context size vs. rigor |
+| Cross-vendor pair | `Forge` (OpenAI-family via `codex exec`) and `Anvil` (per-machine engine, ideally long-context and family-diverse) exist to break same-family blind spots — pick by context size vs. rigor |
 | ~~`BrowserAgent`~~ | **DEPRECATED** | Replaced by **Interceptor** skill (real Chrome, no CDP fingerprint) |
 | ~~`UIReviewer`~~ | **DEPRECATED** | Replaced by **Interceptor** skill |
 | ~~`QATester`~~ | **DEPRECATED** | Replaced by **Interceptor** skill — Gate 4 browser-based QA validation |

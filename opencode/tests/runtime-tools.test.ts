@@ -116,9 +116,14 @@ describe("PAI runtime tool fallbacks", () => {
     expect(json.reason).toContain("codex CLI not found");
   });
 
-  test("AnvilProgress returns unavailable without MOONSHOT_API_KEY", () => {
+  test("AnvilProgress returns unavailable when no engine is configured (model-agnostic)", () => {
     const env = { ...process.env, PAI_DIR: tempPaiDir() };
-    delete env.MOONSHOT_API_KEY;
+    // Anvil has no baked-in provider: with no anvil.json and no PAI_ANVIL_*
+    // env, it must report unconfigured — never fall back to any vendor.
+    delete env.PAI_ANVIL_BASE_URL;
+    delete env.PAI_ANVIL_MODEL;
+    delete env.PAI_ANVIL_API_KEY;
+    delete env.PAI_ANVIL_API_KEY_ENV;
     const result = Bun.spawnSync({
       cmd: ["bash", "-lc", `echo prompt | bun '${toolPath.AnvilProgress}' --slug smoke`],
       env,
@@ -129,7 +134,7 @@ describe("PAI runtime tool fallbacks", () => {
     expect(result.exitCode).toBe(0);
     const json = jsonFrom(result);
     expect(json.verdict).toBe("unavailable");
-    expect(json.reason).toContain("MOONSHOT_API_KEY");
+    expect(json.reason).toContain("not configured");
   });
 
   test("CrossVendorAudit returns skipped when codex is disabled", () => {
@@ -152,6 +157,6 @@ describe("PAI runtime tool fallbacks", () => {
     expect(result.exitCode).toBe(0);
     const json = jsonFrom(result);
     expect(json.verdict).toBe("available");
-    expect(JSON.stringify(json)).not.toContain("MOONSHOT_API_KEY");
+    expect(JSON.stringify(json)).not.toMatch(/API_KEY\s*[:=]\s*["\x27][A-Za-z0-9]/); // no raw secret values
   });
 });

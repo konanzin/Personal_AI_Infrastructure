@@ -642,7 +642,7 @@ else
 fi
 TOTAL=$((TOTAL + 1))
 
-if env -u MOONSHOT_API_KEY PAI_DIR="$TOOLS_TMP" bash -lc "echo prompt | bun '${PAI_DIR}/TOOLS/AnvilProgress.ts' --slug smoke" 2>/dev/null | grep -q '"verdict": "unavailable"'; then
+if env -u PAI_ANVIL_BASE_URL -u PAI_ANVIL_MODEL -u PAI_ANVIL_API_KEY PAI_DIR="$TOOLS_TMP" bash -lc "echo prompt | bun '${PAI_DIR}/TOOLS/AnvilProgress.ts' --slug smoke" 2>/dev/null | grep -q '"verdict": "unavailable"'; then
     pass "AnvilProgress unavailable behavior"
     PASSED=$((PASSED + 1))
 else

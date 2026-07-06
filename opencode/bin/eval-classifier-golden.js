@@ -13,7 +13,7 @@
  *
  * Usage:
  *   bun bin/eval-classifier-golden.js                  # production config (classifier.json + env)
- *   bun bin/eval-classifier-golden.js --model moonshotai/kimi-k2   # eval a specific model (e.g. idle Kimi tokens)
+ *   bun bin/eval-classifier-golden.js --model <provider/model>      # eval a specific model
  *   bun bin/eval-classifier-golden.js --heuristic      # score the offline heuristic path (free)
  *   bun bin/eval-classifier-golden.js --limit 5        # quick smoke on the first N cases
  *   bun bin/eval-classifier-golden.js --runs 3         # N runs per case, majority vote (recommended
