@@ -128,11 +128,17 @@ function normalizeNotificationLanguage(language: unknown): string | null {
   if (typeof language !== 'string') return null;
   const raw = language.trim().replace(/_/g, '-');
   if (!raw) return null;
-  const [code, region] = raw.split('-');
-  const lowerCode = code.toLowerCase();
-  if (lowerCode === 'pt') return `pt-${(region ?? 'BR').toUpperCase()}`;
-  if (lowerCode === 'en') return `en-${(region ?? 'US').toUpperCase()}`;
-  return null;
+  const parts = raw.split('-');
+  const code = parts[0].toLowerCase();
+  if (!/^[a-z]{2,3}$/.test(code)) return null;
+  // Region defaults only for the two locales with provisioned TTS voices; every
+  // other well-formed BCP-47 tag is preserved, not dropped (drift register W2.4).
+  let region = parts[1];
+  if (!region) {
+    if (code === 'pt') region = 'BR';
+    else if (code === 'en') region = 'US';
+  }
+  return region ? `${code}-${region.toUpperCase()}` : code;
 }
 
 /**

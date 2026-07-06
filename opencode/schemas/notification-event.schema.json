@@ -24,7 +24,7 @@
     "slug": { "type": ["string", "null"] },
     "title": { "type": ["string", "null"] },
     "speak": { "type": "string", "maxLength": 200 },
-    "language": { "type": "string", "pattern": "^(en|pt)-[A-Z]{2}$" },
+    "language": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$" },
     "data": { "type": "object" }
   }
 }

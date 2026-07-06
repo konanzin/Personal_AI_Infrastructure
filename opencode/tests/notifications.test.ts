@@ -98,6 +98,19 @@ describe("Notifications — emitNotification envelope", () => {
     expect(readEvents()[0].language).toBe("pt-BR");
   });
 
+  // Drift register W2.4: any well-formed BCP-47 locale is preserved, not
+  // clamped to en/pt or dropped — the harness rides the model getting more
+  // multilingual instead of capping it at two languages.
+  test("non-en/pt locales are preserved, not nulled", () => {
+    emitNotification({ event: "agent_completed", sessionId: "s", speak: "Tarea completada", language: "es-ES", data: {} });
+    expect(readEvents()[0].language).toBe("es-ES");
+  });
+
+  test("bare language subtag normalizes without a fabricated region", () => {
+    emitNotification({ event: "agent_completed", sessionId: "s", speak: "Terminé", language: "fr", data: {} });
+    expect(readEvents()[0].language).toBe("fr");
+  });
+
   test("unknown events fall back to milestone and a generic speak", () => {
     emitNotification({ event: "totally_new_event", sessionId: "s", data: {} });
     const e = readEvents()[0];
