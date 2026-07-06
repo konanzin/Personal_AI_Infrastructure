@@ -11,6 +11,9 @@
  *   bun bin/monitor-classifier-health.js [--window N] [--json] [--quiet]
  *
  * Exit codes: 0 ok / insufficient · 1 warn · 2 alert  (usable from cron & CI).
+ * Exception: insufficient WITH discarded pre-v2 rows exits 1 — a v1-only
+ * machine with a dead LLM path must not read green to an exit-code consumer
+ * (the human-readable reason already said so; cron/CI only sees the code).
  * Resolution order for paths mirrors the plugin: $PAI_DIR or ~/.config/opencode/PAI.
  */
 import { readFileSync, existsSync } from "fs";
@@ -74,7 +77,13 @@ const report = analyzeClassifierHealth(entries, {
   requireIntentField: true,
 });
 
-const exitCode = report.status === "alert" ? 2 : report.status === "warn" ? 1 : 0;
+const exitCode =
+  report.status === "alert" ? 2
+  : report.status === "warn" ? 1
+  // insufficient-because-unjudgeable: rows exist but predate v2 telemetry —
+  // surface as warn to cron/CI instead of a silent green exit 0.
+  : report.status === "insufficient" && report.discarded > 0 ? 1
+  : 0;
 
 if (has("--json")) {
   console.log(JSON.stringify({ ...report, expectLLM: config.useLLM, streamPath }, null, 2));
