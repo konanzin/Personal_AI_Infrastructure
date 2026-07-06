@@ -4,8 +4,8 @@
 
 | Trigger | Mode | Config | Speed |
 |---------|------|--------|-------|
-| "quick research", "minor research" | Quick | 1 Claude agent | ~10-15s |
-| "do research", "research this" | Standard | 2 agents (Claude + Gemini) + cross-check | ~15-30s |
+| "quick research", "minor research" | Quick | 1 Perplexity agent | ~10-15s |
+| "do research", "research this" | Standard | 4 agents (Claude + Gemini + Grok + Perplexity) + cross-check | ~30-60s |
 | "extensive research" | Extensive | 7 explorers + 2 verifiers (9 agents) | ~60-90s |
 | "deep investigation", "investigate [topic]" | Deep | Progressive iteration + verification | ~3-60min |
 
@@ -44,7 +44,7 @@ Only escalate when previous layer fails.
 **Example 1: Quick research on a topic**
 ```
 User: "quick research on Texas hot sauce brands"
--> Spawns 1 Claude agent with single query
+-> Spawns 1 Perplexity agent with single query
 -> Returns confidence-tagged findings
 -> Completes in ~10-15 seconds
 ```
@@ -52,7 +52,7 @@ User: "quick research on Texas hot sauce brands"
 **Example 2: Standard research (default)**
 ```
 User: "do research on AI agent frameworks"
--> Spawns 2 agents in parallel (Claude + Gemini)
+-> Spawns 4 agents in parallel (Claude + Gemini + Grok + Perplexity)
 -> Cross-checks findings, tags confidence, flags conflicts
 -> Returns synthesized findings with [HIGH]/[MED]/[LOW] tags (~15-30s)
 ```

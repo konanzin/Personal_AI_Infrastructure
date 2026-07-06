@@ -92,7 +92,7 @@ for url in "${urls[@]}"; do curl -s -o /dev/null -w "%{http_code} $url\n" -L "$u
 🔍 ANALYSIS: [Key findings with confidence tags: [HIGH] [MED] [LOW] [CONFLICT]]
 ⚡ ACTIONS: 2 researchers × 1 query each + cross-check synthesis
 ✅ RESULTS: [Synthesized answer]
-📊 STATUS: Standard mode - 2 agents, cross-checked
+📊 STATUS: Standard mode - 4 agents, cross-checked
 📁 CAPTURE: [Key verified facts]
 ➡️ NEXT: [Suggest extensive if CONFLICT items need resolution]
 📖 STORY EXPLANATION: [5-8 numbered points]

@@ -102,8 +102,8 @@ Route to the appropriate workflow based on the request.
 
 | Trigger | Mode | Speed |
 |---------|------|-------|
-| "quick research" | 1 Claude agent | ~10-15s |
-| "do research" | 2 agents + cross-check | ~15-30s |
+| "quick research" | 1 Perplexity agent | ~10-15s |
+| "do research" | 4 agents + cross-check | ~30-60s |
 | "extensive research" | 7 explorers + 2 verifiers | ~60-90s |
 | "deep investigation" | Progressive iteration + verification | ~3-60min |
 
@@ -176,7 +176,7 @@ See `Workflows/DeepInvestigation.md` for full workflow details.
 ## Gotchas
 
 - **Research agents hallucinate URLs.** EVERY URL must be verified before delivery. A single broken link is a catastrophic failure.
-- **"research" alone = Standard mode (2 agents + cross-check). Never default to Quick.** Users saying "research this" expect thorough results.
+- **"research" alone = Standard mode (4 agents + cross-check). Never default to Quick.** Users saying "research this" expect thorough results.
 - **Due diligence, background checks, people lookup → OSINT skill, NOT Research.** Research handles general investigation; OSINT handles entity-specific deep investigation.
 - **Don't spawn redundant research agents when you already have the answer in context.** If prior work in the session already covers the topic, skip agent spawning.
 - **"extract alpha" routes to ExtractAlpha workflow — not the ExtractWisdom skill.** Different things.
@@ -187,7 +187,7 @@ See `Workflows/DeepInvestigation.md` for full workflow details.
 **Example 1: Quick lookup**
 ```
 User: "quick research on Hono SSR middleware patterns"
-→ Invokes QuickResearch workflow (1 Claude agent)
+→ Invokes QuickResearch workflow (1 Perplexity agent)
 → Returns summary with key patterns and links
 → ~10-15 seconds
 ```
@@ -195,7 +195,7 @@ User: "quick research on Hono SSR middleware patterns"
 **Example 2: Standard multi-source research**
 ```
 User: "research the current state of AI agent frameworks"
-→ Invokes StandardResearch workflow (2 agents: Claude + Gemini, cross-checked)
+→ Invokes StandardResearch workflow (4 agents: Claude + Gemini + Grok + Perplexity, cross-checked)
 → Cross-references findings, confidence-tags, verifies URLs
 → Returns synthesized report with citations
 → ~15-30 seconds
