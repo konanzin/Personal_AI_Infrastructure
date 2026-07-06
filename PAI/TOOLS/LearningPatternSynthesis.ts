@@ -112,13 +112,15 @@ function groupToPatternGroups(
       examples.some(e => e === r.sentiment_summary)
     );
 
+    // W2.12: no data means no number — the old fallbacks (5 and 0.5) invented
+    // a neutral score for patterns nobody rated.
     const avgRating = matchingRatings.length > 0
       ? matchingRatings.reduce((sum, r) => sum + r.rating, 0) / matchingRatings.length
-      : 5;
+      : null;
 
     const avgConfidence = matchingRatings.length > 0
       ? matchingRatings.reduce((sum, r) => sum + r.confidence, 0) / matchingRatings.length
-      : 0.5;
+      : null;
 
     groups.push({
       pattern,
@@ -171,24 +173,13 @@ function analyzeRatings(ratings: Rating[], period: string): SynthesisResult {
     .map(f => `${f.pattern} (${f.count} occurrences, avg rating ${f.avgRating.toFixed(1)})`);
 
   // Generate recommendations based on patterns
-  const recommendations: string[] = [];
-
-  if (frustrations.some(f => f.pattern === "Time/Performance Issues")) {
-    recommendations.push("Consider setting clearer time expectations and progress updates");
-  }
-  if (frustrations.some(f => f.pattern === "Wrong Approach")) {
-    recommendations.push("Ask clarifying questions before starting complex tasks");
-  }
-  if (frustrations.some(f => f.pattern === "Over-engineering")) {
-    recommendations.push("Default to simpler solutions; only add complexity when justified");
-  }
-  if (frustrations.some(f => f.pattern === "Communication Problems")) {
-    recommendations.push("Summarize understanding before implementation");
-  }
-
-  if (recommendations.length === 0) {
-    recommendations.push("Continue current patterns - no major issues detected");
-  }
+  // W2.12: no canned advice — the old version mapped pattern names to frozen
+  // recommendation strings, which is a lookup table cosplaying as insight. The
+  // report carries the DATA (patterns, counts, examples); interpreting it is
+  // the reading model's job, with full context this tool does not have.
+  const recommendations: string[] = [
+    "Interpretation belongs to the reader: review the patterns above in context before changing behavior.",
+  ];
 
   return {
     period,

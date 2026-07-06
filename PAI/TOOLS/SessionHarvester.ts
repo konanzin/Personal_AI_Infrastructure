@@ -19,7 +19,7 @@ type MinedMemory = {
   memoryType: MemoryType;
   content: string;
   context: string;
-  confidence: number;
+  patternHits: number;
   sourcePattern: string;
   sourceLine: number;
 };
@@ -265,14 +265,17 @@ function mineMemories(sessionPath: string): MinedMemory[] {
     for (const [memoryType, patterns] of Object.entries(MINING_PATTERNS) as [MemoryType, RegExp[]][]) {
       const matches = patterns.filter((pattern) => pattern.test(text));
       if (matches.length === 0) continue;
-      const confidence = Math.min(0.35 + matches.length * 0.15 + (text.length > 200 ? 0.1 : 0), 1);
+      // W2.12: no fabricated confidence — 0.35+0.15/hit was arithmetic wearing
+      // a probability costume. The honest datum is the raw hit count; judgment
+      // about whether a candidate matters belongs to whoever reviews the queue.
+      const patternHits = matches.length;
       memories.push({
         sessionId,
         timestamp,
         memoryType,
         content: text.slice(0, 700),
         context: text.slice(0, 400),
-        confidence,
+        patternHits,
         sourcePattern: matches[0].source,
         sourceLine: index + 1,
       });
@@ -281,7 +284,7 @@ function mineMemories(sessionPath: string): MinedMemory[] {
 
   const seen = new Set<string>();
   return memories
-    .sort((a, b) => b.confidence - a.confidence)
+    .sort((a, b) => b.patternHits - a.patternHits)
     .filter((memory) => {
       const key = `${memory.memoryType}:${memory.content.slice(0, 120).toLowerCase()}`;
       if (seen.has(key)) return false;
@@ -309,7 +312,7 @@ function writeQueue(memory: MinedMemory): string {
     domain: "Ideas",
     type: "idea",
     tags: [memory.memoryType, "mined"],
-    confidence: memory.confidence,
+    pattern_hits: memory.patternHits,
     sourcePattern: memory.sourcePattern,
     sourcePath: memory.sessionId,
     sourceLine: memory.sourceLine,

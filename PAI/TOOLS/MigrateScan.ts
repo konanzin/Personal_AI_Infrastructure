@@ -105,11 +105,11 @@ const RULES: Array<{ target: Target; patterns: RegExp[]; weight: number }> = [
   { target: "TELOS/AUTHORS.md", patterns: [/\bauthor\b/i, /\bwriter\b/i, /\bnovelist\b/i], weight: 2 },
   { target: "TELOS/MOVIES.md", patterns: [/\bmovie\b/i, /\bfilm\b/i, /\bdirector\b/i, /\bcinema\b/i], weight: 2 },
   { target: "TELOS/BANDS.md", patterns: [/\bband\b/i, /\bartist\b/i, /\balbum\b/i, /\bconcert\b/i, /\bdrummer\b/i], weight: 2 },
-  { target: "TELOS/RESTAURANTS.md", patterns: [/\brestaurant\b/i, /\bdiner\b/i, /\beatery\b/i, /\bPapaya Thai\b/i], weight: 2 },
+  { target: "TELOS/RESTAURANTS.md", patterns: [/\brestaurant\b/i, /\bdiner\b/i, /\beatery\b/i], weight: 2 },
   { target: "TELOS/FOOD_PREFERENCES.md", patterns: [/\bcuisine\b/i, /\bspice\b/i, /\b(love|hate|avoid) (eating|food)\b/i, /\bdietary\b/i], weight: 2 },
   { target: "TELOS/LEARNING.md", patterns: [/\blearn\b/i, /\blesson\b/i, /\bclass\b/i, /\bstudy\b/i, /\bcourse\b/i], weight: 2 },
   { target: "TELOS/MEETUPS.md", patterns: [/\bmeetup\b/i, /\bconference\b/i, /\bevent\b/i], weight: 2 },
-  { target: "TELOS/CIVIC.md", patterns: [/\bpermit\b/i, /\bcity council\b/i, /\bzoning\b/i, /\bNewark\b/i], weight: 2 },
+  { target: "TELOS/CIVIC.md", patterns: [/\bpermit\b/i, /\bcity council\b/i, /\bzoning\b/i], weight: 2 },
 
   // Identity
   { target: "USER/PRINCIPAL_IDENTITY.md", patterns: [/\bI am\b/i, /\bmy role\b/i, /\bmy background\b/i, /\bI work as\b/i, /\bexperience\b/i], weight: 1 },
@@ -121,7 +121,7 @@ const RULES: Array<{ target: Target; patterns: RegExp[]; weight: number }> = [
   { target: "MEMORY/KNOWLEDGE/Research", patterns: [/\bresearch\b/i, /\bstudy shows\b/i, /\baccording to\b/i], weight: 1 },
 
   // Feedback (AI collaboration preferences)
-  { target: "memory/feedback", patterns: [/\b(always|never|do not) (do|use|include)\b/i, /\bwhen (you|{{DA_NAME}})\b/i, /\bKai should\b/i, /\bfrom now on\b/i, /\brule:\b/i], weight: 3 },
+  { target: "memory/feedback", patterns: [/\b(always|never|do not) (do|use|include)\b/i, /\bwhen (you|{{DA_NAME}})\b/i, /\bfrom now on\b/i, /\brule:\b/i], weight: 3 },
 ];
 
 // ─── Chunking ───

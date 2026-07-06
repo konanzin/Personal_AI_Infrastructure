@@ -10,7 +10,7 @@
  *   contradictions  List tag-overlap pairs for semantic review.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 import { basename, dirname, join, relative } from "path";
 import { homedir } from "os";
 import { parseArgs } from "util";
@@ -216,7 +216,6 @@ domain: ${domain.toLowerCase()}
 tags: [${candidate.tags.map(slugify).filter(Boolean).join(", ")}]
 created: ${today}
 updated: ${today}
-quality: 5
 harvested_from: ${candidate.sourcePath}
 ---
 
@@ -372,7 +371,11 @@ function harvest(source: string | undefined, dryRun: boolean, limit: number) {
   const written = dryRun ? [] : candidates.map((candidate) => {
     const path = writeNote(candidate);
     if (candidate.sourcePath.startsWith(QUEUE_DIR) && existsSync(candidate.sourcePath)) {
-      unlinkSync(candidate.sourcePath);
+      // W2.12: never destroy the source — move processed queue items aside so a
+      // bad harvest is reversible (the old unlinkSync deleted them outright).
+      const processedDir = join(QUEUE_DIR, ".processed");
+      mkdirSync(processedDir, { recursive: true });
+      renameSync(candidate.sourcePath, join(processedDir, basename(candidate.sourcePath)));
     }
     state.harvestedPaths.push(candidate.sourcePath);
     state.totalHarvested++;

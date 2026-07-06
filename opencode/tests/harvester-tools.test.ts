@@ -179,7 +179,10 @@ This note has enough body content to pass validation.
     const output = json(result);
     expect(output.written.length).toBe(1);
     expect(existsSync(join(paiDir, "MEMORY", "KNOWLEDGE", "Ideas", "review-queue-candidate.md"))).toBe(true);
-    expect(readdirSync(queue).length).toBe(0);
+    // W2.12: harvested candidates are MOVED to .processed/, never deleted —
+    // a bad harvest stays reversible.
+    expect(readdirSync(queue).filter((f) => f.endsWith(".json"))).toEqual([]);
+    expect(readdirSync(join(queue, ".processed")).length).toBe(1);
   });
 
   test("contradictions lists high tag-overlap pairs", () => {
