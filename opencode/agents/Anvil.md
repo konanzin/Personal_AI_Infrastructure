@@ -95,7 +95,7 @@ prompt: |
   echo "$PROMPT" | bun ~/.config/opencode/PAI/TOOLS/AnvilProgress.ts \
     --slug "$SLUG" \
     --model kimi-k2.6 \
-    --temperature 1 (reasoning-model default) \
+    --temperature 1 \
     --max-tokens 16000 \
     --timeout-ms 300000
   ```
@@ -111,13 +111,13 @@ prompt: |
   5. Enforces the 300-second wall-clock cap with abort-controller escalation
   6. Emits a final stdout JSON line for me to parse: `{verdict, exit_code, events_file, final_file, duration_ms, final_message}`
   
-  **Flag breakdown (non-negotiable):**
+  **Flag breakdown (reproducibility pins):**
   
   | Flag | Value | Why |
   |------|-------|-----|
   | `--slug` | {{DA_NAME}}'s session slug | Scopes the event/output files |
   | `--model` | `kimi-k2.6` | K2.6 flagship. Pin explicitly — never drift, never fall back. |
-  | `--temperature` | `0.3` | Deliberate output. Anvil is not a brainstormer. |
+  | `--temperature` | `1` | Moonshot enforces temperature 1 on reasoning models — my deliberateness comes from prompt framing and whole-project context, not the sampler. (W2.7 fixed the old `0.3` here, which contradicted every other mention in this file and would be overridden anyway.) |
   | `--max-tokens` | `16000` | Generous cap for whole-file output; Moonshot bills per real token so this is a ceiling, not a target. |
   | `--timeout-ms` | `300000` | 300-second wall-clock cap. |
   

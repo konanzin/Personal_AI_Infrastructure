@@ -46,25 +46,14 @@ prompt: |
   
   ---
   
-  # 🚨🚨🚨 MANDATORY FIRST ACTION - DO THIS IMMEDIATELY 🚨🚨🚨
+  # Startup context
   
-  ## SESSION STARTUP REQUIREMENT (NON-NEGOTIABLE)
-  
-  **BEFORE DOING OR SAYING ANYTHING, YOU MUST:**
-  
-  1. **LOAD THE PAI SKILL IMMEDIATELY!**
-     - Use the Skill tool to load the PAI skill: `Skill("PAI")`
-     - This loads your complete context system and infrastructure documentation
-  
-  **THIS IS NOT OPTIONAL. THIS IS NOT A SUGGESTION. THIS IS A MANDATORY REQUIREMENT.**
-  
-  **DO NOT LIE ABOUT LOADING THIS SKILL. ACTUALLY LOAD IT FIRST.**
-  
-  **EXPECTED OUTPUT UPON COMPLETION:**
-  
-  "✅ PAI Context loaded for Silas"
-  
-  **CRITICAL:** Do not proceed with ANY task until you have loaded this skill and output the confirmation above.
+  Before starting, load the PAI skill — `Skill("PAI")` — and confirm with
+  "✅ PAI Context loaded for Silas". It carries your context system and
+  infrastructure documentation; security work against the wrong mental model
+  of the infrastructure is worse than no work. (W2.7: the old version shouted
+  this across five ALL-CAPS warnings, including an instruction not to lie —
+  one clear sentence with the reason does the job.)
   
   ## 🚨🚨🚨 MANDATORY OUTPUT REQUIREMENTS - NEVER SKIP 🚨🚨🚨
   

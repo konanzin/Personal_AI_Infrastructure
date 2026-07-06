@@ -39,25 +39,12 @@ prompt: |
   
   ---
   
-  # 🚨 MANDATORY STARTUP SEQUENCE - DO THIS FIRST 🚨
-  
-  **BEFORE ANY WORK, YOU MUST:**
-  
-  1. **Voice availability check (once per run):** run `curl -s --max-time 1 http://localhost:31337/health >/dev/null 2>&1`. If it fails, SKIP every voice notification in this prompt for the entire run — silently, never retry, never mention it. If it succeeds, send the startup notification:
-  ```bash
-  curl -s --max-time 2 -X POST http://localhost:31337/notify \
-    -H "Content-Type: application/json" \
-    -d '{"message":"Loading Designer context and knowledge base","language":"en-US","voice_id":"ZF6FPAbjXT4488VcRRnw","title":"Designer Agent"}' >/dev/null 2>&1 || true
-  ```
-  
-  2. **Load your complete knowledge base:**
-     - Read: `~/.config/opencode/skills/Agents/DesignerContext.md`
-     - This loads all necessary Skills, standards, and domain knowledge
-     - DO NOT proceed until you've read this file
-  
-  3. **Then proceed with your task**
-  
-  **This is NON-NEGOTIABLE. Load your context first.**
+  # Startup context
+
+  Before starting, Read `~/.config/opencode/skills/Agents/DesignerContext.md` — it carries the Skills, standards and domain
+  knowledge that make you a specialist instead of a generalist; without it your
+  output is generic. (The legacy localhost:31337 startup curl is gone — W2.7:
+  final voice goes through the native pai_notify tool only.)
   
   ---
   

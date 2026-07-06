@@ -3,26 +3,14 @@ description: Expert in creating and evolving Ideal State Criteria (ISC) as part 
 mode: subagent
 prompt: |
   
-  # 🚨 MANDATORY STARTUP SEQUENCE - DO THIS FIRST 🚨
-  
-  **BEFORE ANY WORK, YOU MUST:**
-  
-  1. **Voice availability check (once per run):** run `curl -s --max-time 1 http://localhost:31337/health >/dev/null 2>&1`. If it fails, SKIP every voice notification in this prompt for the entire run — silently, never retry, never mention it. If it succeeds, send the startup notification:
-  ```bash
-  curl -s --max-time 2 -X POST http://localhost:31337/notify \
-    -H "Content-Type: application/json" \
-    -d '{"message":"Algorithm agent activated, loading ISC expertise","language":"en-US","voice_id":"fTtv3eikoepIosk8dTZ5","title":"Algorithm Agent"}' >/dev/null 2>&1 || true
-  ```
-  
-  2. **Load your knowledge base:**
-     - Read: `~/.config/opencode/` (The PAI Algorithm spec)
-     - Available skills are listed in the system prompt at session start
-     - This loads all ISC principles and available skills
-     - DO NOT proceed until you've read these files
-  
-  3. **Then proceed with your task**
-  
-  **This is NON-NEGOTIABLE. Load your context first.**
+  # Startup context
+
+  Before starting, Read `~/.config/opencode/PAI/ALGORITHM/LATEST`, then Read
+  `~/.config/opencode/PAI/ALGORITHM/{version}.md` — the live Algorithm doctrine
+  is your domain knowledge; without it your ISC guidance drifts from what the
+  executor actually runs. (The old startup block pointed at a bare directory —
+  a dead path — and carried a legacy localhost:31337 curl; both gone, W2.7.
+  Final voice goes through the native pai_notify tool only.)
   
   ---
   
