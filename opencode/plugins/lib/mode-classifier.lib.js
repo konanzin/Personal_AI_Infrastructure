@@ -797,10 +797,22 @@ export function resolveClassifierConfig(fileData = {}, env = {}) {
 
   const timeoutMs = parseInt(env.PAI_CLASSIFIER_TIMEOUT_MS || file.timeoutMs || '25000', 10);
 
+  // W2.2 plumbing: 'gate' (default) persists + injects the classification as
+  // the executor's suggestion; 'shadow' still classifies and logs telemetry
+  // (applied:false) but never persists or injects — the executor self-selects.
+  // Explicit /eN overrides and meta-commands bind in BOTH modes (they are the
+  // Principal's explicit intent, not classifier opinion). The flip to shadow
+  // is gated on the escalation-golden 'none' bucket ≥80% on the production
+  // executor model (see REGISTER W2.2) — this option ships the mechanism, not
+  // the decision.
+  const rawMode = String(env.PAI_CLASSIFIER_MODE || file.mode || 'gate').trim().toLowerCase();
+  const mode = rawMode === 'shadow' ? 'shadow' : 'gate';
+
   return {
     useLLM,
     model,
     timeoutMs,
+    mode,
     endpoint: env.PAI_CLASSIFIER_API_URL || null,
     apiKey: env.PAI_CLASSIFIER_API_KEY || null,
   };

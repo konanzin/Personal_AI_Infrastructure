@@ -586,6 +586,16 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
 
         const effortLabel = getEffortLabel(classification);
 
+        // W2.2 plumbing: in shadow mode the suggestion path (llm/heuristic/
+        // fail-safe) is telemetry-only — nothing persisted, nothing injected,
+        // the executor self-selects. Explicit intent (override /eN,
+        // meta-command) is not classifier opinion and applies in both modes.
+        const applied =
+          classifierConfig.mode !== 'shadow' ||
+          classification.source === 'override' ||
+          classification.source === 'command';
+
+        if (applied) {
         // Persist to current-work-<session>.json
         const workPath = getCurrentWorkPath(sessionId);
         const currentWork = safeReadJson(workPath, { session_id: sessionId });
@@ -621,8 +631,11 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           // Non-fatal: registry update is best-effort
           console.log(`[PAI] ⚠️ Failed to update work registry: ${e.message}`);
         }
+        }
 
-        // Telemetry: append to mode-classifier.jsonl
+        // Telemetry: append to mode-classifier.jsonl (both modes — shadow
+        // exists to keep measuring; `applied` says whether it reached the
+        // executor as a suggestion or stayed observation-only)
         appendJsonL(classifierTelemetryPath, {
           timestamp: getISOTimestamp(),
           session_id: sessionId,
@@ -644,16 +657,20 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           // make a health monitor misjudge historical rows (heuristic is healthy when
           // useLLM was false, degraded when it was true).
           use_llm: classifierConfig.useLLM,
+          applied,
           prompt_hash: hashString(content, 16),
           prompt_preview: truncate(content, 200),
         });
 
-        console.log(`[PAI] 🎯 Classified: ${effortLabel} (source: ${classification.source}, confidence: ${classification.confidence.toFixed(2)})`);
+        console.log(`[PAI] 🎯 Classified: ${effortLabel} (source: ${classification.source}, confidence: ${classification.confidence.toFixed(2)}${applied ? '' : ', shadow — not applied'})`);
       } catch (e) {
         // Classifier failure must never break the prompt flow
         console.error(`[PAI] ❌ Classifier error: ${e.message}`);
 
-        // Fail-safe: write ALGORITHM E3 to state so system context knows
+        // Fail-safe: write ALGORITHM E3 to state so system context knows.
+        // Shadow mode: nothing is applied on the suggestion path, including
+        // the fail-safe — the executor self-selects with no stored state.
+        if (classifierConfig.mode !== 'shadow') {
         const workPath = getCurrentWorkPath(sessionId);
         const currentWork = safeReadJson(workPath, { session_id: sessionId });
         if (clientAgent) currentWork.client_agent = clientAgent;
@@ -667,6 +684,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         };
         currentWork.classified_at = getISOTimestamp();
         safeWriteJson(workPath, currentWork);
+        }
 
         appendJsonL(classifierTelemetryPath, {
           timestamp: getISOTimestamp(),
@@ -680,6 +698,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
           latency_ms: 0,
           fallback: true,
           use_llm: classifierConfig.useLLM,
+          applied: classifierConfig.mode !== 'shadow',
           prompt_hash: hashString(content, 16),
           prompt_preview: truncate(content, 200),
         });
