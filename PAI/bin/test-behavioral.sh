@@ -249,7 +249,7 @@ run_test "Plugin calls sync on ISA write/edit" \
     "grep -q 'isISAArtifactPath' ${PLUGINS_DIR}/pai-hooks.js"
 
 # Functional test of ISA sync
-ISA_SYNC_TMP=$(mktemp /tmp/pai-isa-sync-test-XXXXXX.js)
+ISA_SYNC_TMP=$(mktemp "${TMPDIR:-/tmp}/pai-isa-sync-test-XXXXXX.js")
 cat > "$ISA_SYNC_TMP" <<ENDTEST
 import {
   isISAArtifactPath,
@@ -359,7 +359,7 @@ run_test "AgentGuard logs to agent-guard.jsonl" \
     "grep -q 'agent-guard.jsonl' ${PLUGINS_DIR}/pai-hooks.js"
 
 # Functional test of the resource floor
-GUARD_TEST_TMP=$(mktemp /tmp/pai-guard-test-XXXXXX.js)
+GUARD_TEST_TMP=$(mktemp "${TMPDIR:-/tmp}/pai-guard-test-XXXXXX.js")
 cat > "$GUARD_TEST_TMP" <<ENDTEST
 import { inspectAgentSpawn } from '${PLUGINS_DIR}/lib/pai-hooks.lib.js';
 
