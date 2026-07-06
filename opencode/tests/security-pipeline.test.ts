@@ -1,5 +1,5 @@
 import { describe, test, expect, afterEach } from "bun:test";
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -206,6 +206,11 @@ describe("Security Pipeline — inspectWritePath", () => {
 
   test("allows write to project file", () => {
     const result = inspectWritePath("src/index.ts", "write");
+    expect(result.action).toBe("allow");
+  });
+
+  test("allows workflow writes to non-secret machine config", () => {
+    const result = inspectWritePath(join(process.env.HOME || "/home/user", ".config/opencode/PAI/USER/Config/classifier.json"), "write");
     expect(result.action).toBe("allow");
   });
 });
@@ -468,6 +473,14 @@ describe("Security policy — external loading, cascade & fail-closed", () => {
     const policy = loadSecurityPolicy();
     expect(policy.status).toBe("default");
     expect(inspectBashCommand("rm -rf /").action).toBe("deny");
+  });
+
+  test("bundled default policy version matches Patterns.example.yaml", () => {
+    seedPolicy(null);
+    const template = readFileSync(join(import.meta.dir, "../../PAI/DOCUMENTATION/Security/Patterns.example.yaml"), "utf-8");
+    const version = template.match(/^version:\s*["']([^"']+)["']/m)?.[1];
+    expect(version).toBeTruthy();
+    expect(loadSecurityPolicy().version).toBe(version);
   });
 
   test("a valid external policy is honored over the default", () => {

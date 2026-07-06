@@ -111,6 +111,19 @@ const MUST_BLOCK_READ: BlockCase[] = [
   // tier-wide nullification that let these two through).
   { cmd: "/etc/ssl/private/.env.example", note: "template-looking file inside protected TLS key dir" },
   { cmd: join(homedir(), ".gnupg/sub/.env.example"), note: "template-looking file inside ~/.gnupg" },
+  // PAI trust-boundary redesign: private installed USER data is not open Read-tool
+  // substrate for agents. Startup imports may expose selected summaries; raw stores stay denied.
+  { cmd: join(homedir(), ".config/opencode/auth.json"), note: "OpenCode auth token store" },
+  { cmd: join(homedir(), ".local/share/opencode/auth.json"), note: "alternate OpenCode auth token store" },
+  { cmd: join(homedir(), ".claude/.credentials.json"), note: "Claude credentials store" },
+  { cmd: join(homedir(), ".config/claude/credentials.json"), note: "alternate Claude credentials store" },
+  { cmd: join(homedir(), ".config/gh/hosts.yml"), note: "GitHub CLI token store" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/Config/PAI_CONFIG.yaml"), note: "PAI credential config" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/Config/voice.env"), note: "PAI voice/env config" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/CONTACTS.md"), note: "private PAI contacts" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/FINANCES/accounts.md"), note: "private PAI financial data" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/HEALTH/labs.md"), note: "private PAI health data" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/BUSINESS/client-notes.md"), note: "private PAI business data" },
 ];
 
 const MUST_BLOCK_WRITE: BlockCase[] = [
@@ -178,6 +191,8 @@ const MUST_ALLOW_READ: AllowCase[] = [
   { cmd: "/srv/app/.env.example", note: "dotenv template via Read tool" },
   { cmd: "/srv/app/.env.sample", note: "dotenv template via Read tool" },
   { cmd: "/srv/app/.env.local.example", note: "template of a local dotenv via Read tool" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/TELOS/GOALS.md"), note: "routed TELOS context remains outside the private-data deny floor" },
+  { cmd: join(homedir(), ".config/opencode/PAI/USER/Config/classifier.json"), note: "/classifier machine config remains writable/readable by its workflow" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -105,6 +105,29 @@ function outputOf(result: ReturnType<typeof runCheck>) {
   return `${result.stdout.toString()}\n${result.stderr.toString()}`;
 }
 
+type BashRule = { pattern: string; action: string };
+
+function bashRules(template: string): BashRule[] {
+  const block = template.match(/"bash":\s*\{[\s\S]*?\n\s*\}/)?.[0] ?? "";
+  return [...block.matchAll(/^\s+"([^"]+)":\s*"(allow|ask|deny)"/gm)].map((match) => ({
+    pattern: match[1],
+    action: match[2],
+  }));
+}
+
+function matchesCommandPattern(command: string, pattern: string): boolean {
+  const regex = new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+  return regex.test(command);
+}
+
+function simulatedBashPermission(command: string, rules: BashRule[]): string | null {
+  let decision: string | null = null;
+  for (const rule of rules) {
+    if (matchesCommandPattern(command, rule.pattern)) decision = rule.action;
+  }
+  return decision;
+}
+
 describe("Installer hygiene", () => {
   test("install manifest tracks repo agents, commands, and skills", () => {
     expect(sorted(manifest.agents)).toEqual(repoFiles(join(opencodeRoot, "agents"), ".md"));
@@ -170,6 +193,41 @@ describe("Installer hygiene", () => {
     expect(bashBlock).toMatch(/"pai-nosandbox \*":\s*"ask"/);
     expect(bashBlock).not.toContain("PAI_SANDBOX=off");
     expect(bashBlock).toMatch(/pai-hooks\.lib\.js":\s*"ask"/);
+    // High-blast-radius external mutations are not part of the normal
+    // allow-by-default bash lane. They use native ask so the rare prompt
+    // remains meaningful instead of training approval reflexes.
+    for (const boundary of [
+      "git push",
+      "git push *",
+      "gh pr *",
+      "gh issue *",
+      "gh release *",
+      "sendmail *",
+      "npm publish*",
+      "bun publish*",
+      "bun run deploy*",
+      "wrangler deploy*",
+      "vercel deploy*",
+      "terraform apply*",
+    ]) {
+      expect(bashBlock).toContain(`"${boundary}": "ask"`);
+    }
+    const rules = bashRules(template);
+    for (const command of [
+      "git push",
+      "git push origin main",
+      "gh pr create --title hi",
+      "gh issue comment 1 --body hi",
+      "sendmail person@example.com",
+      "npm publish",
+      "bun run deploy",
+      "wrangler deploy",
+    ]) {
+      expect(simulatedBashPermission(command, rules)).toBe("ask");
+    }
+    for (const command of ["git status", "bun test", "curl -i http://localhost:3000/health"]) {
+      expect(simulatedBashPermission(command, rules)).toBe("allow");
+    }
     // Self-modification surfaces stay on ask (the deny floor can't protect
     // itself from the Edit tool).
     const editBlock = template.match(/"edit":\s*\{[\s\S]*?\}/)?.[0] ?? "";
@@ -238,10 +296,11 @@ describe("Installer wires the T1 sandbox", () => {
 describe("Installer wires the O5 health-check timer", () => {
   const install = readFileSync(installScript, "utf-8");
 
-  test("health-check consumer script exists, is executable, and runs both probes", () => {
+  test("health-check consumer script exists, is executable, and runs all probes", () => {
     const scriptPath = join(opencodeRoot, "bin", "pai-health-check.sh");
     const script = readFileSync(scriptPath, "utf-8");
     expect(script).toContain("monitor-classifier-health.js");
+    expect(script).toContain("monitor-security-events.ts");
     expect(script).toContain("--check");
     expect(script).toContain("notify-send");
     expect(script).toContain("health-check.jsonl");

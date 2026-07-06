@@ -18,7 +18,7 @@
 # in the command. Edit with care — a corrupt file fails closed.
 # version is the STALENESS signal: install.sh --check compares this against the
 # installed copy and flags drift. Bump it whenever patterns change here.
-version: "3.2-opencode"
+version: "3.3-opencode"
 
 bash:
   trusted:
@@ -160,6 +160,21 @@ paths:
     - '/etc/gshadow'
     - '/proc/kcore'
     - '/etc/ssl/private/**'
+    # Installed PAI user-data is the Principal's private substrate. Runtime
+    # startup context may load selected summaries, but ad-hoc Read tool access
+    # to credentials and high-sensitivity personal stores is a hard deny.
+    - '~/.config/opencode/auth.json'
+    - '~/.local/share/opencode/auth.json'
+    - '~/.claude/.credentials.json'
+    - '~/.config/claude/credentials.json'
+    - '~/.config/gh/hosts.yml'
+    - '~/.config/opencode/PAI/USER/Config/PAI_CONFIG.yaml'
+    - '~/.config/opencode/PAI/USER/Config/voice.env'
+    - '~/.config/opencode/PAI/USER/CONTACTS.md'
+    - '~/.config/opencode/PAI/USER/FINANCES/**'
+    - '~/.config/opencode/PAI/USER/HEALTH/**'
+    - '~/.config/opencode/PAI/USER/BUSINESS/**'
+    - '~/.config/opencode/PAI/USER/OUR_STORY.md'
     - '**/.env'
     - '**/.env.*'
     # Exemptions ('!'): dotenv TEMPLATES are secretless by convention and must

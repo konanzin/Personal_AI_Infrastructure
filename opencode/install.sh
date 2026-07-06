@@ -612,7 +612,8 @@ install_pai_core() {
     # Copy scripts (repo canonical versions take precedence)
     cp -f "${REPO_DIR}/opencode/bin/"*.sh "$PAI_DIR/bin/" 2>/dev/null || true
     cp -f "${REPO_DIR}/opencode/bin/"*.js "$PAI_DIR/bin/" 2>/dev/null || true
-    chmod +x "$PAI_DIR/bin/"*.sh "$PAI_DIR/bin/"*.js 2>/dev/null || true
+    cp -f "${REPO_DIR}/opencode/bin/"*.ts "$PAI_DIR/bin/" 2>/dev/null || true
+    chmod +x "$PAI_DIR/bin/"*.sh "$PAI_DIR/bin/"*.js "$PAI_DIR/bin/"*.ts 2>/dev/null || true
 
     # Escape-hatch token must live on PATH so opencode's permission matcher
     # sees it as a real command_name (an env-var prefix can't be gated —

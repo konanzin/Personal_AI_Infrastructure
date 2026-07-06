@@ -285,7 +285,7 @@ export function emitNotification({
 // Patterns.example.yaml) whenever patterns change, or existing installs will
 // keep running the old policy with no warning — that drift already happened once.
 const DEFAULT_SECURITY_POLICY_OBJ = {
-  version: '3.2-opencode',
+  version: '3.3-opencode',
   bash: {
     trusted: [
       { pattern: '^playwright-cli\\b', reason: 'Playwright CLI (Browser skill)' },
@@ -370,6 +370,21 @@ const DEFAULT_SECURITY_POLICY_OBJ = {
       '~/.ssh/id_*', '~/.ssh/*.pem', '~/.aws/credentials', '~/.gnupg/**',
       '**/service-account*.json', '/etc/shadow', '/etc/gshadow', '/proc/kcore',
       '/etc/ssl/private/**',
+      // Installed PAI user-data is the Principal's private substrate. Runtime
+      // startup context may load selected summaries, but ad-hoc Read tool access
+      // to credentials and high-sensitivity personal stores is a hard deny.
+      '~/.config/opencode/auth.json',
+      '~/.local/share/opencode/auth.json',
+      '~/.claude/.credentials.json',
+      '~/.config/claude/credentials.json',
+      '~/.config/gh/hosts.yml',
+      '~/.config/opencode/PAI/USER/Config/PAI_CONFIG.yaml',
+      '~/.config/opencode/PAI/USER/Config/voice.env',
+      '~/.config/opencode/PAI/USER/CONTACTS.md',
+      '~/.config/opencode/PAI/USER/FINANCES/**',
+      '~/.config/opencode/PAI/USER/HEALTH/**',
+      '~/.config/opencode/PAI/USER/BUSINESS/**',
+      '~/.config/opencode/PAI/USER/OUR_STORY.md',
       '**/.env', '**/.env.*',
       // Exemptions ('!'): dotenv TEMPLATES are secretless by convention and must
       // stay readable/writable — mirrors the bash-side .env guard's suffix carve-out.
@@ -503,6 +518,7 @@ function compileSecurityPolicy(obj, source) {
   const policy = {
     status: 'ok',
     source,
+    version: typeof obj.version === 'string' ? obj.version : null,
     reason: null,
     bash: {
       trusted: rules(bash.trusted, 'low'),

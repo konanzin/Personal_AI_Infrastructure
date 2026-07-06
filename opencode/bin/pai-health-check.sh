@@ -8,7 +8,8 @@
 # Probes (cheap, no LLM calls — the golden eval stays on-demand because it
 # costs tokens):
 #   1. bin/monitor-classifier-health.js   exit 0 ok / 1 warn / 2 alert
-#   2. install.sh --check                 exit 0 ok / 1 drift
+#   2. bin/monitor-security-events.ts     exit 0 ok / 1 warn / 2 alert
+#   3. install.sh --check                 exit 0 ok / 1 drift
 #
 # On any non-zero probe: desktop notification (notify-send, if present) and a
 # JSONL record appended to PAI/MEMORY/OBSERVABILITY/health-check.jsonl either
@@ -46,6 +47,7 @@ if ! command -v "$BUN_BIN" >/dev/null 2>&1 && [ -x "$HOME/.bun/bin/bun" ]; then
 fi
 
 run_probe "classifier-health" "$BUN_BIN" "$OPENCODE_DIR/bin/monitor-classifier-health.js"
+run_probe "security-events" "$BUN_BIN" "$OPENCODE_DIR/bin/monitor-security-events.ts"
 run_probe "install-drift" bash "$OPENCODE_DIR/install.sh" --check
 
 timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
