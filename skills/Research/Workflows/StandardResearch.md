@@ -65,14 +65,14 @@ Task({
 
 ### Step 3: Cross-Check Synthesis
 
-Combine the two perspectives **with confidence scoring and conflict detection:**
+Combine the four perspectives **with confidence scoring and conflict detection:**
 
-1. **Cross-reference findings:** Where both agents report the same fact → tag `[HIGH]`
+1. **Cross-reference findings:** Where two or more agents report the same fact → tag `[HIGH]`
 2. **Flag unique findings:** Findings from only one agent → tag `[MED]`
 3. **Detect contradictions:** Where agents disagree → tag `[CONFLICT]` with both sides
-4. **Quantitative check:** Any number cited by one agent — did the other agent's sources confirm it?
+4. **Quantitative check:** Any number cited by one agent — did any other agent's sources confirm it?
 
-This adds ~2-3 seconds to synthesis (reading both results with conflict lens) — well within the <5s budget.
+This adds ~2-3 seconds to synthesis (reading all four results with conflict lens) — well within the <5s budget.
 
 ### Step 4: Parallel URL Verification
 
@@ -90,7 +90,7 @@ for url in "${urls[@]}"; do curl -s -o /dev/null -w "%{http_code} $url\n" -L "$u
 ```markdown
 📋 SUMMARY: Research on [topic]
 🔍 ANALYSIS: [Key findings with confidence tags: [HIGH] [MED] [LOW] [CONFLICT]]
-⚡ ACTIONS: 2 researchers × 1 query each + cross-check synthesis
+⚡ ACTIONS: 4 researchers × 1 query each + cross-check synthesis
 ✅ RESULTS: [Synthesized answer]
 📊 STATUS: Standard mode - 4 agents, cross-checked
 📁 CAPTURE: [Key verified facts]
