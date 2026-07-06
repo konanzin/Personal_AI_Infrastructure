@@ -19,23 +19,24 @@ import { resolveClassifierConfig } from "../plugins/lib/mode-classifier.lib.js";
 
 const driver = fileURLToPath(new URL("./helpers/drive-classifier-mode.mjs", import.meta.url));
 
-function drive(sid: string, prompt: string, extraEnv: Record<string, string> = {}) {
+function drive(sid: string, prompt: string, extraEnv: Record<string, string> = {}, waitMs = 0) {
   const home = mkdtempSync(join(tmpdir(), "pai-shadow-"));
   const proc = Bun.spawnSync({
-    cmd: ["bun", driver, sid, prompt],
+    cmd: ["bun", driver, sid, prompt, String(waitMs)],
     env: { ...process.env, PAI_DIR: home, PAI_CLASSIFIER_USE_LLM: "false", ...extraEnv },
     stdout: "pipe",
     stderr: "pipe",
   });
   const out = new TextDecoder().decode(proc.stdout) + new TextDecoder().decode(proc.stderr);
   expect(out).toContain("DRIVE_OK");
+  const chatMs = parseInt(out.match(/CHAT_MS=(\d+)/)?.[1] ?? "-1", 10);
   const workPath = join(home, "MEMORY", "STATE", `current-work-${sid}.json`);
   const work = existsSync(workPath) ? JSON.parse(readFileSync(workPath, "utf-8")) : null;
   const telemetryPath = join(home, "MEMORY", "OBSERVABILITY", "mode-classifier.jsonl");
   const rows = existsSync(telemetryPath)
-    ? readFileSync(telemetryPath, "utf-8").trim().split("\n").map((l) => JSON.parse(l))
+    ? readFileSync(telemetryPath, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
     : [];
-  return { work, rows };
+  return { work, rows, chatMs };
 }
 
 describe("resolveClassifierConfig mode", () => {
@@ -67,6 +68,32 @@ describe("classifier shadow mode (real hook, subprocess)", () => {
     expect(row.applied).toBe(false);
     expect(row.mode).toBeDefined(); // still measured — shadow exists to keep measuring
   });
+
+  test("shadow + LLM: prompt is NOT blocked on the classifier; telemetry lands async", () => {
+    // The original UX complaint against the gate: every prompt waited on a
+    // classifier subprocess. In shadow the classify is fire-and-forget — the
+    // hook returns immediately even when the classifier is slow/broken (here:
+    // a garbage model with a 5s timeout), and the row lands afterwards with
+    // applied:false. 1500ms bound is generous for a no-subprocess-wait path.
+    const { work, rows, chatMs } = drive(
+      "ses_shadow_llm",
+      WORK_PROMPT,
+      {
+        PAI_CLASSIFIER_USE_LLM: "true",
+        PAI_CLASSIFIER_MODE: "shadow",
+        PAI_CLASSIFIER_MODEL: "nonexistent/garbage-model",
+        PAI_CLASSIFIER_TIMEOUT_MS: "2000",
+      },
+      3500,
+    );
+    expect(chatMs).toBeGreaterThanOrEqual(0);
+    expect(chatMs).toBeLessThan(1500);
+    expect(work?.classification).toBeUndefined();
+    const row = rows.find((r) => r.event === "mode_classification");
+    expect(row).toBeDefined();
+    expect(row.applied).toBe(false);
+    expect(row.use_llm).toBe(true);
+  }, 20000);
 
   test("shadow: explicit /eN override still binds (persisted, applied)", () => {
     const { work, rows } = drive(

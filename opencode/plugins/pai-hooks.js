@@ -564,6 +564,49 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         } else if (metaCommand) {
           classification = normalizeClassification(metaCommand);
         } else if (classifierConfig.useLLM) {
+          if (classifierConfig.mode === 'shadow') {
+            // Shadow is fire-and-forget: a telemetry-only opinion must never
+            // hold the user's prompt hostage for seconds of subprocess
+            // latency (the original UX complaint against the gate). The
+            // executor starts immediately; the row lands when it lands.
+            const emitShadowRow = (c) => {
+              appendJsonL(classifierTelemetryPath, {
+                timestamp: getISOTimestamp(),
+                session_id: sessionId,
+                event: 'mode_classification',
+                mode: c.mode,
+                tier: c.tier,
+                source: c.source,
+                reason: c.reason,
+                confidence: c.confidence,
+                latency_ms: c.latencyMs,
+                fallback: c.source === 'fail-safe' || c.source === 'heuristic',
+                use_llm: true,
+                applied: false,
+                prompt_hash: hashString(content, 16),
+                prompt_preview: truncate(content, 200),
+              });
+              console.log(`[PAI] 🎯 Shadow-classified: ${getEffortLabel(c)} (source: ${c.source}, not applied)`);
+            };
+            classifyPromptWithLLM(content, {
+              endpoint: classifierConfig.endpoint,
+              apiKey: classifierConfig.apiKey,
+              model: classifierConfig.model,
+              timeoutMs: classifierConfig.timeoutMs,
+            })
+              .then((llmResult) => emitShadowRow(normalizeClassification(llmResult)))
+              .catch((e) =>
+                emitShadowRow({
+                  mode: 'ALGORITHM',
+                  tier: 'E3',
+                  reason: `Shadow classifier error: ${e.message}`,
+                  source: 'fail-safe',
+                  confidence: 1.0,
+                  latencyMs: 0,
+                }),
+              );
+            classification = null; // nothing applied, nothing persisted, nothing awaited
+          } else {
           try {
             const llmResult = await classifyPromptWithLLM(content, {
               endpoint: classifierConfig.endpoint,
@@ -577,12 +620,15 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
             const rawClassification = classifyPrompt(content);
             classification = normalizeClassification(rawClassification);
           }
+          }
         } else {
           // LLM disabled (PAI_CLASSIFIER_USE_LLM=false): heuristic classifier, zero latency
           const rawClassification = classifyPrompt(content);
           classification = normalizeClassification(rawClassification);
         }
 
+        // Shadow + LLM classified asynchronously above — nothing further here.
+        if (classification) {
         const effortLabel = getEffortLabel(classification);
 
         // W2.2 plumbing: in shadow mode the suggestion path (llm/heuristic/
@@ -662,6 +708,7 @@ export const PAIHooksPlugin = async ({ project, client, $, directory, worktree }
         });
 
         console.log(`[PAI] 🎯 Classified: ${effortLabel} (source: ${classification.source}, confidence: ${classification.confidence.toFixed(2)}${applied ? '' : ', shadow — not applied'})`);
+        }
       } catch (e) {
         // Classifier failure must never break the prompt flow
         console.error(`[PAI] ❌ Classifier error: ${e.message}`);
