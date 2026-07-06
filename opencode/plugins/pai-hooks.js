@@ -1574,13 +1574,11 @@ ${activeWork}`);
           if (resultText) {
             const content = typeof resultText === 'string' ? resultText : JSON.stringify(resultText);
 
-            // Check for error indicators
-            const has404 = content.includes('404') || content.includes('Not Found') || content.includes('not found');
-            const hasError = content.includes('error') || content.includes('Error') || content.includes('ERROR');
-            const isShort = content.length < 200;
-            const isVeryShort = content.length < 50;
-
-            // Check for prompt injection patterns in web content
+            // Check for prompt injection patterns in web content.
+            // Content QUALITY (error pages, truncation, blocking) is the
+            // model's reading-comprehension job — the 404/error-substring and
+            // length heuristics were removed (drift register W1.6); only the
+            // transport-level fact (contentLength) is logged below.
             const injectionResult = inspectContent(content);
             if (injectionResult.action !== 'allow') {
               console.warn(`[PAI] ⚠️ ContentScanner: ${injectionResult.reason}`);
@@ -1595,31 +1593,15 @@ ${activeWork}`);
               });
             }
 
-            if (has404) {
-              console.warn('[PAI] ⚠️ ContentScanner: 404/Not Found detected in web content');
-            }
-
-            if (hasError && isShort) {
-              console.warn('[PAI] ⚠️ ContentScanner: Error page detected (short content + error keywords)');
-            }
-
-            if (isVeryShort) {
-              console.warn('[PAI] ⚠️ ContentScanner: Web content unusually short - possible blocking or empty response');
-            } else if (isShort && !has404 && !hasError) {
-              console.warn('[PAI] ⚠️ ContentScanner: Web content shorter than 200 chars - verify completeness');
-            }
-
             // Log content scan result
-            if (has404 || hasError || isVeryShort || injectionResult.action !== 'allow') {
+            if (injectionResult.action !== 'allow') {
               logSecurityEvent({
                 sessionId,
                 tool,
                 eventType: 'content_scan_alert',
                 inspector: 'ContentScanner',
-                has404,
-                hasError,
                 contentLength: content.length,
-                injectionDetected: injectionResult.action !== 'allow',
+                injectionDetected: true,
                 timestamp,
               });
             }
