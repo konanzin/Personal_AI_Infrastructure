@@ -14,10 +14,10 @@ Inventário de toda heurística/gambiarra que compensa fraqueza de modelo. Regra
 
 | ID | Mecanismo | Local | Proveniência | Mudança | Status |
 |---|---|---|---|---|---|
-| W1.1a | `skill_misfire` hard-deny por keyword | `pai-hooks.lib.js` (inspectSkillInvocation) | **port-added**, especulativo (sem incidente) | deny → warn/log | pendente |
+| W1.1a | `skill_misfire` hard-deny por keyword | `pai-hooks.lib.js` (inspectSkillInvocation) | **port-added**, especulativo (sem incidente) | deny → warn/log | **feito** `7cba73a` — suíte 0 fail, guardas warn-nunca-deny |
 | W1.1b | inspectPrompt deny + rewrite do prompt | `pai-hooks.lib.js` ~1129-1266, `pai-hooks.js` chat.message | corpus herdado do upstream (`PromptInspector.ts`); **rewrite é port-added** | deny/rewrite → alert; corpus vira telemetria | pendente |
-| W1.2 | "honor above self-selection" do classificador | `mode-classifier.lib.js` formatClassificationContext; `opencode.jsonc.template` | doutrina upstream v6.3.0 (incidente de sub-escalação, abr/2026) | classificação vira sugestão; `/eN` do usuário segue autoritativo | pendente |
-| W1.3 | Contradição 4-vs-2 agentes na Research | `skills/Research/SKILL.md` + `StandardResearch.md` | contagens hardcoded herdadas; contradição introduzida no port | reconciliar números (fonte única vem em W2.5) | pendente |
+| W1.2 | "honor above self-selection" do classificador | `mode-classifier.lib.js` formatClassificationContext; `opencode.jsonc.template` | doutrina upstream v6.3.0 (incidente de sub-escalação, abr/2026) | classificação vira sugestão; `/eN` do usuário segue autoritativo | **feito** `a8beba6` — golden heurístico inalterado 68%/71%; pendente: golden LLM (Kimi) antes de mesclar em dori |
+| W1.3 | Contradição 4-vs-2 agentes na Research | `skills/Research/SKILL.md` + `StandardResearch.md` | contagens hardcoded herdadas; contradição introduzida no port | reconciliar números (fonte única vem em W2.5) | **feito** `afe61cd` — 10 correções em 3 arquivos |
 | W1.4 | Blocos "Legacy Pulse" de voz (~30 skills) | `skills/*/SKILL.md` | herdado do upstream (curl 31337 em 138 arquivos lá) | deletar (o próprio texto se declara superado por `pai_notify`) | pendente |
 | W1.5 | Pin `deepseek-v4-flash-free` em validators | `validate-pai-installation.sh:497`, `test-behavioral.sh:181` | acomodação de custo (free tier), já despinada no runtime | validar "existe default centralizado", não o nome literal | pendente |
 | W1.6 | Heurísticas 404/length de qualidade web | `pai-hooks.js:1592-1624` | **port-added** (upstream só faz injection-scan) | deletar; logar só fatos de transporte | pendente |
