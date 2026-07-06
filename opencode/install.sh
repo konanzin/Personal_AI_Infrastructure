@@ -516,8 +516,11 @@ install_pai_core() {
         exit 1
     fi
     
-    # Copy full PAI tree from repo, preserving existing user data on update
-    for dir in ALGORITHM DOCUMENTATION PULSE TOOLS TEMPLATES bin config tests; do
+    # Copy full PAI tree from repo, preserving existing user data on update.
+    # W2.9: `bin` is NOT in this list — $PAI_DIR/bin is populated exclusively
+    # from opencode/bin below (single source; the repo's PAI/bin mirror kept
+    # going stale and shipping pre-fix validator copies).
+    for dir in ALGORITHM DOCUMENTATION PULSE TOOLS TEMPLATES config tests; do
         if [ -d "${REPO_DIR}/PAI/$dir" ]; then
             cp -R "${REPO_DIR}/PAI/$dir" "$PAI_DIR/"
         fi

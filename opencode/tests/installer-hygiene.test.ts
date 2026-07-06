@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { fileURLToPath } from "url";
@@ -133,6 +133,18 @@ describe("Installer hygiene", () => {
     expect(sorted(manifest.agents)).toEqual(repoFiles(join(opencodeRoot, "agents"), ".md"));
     expect(sorted(manifest.commands)).toEqual(repoFiles(join(opencodeRoot, "commands"), ".md"));
     expect(sorted(manifest.skills)).toEqual(repoDirs(join(repoRoot, "skills")));
+  });
+
+  test("validators have ONE source: no repo PAI/bin mirror, installer copies opencode/bin only (W2.9)", async () => {
+    // The repo used to carry a PAI/bin mirror of opencode/bin. It kept going
+    // stale (shipped the deepseek pin and pre-W1.1 assertions long after the
+    // canonical copies were fixed) and the installer copied it FIRST, relying
+    // on a later overwrite to mask the drift. Single source now: $PAI_DIR/bin
+    // is populated exclusively from opencode/bin.
+    expect(existsSync(join(repoRoot, "PAI/bin"))).toBe(false);
+    const installSh = await Bun.file(join(opencodeRoot, "install.sh")).text();
+    const treeCopyLine = installSh.match(/for dir in ([^;]*); do/)?.[1] ?? "";
+    expect(treeCopyLine).not.toContain(" bin");
   });
 
   test("install.sh --check passes when generated artifacts match the manifest", async () => {

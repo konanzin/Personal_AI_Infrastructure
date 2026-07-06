@@ -230,15 +230,9 @@ check_config() {
     local checks=0
     local passed=0
     
-    local line_count=$(wc -l < "${OPENCODE_DIR}/opencode.jsonc")
-    if [ "$line_count" -gt 50 ]; then
-        pass "opencode.jsonc has $line_count lines (>50)"
-        passed=$((passed + 1))
-    else
-        fail "opencode.jsonc too small ($line_count lines)"
-    fi
-    checks=$((checks + 1))
-
+    # W2.9: the old ">50 lines" size check was a magic count — the template
+    # drift comparison below validates the real contract (the file matches
+    # what the generator produces), which subsumes any size floor.
     if [ -f "$CONFIG_TEMPLATE" ]; then
         local expected_config
         expected_config="$(mktemp)"
@@ -546,26 +540,33 @@ check_agents() {
     local checks=0
     local passed=0
     
+    # W2.9: contract check, not a count — the install manifest is the single
+    # source of truth for which agents ship (same pattern the skills section
+    # already uses). The old "-ge 15" plus a frozen roster array here drifted
+    # the moment an agent was added or renamed.
     local agent_count=$(ls "${OPENCODE_DIR}/agents/"*.md 2>/dev/null | wc -l)
-    if [ "$agent_count" -ge 15 ]; then
-        pass "$agent_count agents installed"
+    local expected_agent_count
+    expected_agent_count="$(manifest_count "agents")"
+    if [ -n "$expected_agent_count" ] && [ "$expected_agent_count" -gt 0 ] && [ "$agent_count" -eq "$expected_agent_count" ]; then
+        pass "$agent_count agents installed (matches manifest)"
         passed=$((passed + 1))
     else
-        fail "Only $agent_count agents found"
+        fail "Agent count $agent_count does not match manifest (${expected_agent_count:-unreadable})"
     fi
     checks=$((checks + 1))
 
-    local agents=("Algorithm" "Anvil" "Architect" "Arthur" "Artist" "Cato" "ClaudeResearcher" "CodexResearcher" "Designer" "Engineer" "Forge" "GeminiResearcher" "GrokResearcher" "PerplexityResearcher" "Silas")
-
-    for agent in "${agents[@]}"; do
-        if [ -f "${OPENCODE_DIR}/agents/${agent}.md" ]; then
-            pass "${agent}.md exists"
+    # Every manifest-declared agent must exist — names read from the manifest,
+    # not a roster frozen in this script.
+    while IFS= read -r agent_file; do
+        [ -z "$agent_file" ] && continue
+        if [ -f "${OPENCODE_DIR}/agents/${agent_file}" ]; then
+            pass "${agent_file} exists"
             passed=$((passed + 1))
         else
-            fail "${agent}.md missing"
+            fail "${agent_file} missing"
         fi
         checks=$((checks + 1))
-    done
+    done < <(manifest_values "agents")
 
     # Deprecated agents must NOT be installed (replaced by the Interceptor skill)
     local deprecated=("BrowserAgent" "QATester" "UIReviewer")
@@ -775,13 +776,27 @@ check_documentation() {
     fi
     checks=$((checks + 1))
 
-    local schema_count
-    schema_count=$(find "$PAI_DIR/schemas" -maxdepth 1 -type f -name '*.schema.json' 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$schema_count" -ge 6 ]; then
-        pass "Observability JSON schemas installed"
+    # W2.9: contract check, not a count — every contracted observability
+    # stream (docs/OBSERVABILITY_CONTRACTS.md) must have its schema installed
+    # by name. The old "-ge 6" would stay green with the wrong six files.
+    local required_schemas=(
+        "mode-classifier-event.schema.json"
+        "security-event.schema.json"
+        "session-event.schema.json"
+        "tool-failure-event.schema.json"
+        "subagent-trace-event.schema.json"
+        "notification-event.schema.json"
+        "skill-execution-event.schema.json"
+    )
+    local missing_schemas=""
+    for schema in "${required_schemas[@]}"; do
+        [ -f "$PAI_DIR/schemas/$schema" ] || missing_schemas="$missing_schemas $schema"
+    done
+    if [ -z "$missing_schemas" ]; then
+        pass "All ${#required_schemas[@]} contracted observability schemas installed"
         passed=$((passed + 1))
     else
-        fail "Observability JSON schemas missing or incomplete"
+        fail "Missing observability schemas:$missing_schemas"
     fi
     checks=$((checks + 1))
 
