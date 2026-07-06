@@ -125,6 +125,15 @@ bun test tests/floor-liveness.test.ts     # O1 anti-b6ec6a8f: floor fires under 
 bun test                                  # full suite — the only authoritative test count
 bun bin/eval-classifier-golden.js         # O3 correctness on the PRODUCTION LLM path (on-demand, costs tokens)
 bun bin/monitor-classifier-health.js      # O3/O5 liveness of the LLM path from the live stream
+bun bin/eval-escalation-golden.js --model <executor>  # O3 EXECUTOR side (on-demand): does the model
+                                          #   override wrong-LOW suggestions (the 2026-04 incident class),
+                                          #   override wrong-HIGH ones, and adopt correct ones? Guards the
+                                          #   W1.2 suggestion posture; run before any W2.2 change.
+                                          #   Pure parts fenced free in tests/escalation-golden.test.ts.
+                                          #   First probe (2026-07-06, deepseek-v4-flash-free, 8 under
+                                          #   cases): 8/8 corrected — even a small model overrides
+                                          #   wrong-low suggestions under the W1.2 prose. Full baseline
+                                          #   with the production executor model still to run.
 ```
 
 **How the `knownGap` fences work (self-healing):** a confirmed gap is pinned with

@@ -603,7 +603,9 @@ function resolveOpencodeBin() {
   return 'opencode';
 }
 
-async function execOpencodeRun(model, message, timeoutMs = 25000) {
+// Exported for on-demand evals (bin/eval-escalation-golden.js) that need the
+// same raw `opencode run --pure` path production classification uses.
+export async function execOpencodeRun(model, message, timeoutMs = 25000) {
   const bin = resolveOpencodeBin();
   const proc = Bun.spawn({
     cmd: [bin, 'run', '--pure', '--model', model, message],
