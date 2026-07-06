@@ -67,6 +67,11 @@ const report = analyzeClassifierHealth(entries, {
   expectLLM: config.useLLM,
   window,
   thresholds: DEFAULT_THRESHOLDS,
+  // Judge only telemetry-contract-v2 rows (per-row use_llm, cd86b05). Pre-v2 rows
+  // used different labeling (meta-bypass coerced to 'fail-safe') and permanently
+  // poison the window on low-traffic machines — the exact false alarm that kept
+  // pai-health.service red from 2026-07-05 despite zero real LLM failures.
+  requireIntentField: true,
 });
 
 const exitCode = report.status === "alert" ? 2 : report.status === "warn" ? 1 : 0;

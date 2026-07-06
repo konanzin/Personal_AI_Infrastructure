@@ -40,6 +40,12 @@ export const DEFAULT_THRESHOLDS = {
  * @param {object} opts
  * @param {boolean} opts.expectLLM  Whether the current config intends the LLM path.
  * @param {number}  [opts.window]   Consider only the most recent N classifications.
+ * @param {boolean} [opts.requireIntentField]  Judge only rows that carry the per-row
+ *   `use_llm` intent field (telemetry contract v2, cd86b05). Older rows were emitted
+ *   under a different labeling scheme — e.g. meta-command bypasses were coerced to
+ *   source 'fail-safe' before 'command' became a valid source, and heuristic-era
+ *   fail-safes carry no intent — so judging them against current intent produces
+ *   false alarms on low-traffic machines where they linger in the window.
  * @param {object}  [opts.thresholds]
  * @returns {{
  *   status: 'ok'|'warn'|'alert'|'insufficient',
@@ -50,11 +56,12 @@ export const DEFAULT_THRESHOLDS = {
  * }}
  */
 export function analyzeClassifierHealth(entries, opts = {}) {
-  const { expectLLM = true } = opts;
+  const { expectLLM = true, requireIntentField = false } = opts;
   const t = { ...DEFAULT_THRESHOLDS, ...(opts.thresholds || {}) };
 
   const rows = (Array.isArray(entries) ? entries : [])
-    .filter((e) => e && e.event === "mode_classification" && typeof e.source === "string");
+    .filter((e) => e && e.event === "mode_classification" && typeof e.source === "string")
+    .filter((e) => !requireIntentField || typeof e.use_llm === "boolean");
 
   // Most recent `window` by timestamp when present, else input order (already appended
   // chronologically). Slicing the tail is correct for an append-only JSONL stream.

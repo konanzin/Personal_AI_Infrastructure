@@ -113,6 +113,34 @@ describe("analyzeClassifierHealth", () => {
     expect(r.status).toBe("ok");
   });
 
+  test("requireIntentField judges only telemetry-contract-v2 rows (per-row use_llm)", () => {
+    // Pre-v2 history: meta-command bypasses coerced to 'fail-safe' before 'command'
+    // was a valid source, plus heuristic-era fail-safes. Under the flag they are
+    // unjudgeable and must not poison the window (the 2026-07-05 false alarm).
+    const legacy = [...mk("fail-safe", 6), ...mk("heuristic", 2), ...mk("llm", 20)]; // no use_llm field
+    const v2 = mk("llm", 12).map((r) => ({ ...r, use_llm: true }));
+
+    const withFlag = analyzeClassifierHealth([...legacy, ...v2] as any, {
+      expectLLM: true,
+      requireIntentField: true,
+    });
+    expect(withFlag.considered).toBe(12);
+    expect(withFlag.status).toBe("ok"); // legacy fail-safes excluded
+
+    const withoutFlag = analyzeClassifierHealth([...legacy, ...v2] as any, { expectLLM: true });
+    expect(withoutFlag.status).not.toBe("ok"); // default keeps old behavior
+  });
+
+  test("requireIntentField with too few v2 rows reports insufficient, not failure", () => {
+    const legacy = mk("fail-safe", 40);
+    const v2 = mk("llm", 4).map((r) => ({ ...r, use_llm: true }));
+    const r = analyzeClassifierHealth([...legacy, ...v2] as any, {
+      expectLLM: true,
+      requireIntentField: true,
+    });
+    expect(r.status).toBe("insufficient");
+  });
+
   test("thresholds are configurable", () => {
     const strict = { ...DEFAULT_THRESHOLDS, failSafeWarn: 0.01, failSafeAlert: 0.02 };
     const r = analyzeClassifierHealth([...mk("llm", 39), ...mk("fail-safe", 1)], {
