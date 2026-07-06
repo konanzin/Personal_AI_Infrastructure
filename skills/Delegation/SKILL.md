@@ -1,6 +1,6 @@
 ---
 name: Delegation
-description: "Parallelize work via six patterns: built-in agents (Engineer/Architect/Algorithm/Explore/Plan via Task), worktree-isolated agents (conflict-free parallel file edits), background agents (run_in_background: true, non-blocking), custom agents (ComposeAgent via Agents skill → Task general-purpose), agent teams (TeamCreate + TaskCreate + SendMessage for multi-turn peer coordination), and parallel task dispatch (N identical operations). Two-tier delegation: lightweight (haiku, max_turns=3, one-shot extraction/classification) vs full (multi-step, tool use, iteration). Decision rule — agents need to talk to each other or share state → Teams; independent one-shot work → Subagents. Auto-invoked by Algorithm when 3+ independent workstreams exist at Extended+ effort. USE WHEN 3+ workstreams, parallel execution, agent specialization, agent team, swarm, spawn agents, create team, fan out, divide and conquer, multi-agent, coordinate agents. NOT FOR single-agent custom personality composition (use Agents skill)."
+description: "Parallelize work via six patterns: built-in agents (installed subagents via Task — roster in ~/.config/opencode/agents/), worktree-isolated agents (conflict-free parallel file edits), background agents (run_in_background: true, non-blocking), custom agents (ComposeAgent via Agents skill → Task general-purpose), agent teams (TeamCreate + TaskCreate + SendMessage for multi-turn peer coordination), and parallel task dispatch (N identical operations). Two-tier delegation: lightweight (haiku, max_turns=3, one-shot extraction/classification) vs full (multi-step, tool use, iteration). Decision rule — agents need to talk to each other or share state → Teams; independent one-shot work → Subagents. Auto-invoked by Algorithm when 3+ independent workstreams exist at Extended+ effort. USE WHEN 3+ workstreams, parallel execution, agent specialization, agent team, swarm, spawn agents, create team, fan out, divide and conquer, multi-agent, coordinate agents. NOT FOR single-agent custom personality composition (use Agents skill)."
 effort: medium
 ---
 
@@ -35,15 +35,12 @@ effort: medium
 
 **⚠️ Built-in agents are for internal workflow routing ONLY.** When the user asks for custom, specialized, or uniquely-voiced agents, use the Agents skill (section 4 below) instead.
 
-Use `Task(subagent_type="AgentType")` with these specialized agents:
-
-| Agent Type | Specialization | When to Use |
-|-----------|---------------|-------------|
-| `Engineer` | TDD implementation, code changes | Code-heavy tasks requiring tests |
-| `Architect` | System design, structure decisions | Architecture planning, design specs |
-| `Algorithm` | ISC optimization, criteria work | ISC-specialized verification |
-| `Explore` | Fast codebase search | Quick file/pattern discovery |
-| `Plan` | Implementation strategy | Design before execution |
+Use `Task(subagent_type="AgentType")` with the installed specialized agents.
+The roster lives in ONE place: `~/.config/opencode/agents/*.md` — each file's
+frontmatter `description` says what that agent is for. List that directory for
+what is actually installed instead of trusting a prose copy here (W2.5: the
+old table listed Explore/Plan, which are Claude Code built-ins that do not
+exist as OpenCode subagents, and omitted more than half of the real roster).
 
 **Always include:** Full context, effort budget, expected output format.
 
@@ -96,7 +93,7 @@ Task(subagent_type="general-purpose", prompt=<ComposeAgent JSON .prompt field>)
 
 - Each agent gets unique personality, voice, and color via ComposeAgent
 - Use DIFFERENT trait combinations for each agent to get unique voices
-- Never use built-in agent types (Engineer, Architect) for custom work
+- Prefer composition over built-in types (Engineer, Architect) for custom work — built-ins share one identity
 - Ideal for: domain experts, adversarial reviewers, creative brainstormers, parallel analysis
 
 ### 5. Agent Teams (via TeamCreate)
@@ -209,7 +206,7 @@ Task(subagent_type="general-purpose", prompt="...")  # or specialized agent type
 - Don't create teams for fewer than 3 independent workstreams
 - Don't send agents work without full context — they start fresh
 - Don't use built-in agent names for custom agents
-- Don't use built-in agent types (Designer, Architect, Engineer) when user asks for specialized or custom agents — always use ComposeAgent via the Agents skill
+- When the user asks for specialized/custom agents, prefer ComposeAgent via the Agents skill over built-in types — built-ins share one identity, so a "diverse panel" of them isn't one
 - Don't use full delegation for one-shot extraction/classification — use lightweight tier
 
 ## Gotchas

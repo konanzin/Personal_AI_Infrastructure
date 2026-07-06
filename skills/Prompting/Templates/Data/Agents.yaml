@@ -1,5 +1,6 @@
 # {DA_IDENTITY.NAME} Agent Definitions
-# Canonical source for templating - derived from individual agents/*.md files
+# DERIVED snapshot for templating — NOT canonical (W2.5). The source of truth
+# is opencode/agents/*.md; regenerate this file from there when agents change.
 # Used by: ROSTER template, BRIEFING template, VOICE template
 
 version: 1.0.0

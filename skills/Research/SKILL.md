@@ -5,18 +5,21 @@ effort: high
 context: fork
 ---
 
-## ⚠️ MANDATORY TRIGGER
+## Mode Selection
 
-**When user says "research" (in any form), ALWAYS invoke this skill.**
+Pick the mode by the depth the request actually needs (W2.5: intent, not
+keyword-matching — a request can name none of these words and still be
+research; a passing mention of "research" is not an order to run this skill):
 
-| User Says | Action |
-|-----------|--------|
-| "research" / "do research" / "research this" | → Standard mode (4 agents: Claude + Gemini + Grok + Perplexity + cross-check) |
-| "quick research" / "minor research" | → Quick mode (1 Perplexity agent) |
-| "extensive research" / "deep research" | → Extensive mode (7 explorers + 2 verifiers) |
-| "deep investigation" / "investigate [topic]" / "map the [X] landscape" | → Deep Investigation (iterative + verification) |
+| Intent | Mode |
+|--------|------|
+| A normal research request with no depth qualifier | Standard (4 agents: Claude + Gemini + Grok + Perplexity + cross-check) — the default |
+| A fast lookup where a single sourced answer suffices | Quick (1 Perplexity agent) |
+| Breadth/rigor explicitly wanted (thorough, exhaustive, extensive) | Extensive (7 explorers + 2 verifiers) |
+| Open-ended investigation or landscape mapping that benefits from iteration | Deep Investigation (iterative + verification, persistent vault) |
 
-**"Research" alone = Standard mode. No exceptions.**
+When in doubt between two modes, prefer the cheaper one and say so — the
+user can escalate with one word.
 
 ## Customization
 
@@ -79,12 +82,14 @@ Route to the appropriate workflow based on the request.
 
 **READ:** `QuickReference.md` for detailed examples and mode comparison.
 
-| Trigger | Mode | Speed |
-|---------|------|-------|
-| "quick research" | 1 Perplexity agent | ~10-15s |
-| "do research" | 4 agents + cross-check | ~30-60s |
-| "extensive research" | 7 explorers + 2 verifiers | ~60-90s |
-| "deep investigation" | Progressive iteration + verification | ~3-60min |
+| Mode | Shape | Speed |
+|------|-------|-------|
+| Quick | 1 Perplexity agent | ~10-15s |
+| Standard | 4 agents + cross-check | ~30-60s |
+| Extensive | 7 explorers + 2 verifiers | ~60-90s |
+| Deep Investigation | Progressive iteration + verification | ~3-60min |
+
+(Mode selection criteria live in one place: §Mode Selection above.)
 
 ## Verification Architecture
 

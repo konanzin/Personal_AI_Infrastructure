@@ -28,16 +28,19 @@ Running **SpawnTeam** in **Agents** to launch the **TEAM_NAME** team...
 
 ## Available Teams
 
-| Team | Domain | Members | Config |
-|------|--------|---------|--------|
-| **Engineering** | Building, shipping code | Senior Engineer, QA Lead, Performance Engineer, DevOps | `Data/Teams/engineering.yaml` |
-| **Architecture** | System design, tech decisions | Systems Architect, Infrastructure Architect, API Designer, Data Architect | `Data/Teams/architecture.yaml` |
-| **Marketing** | Launches, growth, positioning | Growth Strategist, Positioning Expert, Community Manager, Analytics Lead | `Data/Teams/marketing.yaml` |
-| **Design** | UX/UI, visual, interactions | UX Lead, Visual Designer, Interaction Designer, Accessibility Specialist | `Data/Teams/design.yaml` |
-| **Security** | Assessment, threat modeling | Threat Modeler, AppSec Engineer, Red Teamer, Compliance Analyst | `Data/Teams/security.yaml` |
-| **Research** | Deep investigation, evaluation | Primary Researcher, Contrarian Analyst, Technical Evaluator, Synthesis Writer | `Data/Teams/research.yaml` |
-| **Content** | Writing, editorial, distribution | Editor-in-Chief, Staff Writer, Audience Analyst, Distribution Strategist | `Data/Teams/content.yaml` |
-| **Strategy** | Business decisions, planning | Strategist, Operator, Financial Analyst, Risk Assessor, Contrarian | `Data/Teams/strategy.yaml` |
+| Team | Domain | Config (canonical roster) |
+|------|--------|---------------------------|
+| **Engineering** | Building, shipping code | `Data/Teams/engineering.yaml` |
+| **Architecture** | System design, tech decisions | `Data/Teams/architecture.yaml` |
+| **Marketing** | Launches, growth, positioning | `Data/Teams/marketing.yaml` |
+| **Design** | UX/UI, visual, interactions | `Data/Teams/design.yaml` |
+| **Security** | Assessment, threat modeling | `Data/Teams/security.yaml` |
+| **Research** | Deep investigation, evaluation | `Data/Teams/research.yaml` |
+| **Content** | Writing, editorial, distribution | `Data/Teams/content.yaml` |
+| **Strategy** | Business decisions, planning | `Data/Teams/strategy.yaml` |
+
+Member rosters live ONLY in the YAML (W2.5) — the old prose copies here and
+in `Agents/SKILL.md` had already diverged from each other.
 
 ## The Workflow
 
@@ -57,10 +60,11 @@ Read the team's YAML config from `~/.config/opencode/skills/Agents/Data/Teams/{t
 cat ~/.config/opencode/skills/Agents/Data/Teams/engineering.yaml
 ```
 
-Extract:
-- Member definitions (role, traits, focus, bias, objective, evidence standards, red lines)
-- Tension pairs
-- Expertise path
+Extract the roster: member roles + trait hints. That is ALL the YAML carries
+(deliberately — W2.5): focus, bias, objective, evidence standards, red lines
+and tension pairs are YOURS to compose per member at spawn time, informed by
+the actual task. Frozen personality dossiers in config would fight the task
+instead of serving it.
 
 ### Step 3: Load Expertise (if exists)
 

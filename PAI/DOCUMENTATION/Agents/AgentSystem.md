@@ -85,19 +85,20 @@ bun run ~/.config/opencode/PAI/skills/Agents/Tools/ComposeAgent.ts --traits "res
 
 **These are NOT for user-requested custom/specialized agents.** When the user asks for specialized agents, custom agents, or agents with unique perspectives, ALWAYS use the Agents skill (ComposeAgent) instead. See Routing Rules above.
 
-These are pre-built agents in the Claude Code Task tool. They are for **internal workflow use**, not for user-requested "custom agents."
+These are pre-built subagents for **internal workflow use**, not for user-requested "custom agents."
 
-| Subagent Type | Purpose | When Used |
-|---------------|---------|-----------|
-| `Architect` | System design | Development skill workflows |
-| `Designer` | UX/UI design | Development skill workflows |
-| `Engineer` | Code implementation | Development skill workflows |
-| `general-purpose` | Custom agents via ComposeAgent | Parallel work with task-specific prompts |
-| `Explore` | Codebase exploration | Finding files, understanding structure |
-| `Plan` | Implementation planning | Plan mode |
-| `Forge` | Cross-vendor coder (OpenAI-family GPT-5.4 via `codex exec`) | Production-grade code at E3+ or "no shortcuts" directive |
-| `Anvil` | Cross-vendor coder (Kimi K2.6 via Moonshot direct API, 256K context) | Whole-project long-context reasoning where the entire repo matters |
-| `Cato` | Cross-vendor auditor (read-only, OpenAI-family GPT-5.x via `codex exec --sandbox read-only`) | MANDATORY at E4/E5 in VERIFY — surfaces same-family blind spots |
+**The roster lives in ONE place: `~/.config/opencode/agents/*.md`** — each
+file's frontmatter `description` says what the agent is for and when to use
+it. List that directory instead of trusting a prose table here (W2.5: the old
+copy listed Explore/Plan — Claude Code built-ins that do not exist as
+OpenCode subagents — and drifted from the installed set). Notes the
+filesystem cannot express:
+
+| Note | Detail |
+|------|--------|
+| `general-purpose` | Not an installed file — the generic Task type used for ComposeAgent custom agents |
+| `Cato` | MANDATORY at E4/E5 in VERIFY (doctrine binding, not a preference) |
+| Cross-vendor pair | `Forge` (OpenAI-family via `codex exec`) and `Anvil` (Kimi via Moonshot) exist to break same-family blind spots — pick by context size vs. rigor |
 | ~~`BrowserAgent`~~ | **DEPRECATED** | Replaced by **Interceptor** skill (real Chrome, no CDP fingerprint) |
 | ~~`UIReviewer`~~ | **DEPRECATED** | Replaced by **Interceptor** skill |
 | ~~`QATester`~~ | **DEPRECATED** | Replaced by **Interceptor** skill — Gate 4 browser-based QA validation |

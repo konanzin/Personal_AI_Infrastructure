@@ -18,7 +18,7 @@ Multi-agent debate system where custom-composed agents discuss topics in rounds,
 
 ## CRITICAL: Custom Agents Only
 
-**ALL council members MUST be custom-composed agents created via the Agents skill's ComposeAgent tool (`bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts`). NEVER use built-in agent types (Architect, Designer, Engineer, PerplexityResearcher, Silas, etc.).**
+**Compose council members via the Agents skill's ComposeAgent tool (`bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts`) rather than built-in agent types.** The reason (not a rule for its own sake): a debate between built-in generalists is one perspective wearing five name tags — composition buys the diversity the council exists for. If a built-in specialist genuinely fits a seat, justify it in the council setup.
 
 Built-in types are generic and topic-ignorant. Council debates require agents with:
 - Domain expertise tailored to the specific debate topic
@@ -93,7 +93,7 @@ Route to the appropriate workflow based on the request.
 2. Design agent traits around the specific topic, not generic roles
 3. Review the transcript - insights are in the responses, not just positions
 4. Trust multi-agent convergence when it occurs
-5. NEVER use built-in agent types — ALWAYS use ComposeAgent
+5. Prefer ComposeAgent over built-in types — diversity of perspective is the point
 
 ---
 

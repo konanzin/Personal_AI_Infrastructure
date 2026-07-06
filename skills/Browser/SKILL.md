@@ -143,8 +143,8 @@ Agent 2: agent-browser --session scrape2 open https://site-b.com
 
 ## Workflow Routing
 
-| Trigger Words | Workflow | What It Does |
-|--------------|----------|-------------|
+| Intent | Workflow | What It Does |
+|--------|----------|-------------|
 | "review stories", "run stories", "ui review", "validate stories" | `Workflows/ReviewStories.md` | Validate YAML stories with parallel agent-browser sessions |
 | "automate", "recipe", "template", or a recipe name | `Workflows/Automate.md` | Load and execute a parameterized recipe template |
 | "update", "check version" | `Workflows/Update.md` | Verify browser tools are current and working |

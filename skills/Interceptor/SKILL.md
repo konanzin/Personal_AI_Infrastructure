@@ -282,8 +282,8 @@ Passes all major bot detection:
 
 ## Workflow Routing
 
-| Trigger Words | Workflow | What It Does |
-|--------------|----------|-------------|
+| Intent | Workflow | What It Does |
+|--------|----------|-------------|
 | "verify deploy", "check deploy", "confirm deploy", "deploy verification" | `Workflows/VerifyDeploy.md` | Open URL in real Chrome, check for errors, capture screenshot evidence |
 | "reproduce", "reproduce bug", "debug page", "check page", "blank screen" | `Workflows/Reproduce.md` | Open affected page BEFORE code analysis, capture console errors and network 404s |
 | "record flow", "record workflow", "capture flow", "monitor start" | `Workflows/RecordFlow.md` | Record user actions via monitor system, export replayable plan script |

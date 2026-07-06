@@ -156,18 +156,16 @@ Distinct from functional teams (engineering, design, etc.). An Observer team wat
 
 ### Available Predefined Teams
 
-| Team | Trigger | Members |
-|------|---------|---------|
-| Engineering | "engineering team", "eng team" | Senior Engineer, QA Lead, Performance Engineer, DevOps |
-| Architecture | "architecture team", "architect team" | Systems, Infrastructure, API, Data architects |
-| Marketing | "marketing team" | Growth Strategist, Positioning Expert, Community Manager, Analytics Lead |
-| Design | "design team" | UX Lead, Visual Designer, Interaction Designer, Accessibility Specialist |
-| Security | "security team" | Threat Modeler, AppSec Engineer, Red Teamer, Compliance Analyst |
-| Research | "research team" | Primary Researcher, Contrarian Analyst, Technical Evaluator, Synthesis Writer |
-| Content | "content team" | Editor-in-Chief, Staff Writer, Audience Analyst, Distribution Strategist |
-| Strategy | "strategy team" | Strategist, Operator, Financial Analyst, Risk Assessor, Contrarian |
+The team rosters live in ONE place: `Data/Teams/*.yaml` (one file per team —
+engineering, architecture, marketing, design, security, research, content,
+strategy). List that directory for the current teams and members; this file
+deliberately does not repeat them (W2.5: a second prose copy is how the
+rosters diverged before).
 
-**NEVER use static agent types (Architect, Engineer, etc.) for custom agents — always use `general-purpose` with ComposeAgent prompts.**
+**Prefer ComposeAgent over static agent types (Architect, Engineer, etc.) for
+custom agents** — built-in types share one identity and voice, so a "team" of
+them collapses into the same perspective repeated. Use a built-in type when
+you genuinely want its specialist workflow, not a composed personality.
 
 ### 🚫 ANTI-PATTERN: Using Built-In Types for Custom Work
 

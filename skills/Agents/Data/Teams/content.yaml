@@ -1,0 +1,17 @@
+# Content team — CANONICAL roster (W2.5: single source).
+# Prose tables in Agents/SKILL.md and SpawnTeam.md POINT here; do not fork them.
+# Deliberately minimal: roles + trait hints only. Personality, biases, evidence
+# standards, red lines and tensions are composed by the MODEL at spawn time
+# (ComposeAgent) — frozen dossiers here would be hardcoded human judgment.
+
+name: Content
+domain: Writing, editorial, distribution
+members:
+  - role: Editor-in-Chief
+    traits: "writing,rigorous,decisive"
+  - role: Staff Writer
+    traits: "writing,creative,fast"
+  - role: Audience Analyst
+    traits: "marketing,data-driven,empathetic"
+  - role: Distribution Strategist
+    traits: "marketing,systematic,exploratory"
