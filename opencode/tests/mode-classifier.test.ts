@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { readFileSync } from "fs";
 import {
   classifyPrompt,
+  classifyPaiMetaCommand,
   normalizeClassification,
   formatClassificationContext,
   getEffortLabel,
@@ -489,5 +490,23 @@ describe("Mode Classifier — PAI meta-command bypass (→ NATIVE, never ALGORIT
   test("/pai template still enters ALGORITHM (not bypassed)", () => {
     const tpl = "Execute the PAI Algorithm for: refactor the auth module";
     expect(classifyPrompt(tpl).mode).toBe("ALGORITHM");
+  });
+
+  // W2.10 regression fence: the /interview template ends with the phrase
+  // "prompt-classifier model"; the old unanchored /classifier signature
+  // captured it and force-routed onboarding NATIVE at confidence 0.95.
+  test("/interview expanded template is NOT captured by the meta-command bypass", () => {
+    const tpl = templateOf("interview");
+    expect(tpl.length).toBeGreaterThan(0);
+    expect(classifyPaiMetaCommand(tpl)).toBeNull();
+    expect(classifyPrompt(tpl).source).not.toBe("command");
+  });
+
+  // Anchored signatures fire on the template HEAD only — a prompt that merely
+  // mentions a command's phrasing mid-sentence is not that command.
+  test("mid-prompt mention of a template phrase is not a meta-command", () => {
+    const prompt =
+      "Explain why the message 'Report PAI system status: …' routes NATIVE";
+    expect(classifyPaiMetaCommand(prompt)).toBeNull();
   });
 });

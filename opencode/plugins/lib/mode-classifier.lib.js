@@ -167,21 +167,32 @@ function checkMinimal(prompt) {
 // templates (e.g. /classifier → "discover models, ask, write config") that the
 // classifier would otherwise escalate to ALGORITHM, running the full 7-phase
 // Algorithm for a trivial config/status task. These are explicit user intents,
-// so treat them as NATIVE and skip the LLM classifier entirely (bypass). Match
-// on distinctive, stable phrases from the command templates in opencode.jsonc.
-// Excludes /pai, /interview, /e1–/e5 which legitimately want the Algorithm.
+// so treat them as NATIVE and skip the LLM classifier entirely (bypass).
+// Each pattern anchors to the exact HEAD of one command template in
+// opencode.jsonc.template (W2.10): an unanchored prose substring captures other
+// commands that merely mention the phrase — the /interview template ends with
+// "prompt-classifier model" and was force-routed NATIVE by the old /classifier
+// signature, against this comment's own exclusion list. Rewording a template
+// head must update its anchor (tests/mode-classifier.test.ts reads the real
+// templates and fails on drift). Excludes /pai, /interview, /e1–/e5 which
+// legitimately want the Algorithm; an explicit /eN outranks this bypass.
 const PAI_META_COMMAND_SIGNATURES = [
-  { pattern: /prompt-classifier model/i, reason: 'PAI /classifier command (config task → NATIVE)' },
-  { pattern: /Report PAI system status/i, reason: 'PAI /status command (→ NATIVE)' },
-  { pattern: /\bPulse (scaffold|scaffolding|status|metrics)\b/i, reason: 'PAI /pulse|/pu command (→ NATIVE)' },
-  { pattern: /Manage the PAI desktop voice/i, reason: 'PAI /voice command (→ NATIVE)' },
-  { pattern: /PAI context search|Search PAI (session registry|context)/i, reason: 'PAI /context|/cs command (→ NATIVE)' },
+  { pattern: /^Set or update the prompt-classifier model\b/i, reason: 'PAI /classifier command (config task → NATIVE)' },
+  { pattern: /^Report PAI system status\b/i, reason: 'PAI /status command (→ NATIVE)' },
+  { pattern: /^Inspect Pulse scaffolding\b/i, reason: 'PAI /pulse command (→ NATIVE)' },
+  { pattern: /^Check PAI Pulse status and metrics\b/i, reason: 'PAI /pu command (→ NATIVE)' },
+  { pattern: /^Manage the PAI desktop voice\b/i, reason: 'PAI /voice command (→ NATIVE)' },
+  { pattern: /^Search PAI context for:/i, reason: 'PAI /context command (→ NATIVE)' },
+  { pattern: /^Perform a 2-phase PAI context search\b/i, reason: 'PAI /context-search|/cs command (→ NATIVE)' },
 ];
 
 export function classifyPaiMetaCommand(prompt) {
   if (!prompt || typeof prompt !== 'string') return null;
+  // Slash-command expansion delivers the template verbatim as the message
+  // head; tolerate leading whitespace only, never a mid-prompt mention.
+  const head = prompt.replace(/^\s+/, '');
   for (const { pattern, reason } of PAI_META_COMMAND_SIGNATURES) {
-    if (pattern.test(prompt)) {
+    if (pattern.test(head)) {
       return { mode: 'NATIVE', tier: null, reason, source: 'command', confidence: 0.95 };
     }
   }
