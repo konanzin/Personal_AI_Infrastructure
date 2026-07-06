@@ -46,7 +46,7 @@ Formato de cada dossiê: **Regressão** (o que existe hoje) · **Proveniência**
 
 **Mudança.** (a) A classificação vira sugestão explícita ("suggested: E3 — you may override based on your own read"); (b) `/e1`–`/e5` do usuário PERMANECE autoritativo (é instrução do Principal, não palpite); (c) template para de recomendar obediência e o flag de deny por confiança.
 
-**Medição.** Golden heurístico não pode mudar (não tocamos classificação, só a prosa do contexto): re-rodar `--heuristic` e comparar 38/56·17/24. Golden com LLM (Kimi, `--runs 3`) antes de mesclar em dori — boundary O3 não pode cair de ~98%. Testes de prosa atualizados no commit.
+**Medição.** Golden heurístico não pode mudar (não tocamos classificação, só a prosa do contexto): re-rodar `--heuristic` e comparar 38/56·17/24. Golden com LLM (config de produção, `--runs 3`) antes de mesclar em dori — boundary O3 não pode cair de ~98%. Testes de prosa atualizados no commit.
 
 **Rollback.** Revert de prosa, trivial.
 

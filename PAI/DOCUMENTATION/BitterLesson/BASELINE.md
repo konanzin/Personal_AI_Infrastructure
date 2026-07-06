@@ -14,7 +14,7 @@ Medido em 2026-07-05, árvore = `dori@ef0eb55` + mudanças não-commitadas da ro
 ## O que cada workstream NÃO pode mover
 
 - **Piso de segurança:** 100% dos casos `deny` do corpus (`security-corpus.test.ts`, `floor-liveness.test.ts`) continuam negando. Qualquer queda = rollback imediato.
-- **Boundary NATIVE/ALGORITHM (O3):** golden do classificador com LLM está em ~98% (ver HARNESS_QUALITY.md). O eval com LLM é on-demand (custa chamadas; rodar com Kimi ocioso — `--model moonshotai/kimi-k2 --runs 3`) e só é obrigatório para workstreams que tocam o classificador (W1.2 toca só a PROSA do contexto, não a classificação; medir mesmo assim antes de mesclar em dori).
+- **Boundary NATIVE/ALGORITHM (O3):** golden do classificador com LLM está em ~98% (ver HARNESS_QUALITY.md). O eval com LLM é on-demand (custa chamadas; rodar com a config de produção do classificador — `bun bin/eval-classifier-golden.js --runs 3`) e só é obrigatório para workstreams que tocam o classificador (W1.2 toca só a PROSA do contexto, não a classificação; medir mesmo assim antes de mesclar em dori).
 - **Suíte:** 0 fail se mantém. Testes que assertavam o comportamento antigo (ex.: deny em prosa) são ATUALIZADOS no mesmo commit do workstream, com justificativa no dossiê — nunca silenciosamente.
 
 ## Rito de medição por workstream
