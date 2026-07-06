@@ -496,11 +496,18 @@ check_plugins() {
     # not pai-hooks.js, since classifier config resolution was centralized there.
     # Assert the PROPERTY (a centralized default resolves), never a pinned
     # model id — the id is configurable and validators must not freeze it (W1.5).
-    if bun -e "const m = await import('${OPENCODE_DIR}/plugins/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (!c.model || typeof c.model !== 'string') process.exit(1);" 2>/dev/null; then
-        pass "Classifier resolves a default LLM model"
+    # Shape-check the resolved id (provider/model), so an empty or mangled
+    # default fails here instead of at first runtime classification. A typo'd
+    # but well-formed id still passes — existence is only checkable online.
+    resolver_out=$(bun -e "const m = await import('${OPENCODE_DIR}/plugins/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (typeof c.model !== 'string' || !/^[\\w.-]+\\/[\\w.-]+$/.test(c.model)) { console.error('bad model: ' + JSON.stringify(c.model)); process.exit(1); } console.log(c.model);" 2>&1)
+    resolver_rc=$?
+    if [ $resolver_rc -eq 0 ]; then
+        pass "Classifier resolves a default LLM model (${resolver_out})"
         passed=$((passed + 1))
+    elif echo "$resolver_out" | grep -q '^bad model:'; then
+        fail "Classifier resolver default is not a provider/model id: ${resolver_out}"
     else
-        fail "Classifier resolver has no default model"
+        fail "Could not evaluate classifier resolver (toolchain?): ${resolver_out}"
     fi
     checks=$((checks + 1))
 

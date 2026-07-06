@@ -179,7 +179,7 @@ run_test "Classifier supports /e1-/e5 overrides" \
     "grep -q '/e1' ${PLUGINS_DIR}/lib/mode-classifier.lib.js"
 
 run_test "Classifier resolves a default LLM model (id not pinned — W1.5)" \
-    "bun -e \"const m = await import('${PLUGINS_DIR}/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (!c.model) process.exit(1);\""
+    "bun -e \"const m = await import('${PLUGINS_DIR}/lib/mode-classifier.lib.js'); const c = m.resolveClassifierConfig({}, {}); if (typeof c.model !== 'string' || !/^[\\w.-]+\\/[\\w.-]+$/.test(c.model)) process.exit(1);\""
 
 run_test "pai-hooks imports mode-classifier" \
     "grep -q 'mode-classifier.lib.js' ${PLUGINS_DIR}/pai-hooks.js"
