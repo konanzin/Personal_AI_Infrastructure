@@ -896,7 +896,10 @@ check_pulse() {
     # names ~/.claude/.credentials.json as a zero-access DENY target (it protects
     # the real Claude credential store at that path). It is a deny-list entry,
     # not a legacy path to migrate — rewriting it would break the protection.
-    local claude_refs=$(grep -rlI "\.claude/" "$PAI_DIR" "${OPENCODE_DIR}/skills" "${OPENCODE_DIR}/agents" "${OPENCODE_DIR}/commands" --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out 2>/dev/null | grep -v patch-paths.sh | grep -v "$PAI_DIR/bin/" | grep -v "USER/SECURITY/" | wc -l)
+    # Same for the Patterns.example.yaml template it is seeded from, and for the
+    # PAI/plugins lib mirror (repo-canonical code, byte-identical to plugins/lib).
+    # These mirror install.sh patch_installed_paths's exemptions exactly.
+    local claude_refs=$(grep -rlI "\.claude/" "$PAI_DIR" "${OPENCODE_DIR}/skills" "${OPENCODE_DIR}/agents" "${OPENCODE_DIR}/commands" --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=out 2>/dev/null | grep -v patch-paths.sh | grep -v "$PAI_DIR/bin/" | grep -v "USER/SECURITY/" | grep -v "$PAI_DIR/plugins/" | grep -v "DOCUMENTATION/Security/Patterns.example.yaml" | wc -l)
     if [ "$claude_refs" -eq 0 ]; then
         pass "No hardcoded ~/.claude/ paths in installed content (all migrated to ~/.config/opencode/)"
         passed=$((passed + 1))

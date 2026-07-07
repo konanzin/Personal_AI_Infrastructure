@@ -896,11 +896,20 @@ patch_installed_paths() {
 
     # PAI/bin is excluded: those are repo-canonical OpenCode scripts whose
     # grep patterns legitimately mention .claude/ (they scan for leftovers).
+    # USER/SECURITY and the template it is seeded from are excluded: the
+    # policy's ~/.claude/.credentials.json is a DELIBERATE zero-access target
+    # (the reference harness's real credential file), not a legacy port path —
+    # rewriting it turned that deny into allow (2026-07-07). PAI/plugins is the
+    # repo-canonical lib mirror consumed by installed E2E; its .claude strings
+    # (default policy, secret detection) must stay byte-identical to plugins/lib.
     for dir in "${targets[@]}"; do
         [ -d "$dir" ] || continue
         while IFS= read -r file; do
             case "$file" in
                 "$PAI_DIR/bin/"*) continue ;;
+                "$PAI_DIR/USER/SECURITY/"*) continue ;;
+                "$PAI_DIR/plugins/"*) continue ;;
+                "$PAI_DIR/DOCUMENTATION/Security/Patterns.example.yaml") continue ;;
             esac
             sed -i \
                 -e 's|${HOME}/\.claude|${HOME}/.config/opencode|g' \

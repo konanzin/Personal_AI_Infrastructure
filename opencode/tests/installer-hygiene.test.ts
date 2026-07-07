@@ -166,6 +166,51 @@ describe("Installer hygiene", () => {
     expect(result.exitCode).toBe(1);
   }, 30000);
 
+  test("patch_installed_paths never rewrites the security policy's deliberate ~/.claude refs", () => {
+    // The policy's `~/.claude/.credentials.json` zero-access entry targets the
+    // reference harness's REAL credential file — it is a deny pattern, not a
+    // legacy port path. The blanket ~/.claude → ~/.config/opencode rewrite
+    // turned that deny into allow on a live install (2026-07-07), and the seed
+    // runs BEFORE the patcher, so every fresh install was born with the hole.
+    // This runs the real function from install.sh against a fake tree.
+    const home = mkdtempSync(join(tmpdir(), "pai-patch-exempt-"));
+    const paiDir = join(home, ".config/opencode/PAI");
+    const policyPath = join(paiDir, "USER/SECURITY/PATTERNS.yaml");
+    const mirrorPath = join(paiDir, "plugins/lib/pai-hooks.lib.js");
+    const templatePath = join(paiDir, "DOCUMENTATION/Security/Patterns.example.yaml");
+    const docPath = join(paiDir, "DOCUMENTATION/Some/Doc.md");
+    write(policyPath, "zeroAccess:\n  - '~/.claude/.credentials.json'\n");
+    write(mirrorPath, "const ZERO = ['~/.claude/.credentials.json'];\n");
+    write(templatePath, "zeroAccess:\n  - '~/.claude/.credentials.json'\n");
+    write(docPath, "Legacy path: ~/.claude/skills/foo\n");
+
+    const install = readFileSync(installScript, "utf-8");
+    const fn = install.match(/^patch_installed_paths\(\) \{[\s\S]*?\n\}/m)?.[0];
+    expect(fn).toBeDefined();
+    const result = Bun.spawnSync({
+      cmd: [
+        "bash", "-c",
+        `log() { :; }; success() { :; }
+         SKILLS_DIR="${join(home, ".config/opencode/skills")}"
+         AGENTS_DIR="${join(home, ".config/opencode/agents")}"
+         COMMANDS_DIR="${join(home, ".config/opencode/commands")}"
+         PAI_DIR="${paiDir}"
+         ${fn}
+         patch_installed_paths`,
+      ],
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(result.exitCode).toBe(0);
+    // Deliberate security refs survive — in the live policy, the seed template,
+    // and the repo-canonical lib mirror.
+    expect(readFileSync(policyPath, "utf-8")).toContain("~/.claude/.credentials.json");
+    expect(readFileSync(templatePath, "utf-8")).toContain("~/.claude/.credentials.json");
+    expect(readFileSync(mirrorPath, "utf-8")).toContain("~/.claude/.credentials.json");
+    // ...while genuine legacy paths elsewhere still get patched.
+    expect(readFileSync(docPath, "utf-8")).toContain("~/.config/opencode/skills/foo");
+  });
+
   test("install.sh --check fails when the installed security policy is STALE", async () => {
     // The policy is seeded only when absent, so template improvements never
     // propagate on their own — a real install ran an old policy for months.
