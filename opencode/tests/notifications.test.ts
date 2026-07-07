@@ -125,7 +125,7 @@ describe("Notifications — buildSpeak templates", () => {
       ["session_started", { title: "X" }],
       ["phase_transition", { slug: "y", phase: "build" }],
       ["agent_completed", { completed_line: "Done a thing with care" }],
-      ["guard_denied", { guard: "agent", target: "Forge", reason: "trivial task" }],
+      ["guard_denied", { guard: "agent", target: "Anvil", reason: "trivial task" }],
       ["security_blocked", { tool: "bash", reason: "fork bomb" }],
       ["tool_failing", { tool: "edit", count: 3 }],
       ["permission_needed", { tool: "bash" }],

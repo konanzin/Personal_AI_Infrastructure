@@ -17,15 +17,12 @@ type ExpectedAgent = {
 const EXPECTED_AGENTS: ExpectedAgent[] = [
   { file: "Cato.md", boundary: "read-only", edit: "deny", bash: "scoped", requiredAllowedBash: ["test -f *CrossVendorAudit.ts", "bun *CrossVendorAudit.ts*"] },
   { file: "Arthur.md", boundary: "custodian", edit: "deny", bash: "scoped", requiredAllowedBash: ["test -f *Arthur.ts", "bun *Arthur.ts*"] },
-  { file: "Forge.md", boundary: "code-producer", edit: "deny", bash: "scoped", requiredAllowedBash: ["command -v codex", "test -f *ForgeProgress.ts", "bun *ForgeProgress.ts*"] },
   { file: "Anvil.md", boundary: "code-producer", edit: "deny", bash: "scoped", requiredAllowedBash: ["test -f *AnvilProgress.ts", "bun *AnvilProgress.ts*"] },
-  { file: "Engineer.md", boundary: "code-producer", edit: "allow", bash: "allow" },
   { file: "ClaudeResearcher.md", boundary: "read-only", edit: "deny", bash: "ask" },
   { file: "CodexResearcher.md", boundary: "read-only", edit: "deny", bash: "ask" },
   { file: "GeminiResearcher.md", boundary: "read-only", edit: "deny", bash: "ask" },
   { file: "GrokResearcher.md", boundary: "read-only", edit: "deny", bash: "ask" },
   { file: "PerplexityResearcher.md", boundary: "read-only", edit: "deny", bash: "ask" },
-  { file: "Silas.md", boundary: "auditor", edit: "ask", bash: "ask" },
 ];
 
 function frontmatter(file: string): string {

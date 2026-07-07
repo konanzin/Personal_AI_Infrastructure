@@ -10,7 +10,6 @@ const toolsDir = join(repoRoot, "PAI", "TOOLS");
 
 const toolPath = {
   Inference: join(toolsDir, "Inference.ts"),
-  ForgeProgress: join(toolsDir, "ForgeProgress.ts"),
   AnvilProgress: join(toolsDir, "AnvilProgress.ts"),
   CrossVendorAudit: join(toolsDir, "CrossVendorAudit.ts"),
   Arthur: join(toolsDir, "Arthur.ts"),
@@ -39,15 +38,6 @@ function withEnv(env: Record<string, string | undefined>) {
 function runBun(path: string, args: string[], env: Record<string, string | undefined> = {}) {
   return Bun.spawnSync({
     cmd: ["bun", path, ...args],
-    env: withEnv(env),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-}
-
-function runWithPrompt(path: string, args: string[], env: Record<string, string | undefined> = {}) {
-  return Bun.spawnSync({
-    cmd: ["bash", "-lc", `echo prompt | bun '${path.replace(/'/g, "'\\''")}' ${args.join(" ")}`],
     env: withEnv(env),
     stdout: "pipe",
     stderr: "pipe",
@@ -102,18 +92,6 @@ describe("PAI runtime tool fallbacks", () => {
     const json = jsonFrom(result);
     expect(json.status).toBe("unavailable");
     expect(json.provider).toBe("command-adapter");
-  });
-
-  test("ForgeProgress returns unavailable when codex is disabled", () => {
-    const result = runWithPrompt(toolPath.ForgeProgress, ["--slug", "smoke"], {
-      PAI_DIR: tempPaiDir(),
-      PAI_DISABLE_CODEX: "1",
-    });
-
-    expect(result.exitCode).toBe(0);
-    const json = jsonFrom(result);
-    expect(json.verdict).toBe("unavailable");
-    expect(json.reason).toContain("codex CLI not found");
   });
 
   test("AnvilProgress returns unavailable when no engine is configured (model-agnostic)", () => {
