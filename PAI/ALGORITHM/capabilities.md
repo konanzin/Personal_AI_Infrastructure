@@ -36,8 +36,7 @@ Use after code changes or before PR creation.
 
 | Capability | When | Invoke |
 |------------|------|--------|
-| **Forge (code producer)** | **MANDATORY at E3/E4/E5 for any coding task (implement, refactor, debug, build). Also invoke whenever {{PRINCIPAL_NAME}} names "Forge" at any tier. OpenAI-family coder — GPT-5.4 via `codex exec` at `model_reasoning_effort=high`. Specialization: quality + completeness. Distinct from Engineer (Claude-family) and Cato (auditor, read-only). DO NOT invoke at E1/E2 — cost/latency prohibitive.** | `Agent(subagent_type="Forge", prompt="...")` |
-| **Anvil (long-context code producer)** | **Sibling to Forge, engine per-machine.** Runs whatever OpenAI-compatible engine `USER/Config/anvil.json` names (ideally long-context, from a family different from the session) via `PAI/TOOLS/AnvilProgress.ts`. Pick Anvil over Forge when the task benefits from whole-project context breadth — cross-file refactors, architecture-fitting changes, long-range reasoning. Always invoke when {{PRINCIPAL_NAME}} names "Anvil" (name-match overrides tier gate). At E3/E4/E5, Forge remains the default producer; Anvil is chosen instead of or in parallel with Forge. Skip at E1/E2 unless {{PRINCIPAL_NAME}} named him. | `Agent(subagent_type="Anvil", prompt="...")` |
+| **Anvil (delegate code producer)** | **Engine per-machine, never mandatory.** Runs whatever OpenAI-compatible engine `USER/Config/anvil.json` names (ideally long-context, from a family different from the session) via `PAI/TOOLS/AnvilProgress.ts`. Pick Anvil when a second engine's perspective or whole-project context breadth is worth the delegation cost — cross-file refactors, architecture-fitting changes, long-range reasoning, cross-family diversity on the hardest work. Always invoke when {{PRINCIPAL_NAME}} names "Anvil" (name-match wins at any tier). Otherwise the model decides per-task; there is no tier that forces delegation. | `Agent(subagent_type="Anvil", prompt="...")` |
 | /simplify | After code changes | `Skill("simplify")` |
 | /batch | 3+ files with similar changes | `Skill("batch", "instruction")` |
 | /code-review | After code changes, before PR | `Skill("code-review")` |
@@ -45,31 +44,12 @@ Use after code changes or before PR creation.
 | /codex:review | Complex code review needing second-model perspective | `Skill("codex:review")` |
 | /codex:adversarial-review | Challenge design decisions, question approach and tradeoffs | `Skill("codex:adversarial-review")` |
 
-### Forge auto-include binding (E3-E5 coding tasks)
+### Anvil delegation (never mandatory)
 
-**Trigger:** ISA `effort` is `advanced`, `deep`, or `comprehensive` AND the task involves writing or modifying code (implementation, refactor, debug, build, migration, fix, feature).
+There is no auto-include: no tier forces code through a second model. (The old Forge/Anvil E3-E5 bindings were retired in the lean roster experiment — the mandatory cross-vendor producer predated evidence, and on an OpenAI-primary harness the "different family" rationale had already collapsed.) Two rules survive:
 
-**Behavior:** At PLAN phase, add Forge to `🏹 CAPABILITIES SELECTED` with target phase EXECUTE. At EXECUTE, spawn Forge via `Agent(subagent_type="Forge", ...)`. Forge's report becomes part of the VERIFY bundle.
-
-**Explicit-name override:** If {{PRINCIPAL_NAME}} mentions "Forge" in the request, invoke regardless of tier (even E1/E2). Name-match always wins over tier gate.
-
-**Parallel with Engineer:** At E4/E5 where duplicate perspectives earn their cost, Forge and Engineer may both be spawned on the same task for cross-vendor code production. Each works in its own worktree; {{DA_NAME}} merges or picks the stronger diff in VERIFY.
-
-**What this gate prevents:** E3+ coding work silently routed through Claude-family only, repeating the same-family blind spot pattern that Cato addresses on the review side.
-
-### Anvil invocation binding (E3-E5 long-context coding tasks)
-
-**Trigger:** ISA `effort` is `advanced`, `deep`, or `comprehensive` AND the task involves whole-project or cross-file reasoning where context breadth materially affects correctness (architecture-fitting refactors, system-wide migrations, multi-module redesigns).
-
-**Behavior:** At PLAN phase, add Anvil to `🏹 CAPABILITIES SELECTED` with target phase EXECUTE. At EXECUTE, spawn Anvil via `Agent(subagent_type="Anvil", ...)`. Anvil's report becomes part of the VERIFY bundle.
-
-**Picking Forge vs Anvil (any engine family different from the session satisfies the cross-vendor goal):**
-
-- **Forge (GPT-5.4, codex exec):** localized completion speed, quality/completeness focus. Default producer at E3/E4/E5. Pick when the change is bounded to a small surface and the verification bar is "every branch is real."
-- **Anvil (configured long-context engine):** long-context breadth, project-shape focus. Pick when the correctness depends on the surrounding architecture more than the local code — "does this fit" is the dominant question.
-- **Parallel both:** at E4/E5 on the hardest work, {{DA_NAME}} may spawn Forge AND Anvil on the same task in isolated worktrees, then pick the stronger diff in VERIFY. Cross-vendor cross-coder diversity compounds.
-
-**Explicit-name override:** If {{PRINCIPAL_NAME}} mentions "Anvil" in the request, invoke regardless of tier (even E1/E2). Name-match always wins.
+- **Explicit-name override:** If {{PRINCIPAL_NAME}} mentions "Anvil" in the request, invoke regardless of tier (even E1/E2). Name-match always wins.
+- **Model's judgment:** Delegate to Anvil when a second engine's blind-spot diversity or long-context breadth is genuinely worth the cost — and say so in `🏹 CAPABILITIES SELECTED`. Skipping it needs no justification.
 
 ## Delegation & Infrastructure Capabilities
 
@@ -106,7 +86,7 @@ Use when external information is needed.
 | **1. DEFAULT** | "parallel work", "agents", "team", "swarm", or Algorithm selects delegation | **Agent Teams** — persistent teammates, shared task list, peer messaging | `TeamCreate` + `Agent` with `team_name` |
 | **2. EXPLICIT** | "custom agents", "spin up custom agents" | **Custom Agents** — unique personalities, voices, trait composition | `Skill("Agents")` → ComposeAgent |
 | **3. UNATTENDED** | "run overnight", "long-running", "CI", or task exceeds session lifetime | **Managed Agents** — durable cloud sessions, sandboxed, vault credentials | `Skill("claude-api")` to build |
-| **4. INTERNAL** | (Algorithm internal routing, user names a type) | **Built-in types** (Designer, Architect, Engineer, Explore, etc.) | `Agent(subagent_type="...")` |
+| **4. INTERNAL** | (Algorithm internal routing, user names a type) | **Built-in types** (Explore, Anvil, Cato, researchers, etc.) | `Agent(subagent_type="...")` |
 
 ## Binding Commitment
 
