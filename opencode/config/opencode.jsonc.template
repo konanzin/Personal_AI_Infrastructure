@@ -119,7 +119,7 @@
     "pai": {
       "template": "Execute the PAI Algorithm for: $ARGUMENTS",
       "description": "Start the PAI Algorithm",
-      "agent": "Algorithm"
+      "agent": "build"
     },
     "status": {
       "template": "Report PAI system status: active sessions, memory state, installed agents, installed skills, and pending actions. Treat Pulse as optional scaffolding only; do not classify missing localhost:31337 health surfaces as install failure unless the user explicitly says they enabled or expect a live Pulse daemon.",
