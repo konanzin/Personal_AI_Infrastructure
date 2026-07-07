@@ -13,7 +13,7 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 
 - Read-only and auditor agents declare `edit: deny` or `edit: ask` in frontmatter; prose-only "read-only" claims are not a boundary.
 - Custodian agents may narrate deterministic policy engines, but they do not invent credential state or release secrets.
-- Direct code producers declare `edit: allow` explicitly. Helper-wrapper producers such as Forge and Anvil declare `edit: deny` and scope privileged bash to their progress helpers so code flows through the audited external engine they claim to use.
+- Helper-wrapper producers such as Anvil declare `edit: deny` and scope privileged bash to their progress helpers so code flows through the audited external engine they claim to use.
 - Every agent in these roles declares `task: deny` unless its job is explicitly to coordinate other agents.
 
 ## Policy boundaries
@@ -31,8 +31,7 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 | Grep/glob/list docs and code | Allowed | Still allowed | Low | High | `allow` |
 | Edit project files/tests | Allowed under project roots | Still allowed; verified by tests/diff | Medium | High | `allow` |
 | Run local tests/typechecks | Bash allowed by default | Still allowed under deny floor + sandbox | Low | High | `allow` |
-| Engineer TDD shell loop | Was not explicitly encoded per-agent | `Engineer` declares `bash: allow` + normal floor/sandbox | Low/Medium | High | `allow` |
-| Forge/Anvil helper execution | Prose said helper-only, but permissions did not enforce it | `edit: deny`, `task: deny`, bash scoped to helper/prereq commands | Medium | High | `allow` only through helper |
+| Anvil helper execution | Prose said helper-only, but permissions did not enforce it | `edit: deny`, `task: deny`, bash scoped to helper/prereq commands | Medium | High | `allow` only through helper |
 | Research agents | Prose said research-only/read-only | `edit: deny`, `task: deny`, `webfetch/websearch: allow`, bash asks | Medium | Medium | `allow` read/web, `ask` bash |
 | Cato/Arthur auditor/custodian | Prose said read-only/custodian | `edit: deny`, `task: deny`, bash scoped to deterministic helper | High | Medium | scoped `allow`, otherwise `deny` |
 | Credential reads | Some stores were reachable by Read despite bash sandbox masking | OpenCode/Claude/GitHub auth stores and `PAI_CONFIG.yaml` are `zeroAccess`; personal-context stores readable since 3.4 | Critical | Low | `deny` (credentials only) |
@@ -52,7 +51,6 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 
 ## Fear-based withholding removed
 
-- Engineer gets `bash: allow` so TDD/test loops do not prompt repeatedly while still inheriting the deterministic deny floor and sandbox.
 - Local tests, typechecks, source reads, and project edits remain allow-by-default because they are reversible, observable, and high leverage.
 - Dotenv templates and non-secret classifier config stay readable/writable; only secret-bearing config is denied.
 - Recursive cleanup of scoped local build artifacts remains alert-and-run rather than deny/ask.

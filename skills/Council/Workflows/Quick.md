@@ -20,7 +20,7 @@ Running the **Quick** workflow in the **Council** skill to get fast perspectives
 
 ## CRITICAL: Agent Composition
 
-**ALL council members MUST be custom-composed agents via the Agents skill's ComposeAgent tool. NEVER use built-in agent types (Architect, Designer, Engineer, PerplexityResearcher, Silas, etc.).**
+**ALL council members MUST be custom-composed agents via the Agents skill's ComposeAgent tool. NEVER use built-in agent types (Explore, Anvil, PerplexityResearcher, etc.).**
 
 See `CouncilMembers.md` for full instructions.
 

@@ -230,7 +230,7 @@ The most dangerous constraints are the ones so assumed they're never stated.
 → FirstPrinciples/Challenge on trust boundaries
 ```
 
-**Architect**: Use Challenge before accepting any requirement
+**Architecture work**: Use Challenge before accepting any requirement
 ```
 → FirstPrinciples/Challenge on NFRs (non-functional requirements)
 → FirstPrinciples/Challenge on technology choices

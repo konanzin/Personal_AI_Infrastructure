@@ -9,7 +9,6 @@ The active source of truth is `~/.config/opencode/PAI/TOOLS/manifest.json`.
 | Tool | Status | Current OpenCode behavior |
 |------|--------|---------------------------|
 | `Inference.ts` | implemented | Provider-neutral command adapter. Returns structured `unavailable` unless `PAI_INFERENCE_CMD` or `OPENCODE_INFERENCE_CMD` is set. |
-| `ForgeProgress.ts` | implemented | Codex CLI wrapper for Forge. Returns structured `unavailable` when `codex` cannot be resolved. |
 | `AnvilProgress.ts` | implemented | Model-agnostic delegate engine (OpenAI-compatible; per-machine `USER/Config/anvil.json`). Returns structured `unavailable` when no engine is configured. |
 | `CrossVendorAudit.ts` | implemented | Read-only Codex audit wrapper for Cato. Returns `skipped` when Codex is unavailable. |
 | `Arthur.ts` | implemented | Deterministic credential-policy narrator. Never emits raw credentials. |
@@ -721,10 +720,10 @@ bun AlgorithmPhaseReport.ts criterion --id 1 --desc "JWT rejects expired tokens"
 bun AlgorithmPhaseReport.ts criterion --id 1 --status completed --evidence "Tests pass"
 
 # Agent tracking
-bun AlgorithmPhaseReport.ts agent --name engineer-1 --type Engineer --status active
+bun AlgorithmPhaseReport.ts agent --name explore-1 --type Explore --status active
 
 # Capabilities
-bun AlgorithmPhaseReport.ts capabilities --list "Task Tool,Engineer Agents"
+bun AlgorithmPhaseReport.ts capabilities --list "Task Tool,Explore Agents"
 
 # Parameter configuration (v3.16.0+)
 bun AlgorithmPhaseReport.ts config --preset dream --focus 0.25 --mode ideate

@@ -4,7 +4,7 @@
  * Load Agent Context
  *
  * Simple utility to load agent context files when spawning specialized agents.
- * Each agent type (Architect, Engineer, Designer, etc.) has ONE markdown context file
+ * Each agent type (Cato, the researchers, etc.) has ONE markdown context file
  * that references relevant parts of the Skills system.
  *
  * Usage: bun run LoadAgentContext.ts <agentType>

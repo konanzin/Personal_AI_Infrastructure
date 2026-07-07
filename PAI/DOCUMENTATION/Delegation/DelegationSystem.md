@@ -43,10 +43,10 @@ Agent({ prompt: "Check if blue bar exists on website", subagent_type: "general-p
 Agent({ prompt: "Check if blue bar exists on website", subagent_type: "general-purpose", model: "haiku" })
 
 // RIGHT - Sonnet for standard coding task
-Agent({ prompt: "Implement the login form validation", subagent_type: "Engineer", model: "sonnet" })
+Agent({ prompt: "Implement the login form validation", subagent_type: "general-purpose", model: "sonnet" })
 
 // RIGHT - Opus for complex architectural planning
-Agent({ prompt: "Design the distributed caching strategy", subagent_type: "Architect", model: "opus" })
+Agent({ prompt: "Design the distributed caching strategy", subagent_type: "general-purpose", model: "opus" })
 ```
 
 **Rule of Thumb:**
@@ -68,8 +68,7 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 
 **Agent routing by task type:**
 - **Research tasks** → Use the Research skill (has dedicated researcher agents)
-- **Code implementation** → Use Engineer agents (`subagent_type: "Engineer"`)
-- **Architecture/design** → Use Architect agents (`subagent_type: "Architect"`)
+- **Delegated code production** → Anvil (`subagent_type: "Anvil"`) when a second engine is worth the cost
 - **Everything else** → Use Agents skill → ComposeAgent → `subagent_type: "general-purpose"`
 
 ### 🚨 AGENT ROUTING (Always Active)
@@ -92,8 +91,7 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 | User Says | What to Use | Why |
 |-------------|-------------|-----|
 | "research X", "investigate Y" | **Research skill** | Dedicated researcher agents |
-| Code implementation tasks | **Engineer** agent | Specialized for TDD/code |
-| Architecture/design tasks | **Architect** agent | Specialized for system design |
+| Delegated code production | **Anvil** agent | Second-engine diversity / long-context breadth |
 
 **For Agent Teams (default):**
 1. `TeamCreate` with descriptive team name
@@ -151,7 +149,7 @@ Agent({
 Timing: STANDARD — focused implementation.
 - Under 1500 words
 - Stay on task, deliver the work, verify it works`,
-  subagent_type: "Engineer",
+  subagent_type: "general-purpose",
   model: "sonnet"
 })
 
@@ -163,7 +161,7 @@ Timing: DEEP — comprehensive analysis.
 - No word limit
 - Explore alternatives, consider edge cases
 - Thorough verification and documentation`,
-  subagent_type: "Silas",
+  subagent_type: "general-purpose",
   model: "opus"
 })
 ```

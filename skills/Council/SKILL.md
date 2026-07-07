@@ -101,6 +101,6 @@ Route to the appropriate workflow based on the request.
 
 ## Gotchas
 
-- **Council uses the Agents skill (ComposeAgent) for custom agents — NOT built-in agent types.** Never use Designer, Architect, etc. for Council debates.
+- **Council uses the Agents skill (ComposeAgent) for custom agents — NOT built-in agent types.** Never use built-in agent types (Explore, Anvil, etc.) for Council debates.
 - **Debates need genuine disagreement to be valuable.** If all agents agree, the topic may not warrant Council.
 - **More agents ≠ better debate.** 4-6 well-composed agents outperform 12 generic ones.

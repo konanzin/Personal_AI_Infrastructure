@@ -10,7 +10,7 @@ PAI has three agent systems that serve different purposes. Confusing them causes
 
 | System | What It Is | When to Use | Has Unique Voice? |
 |--------|-----------|-------------|-------------------|
-| **Task Tool Subagent Types** | Pre-built agents in Claude Code (Architect, Designer, Engineer, Explore, etc.) | Internal workflow use ONLY | No |
+| **Task Tool Subagent Types** | Pre-built agents in Claude Code (Explore, Anvil, Cato, researchers, etc.) | Internal workflow use ONLY | No |
 | **Named Agents** | Persistent identities with backstories and voices (your own personas) | Recurring work, voice output, relationships | Yes |
 | **Custom Agents** | Dynamic agents composed via ComposeAgent from traits | When user says "custom agents" | Yes (trait-mapped) |
 
@@ -22,9 +22,9 @@ PAI has three agent systems that serve different purposes. Confusing them causes
 
 ```typescript
 // ❌ WRONG - These are Task tool subagent_types, NOT custom agents
-Task({ subagent_type: "Architect", prompt: "..." })
-Task({ subagent_type: "Designer", prompt: "..." })
-Task({ subagent_type: "Engineer", prompt: "..." })
+Task({ subagent_type: "Explore", prompt: "..." })
+Task({ subagent_type: "Anvil", prompt: "..." })
+Task({ subagent_type: "Cato", prompt: "..." })
 
 // ✅ RIGHT - Invoke the Agents skill for custom agents
 Skill("Agents")  // → CreateCustomAgent workflow
@@ -34,9 +34,9 @@ Skill("Agents")  // → CreateCustomAgent workflow
 // 3. Each gets unique personality + voice
 
 // ❌ WRONG - User says "specialized agents to brainstorm"
-Task({ subagent_type: "Designer", prompt: "Brainstorm UI ideas..." })
-Task({ subagent_type: "Architect", prompt: "Brainstorm layout ideas..." })
-Task({ subagent_type: "Engineer", prompt: "Brainstorm state ideas..." })
+Task({ subagent_type: "Explore", prompt: "Brainstorm UI ideas..." })
+Task({ subagent_type: "Explore", prompt: "Brainstorm layout ideas..." })
+Task({ subagent_type: "Explore", prompt: "Brainstorm state ideas..." })
 
 // ✅ RIGHT - Use Agents skill for ANY user-requested specialized agents
 Skill("Agents")  // → CreateCustomAgent workflow with unique traits per agent
@@ -55,11 +55,8 @@ Skill("Agents")  // → CreateCustomAgent workflow with unique traits per agent
 | "agents", "**specialized agents**", "launch agents", "parallel agents" | Custom agents via Agents skill | `Skill("Agents")` → ComposeAgent → `Task({ subagent_type: "general-purpose" })` |
 | "research X", "investigate Y" | Research skill | `Skill("Research")` → appropriate researcher agents |
 | "use Remy", "get Ava to" | Named agent | Use appropriate researcher subagent_type |
-| (Code implementation, standard) | Engineer | `Task({ subagent_type: "Engineer" })` |
-| (Production-grade code, E3+, "no shortcuts" directive, OR named "Forge") | Forge (cross-vendor, OpenAI-family GPT-5.4 via `codex exec`) | `Agent({ subagent_type: "Forge" })` |
-| (Whole-project long-context coding, OR named "Anvil") | Anvil (cross-vendor; engine from USER/Config/anvil.json) | `Agent({ subagent_type: "Anvil" })` |
+| (Delegated code production — second-engine diversity or long-context breadth worth the cost, OR named "Anvil") | Anvil (cross-vendor; engine from USER/Config/anvil.json) | `Agent({ subagent_type: "Anvil" })` |
 | (Cross-vendor audit, MANDATORY at E4/E5 in VERIFY) | Cato (read-only auditor, OpenAI-family GPT-5.x) | `Agent({ subagent_type: "Cato" })` |
-| (Architecture/design) | Architect | `Task({ subagent_type: "Architect" })` |
 | (Claude Code hooks, settings, commands, MCP, agents, API) | Claude Code Guide | `Task({ subagent_type: "claude-code-guide" })` — verify latest features before implementing |
 
 ### Custom Agent Creation Flow
@@ -98,11 +95,10 @@ filesystem cannot express:
 |------|--------|
 | `general-purpose` | Not an installed file — the generic Task type used for ComposeAgent custom agents |
 | `Cato` | MANDATORY at E4/E5 in VERIFY (doctrine binding, not a preference) |
-| Cross-vendor pair | `Forge` (OpenAI-family via `codex exec`) and `Anvil` (per-machine engine, ideally long-context and family-diverse) exist to break same-family blind spots — pick by context size vs. rigor |
+| Cross-vendor producer | `Anvil` (per-machine engine, ideally long-context and family-diverse) exists to break same-family blind spots — delegation is the model's call, never tier-forced |
 | ~~`BrowserAgent`~~ | **DEPRECATED** | Replaced by **Interceptor** skill (real Chrome, no CDP fingerprint) |
 | ~~`UIReviewer`~~ | **DEPRECATED** | Replaced by **Interceptor** skill |
 | ~~`QATester`~~ | **DEPRECATED** | Replaced by **Interceptor** skill — Gate 4 browser-based QA validation |
-| `Silas` | Security testing (offensive-security specialist persona) | Spawned by security assessment skills (one per attack surface) |
 | `claude-code-guide` | Claude Code knowledge (hooks, settings, slash commands, MCP, agent types, keybindings, IDE, Agent SDK, Claude API) | Any task involving Claude Code internals — freshness check before implementing |
 | `ClaudeResearcher` | Claude-based research | Research skill workflows |
 | `GeminiResearcher` | Gemini-based research | Research skill workflows |
@@ -118,8 +114,6 @@ Named agents have rich backstories, personality traits, and mapped voices. They 
 
 | Agent (example) | Role | Voice | Use For |
 |-----------------|------|-------|---------|
-| Architect | Architecture lead | Premium voice preset | Long-term architecture decisions |
-| Engineer | Senior engineer | Premium voice preset | Strategic technical leadership |
 | Security Specialist | Offensive security | Enhanced voice preset | Red-team review, vulnerability hunting |
 | Primary Researcher | Strategic research lead | Premium voice preset | Deep research + synthesis |
 | Secondary Researcher | Multi-perspective research | Alternate voice preset | Comparative analysis |
@@ -272,7 +266,7 @@ When the Algorithm needs to delegate work, use this priority:
 | **1. DEFAULT** | Agent Teams | Any parallel work, task dependencies, coordination needed | Persistent, peer messaging, shared task list |
 | **2. EXPLICIT** | Custom Agents | {{PRINCIPAL_NAME}} says "custom agents" | Unique personalities, voices, one-shot |
 | **3. UNATTENDED** | Managed Agents | Overnight, CI, survives disconnects | Durable, sandboxed, cloud |
-| **4. INTERNAL** | Built-in types | Algorithm routing, specific subagent type needed | Designer, Architect, Engineer, etc. |
+| **4. INTERNAL** | Built-in types | Algorithm routing, specific subagent type needed | Explore, Anvil, Cato, researchers, etc. |
 
 ---
 

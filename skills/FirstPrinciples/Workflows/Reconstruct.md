@@ -274,6 +274,6 @@ Can use Reconstruct directly if you already know the hard constraints:
 ```
 
 **With Other Skills**:
-- Architect invokes after Challenge to generate alternatives
-- Engineer invokes when stuck to escape local maxima
+- Invoke after Challenge to generate alternatives on architecture work
+- Invoke when stuck on implementation to escape local maxima
 - RedTeam invokes to construct counter-proposals

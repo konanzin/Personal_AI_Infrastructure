@@ -49,21 +49,20 @@ exist as OpenCode subagents, and omitted more than half of the real roster).
 Run agents in their own git worktree with `isolation: "worktree"` for file-safe parallelism:
 
 ```
-Task(subagent_type="Engineer", isolation: "worktree", prompt="...")
+Task(subagent_type="general-purpose", isolation: "worktree", prompt="...")
 ```
 
 - Each agent gets its own working tree — no file conflicts with other agents
 - Worktree auto-created on spawn, auto-cleaned when agent finishes (unless changes made)
 - Use when multiple agents edit the same files or for competing approaches
 - Can combine with `run_in_background: true` for non-blocking isolated work
-- **Built-in agents with `isolation: worktree` in frontmatter** (Engineer, Architect) auto-isolate on every spawn
 
 ### 3. Background Agents
 
 Run agents with `run_in_background: true` for non-blocking parallel work:
 
 ```
-Task(subagent_type="Engineer", run_in_background: true, prompt="...")
+Task(subagent_type="general-purpose", run_in_background: true, prompt="...")
 ```
 
 - Use when results aren't needed immediately
@@ -93,7 +92,7 @@ Task(subagent_type="general-purpose", prompt=<ComposeAgent JSON .prompt field>)
 
 - Each agent gets unique personality, voice, and color via ComposeAgent
 - Use DIFFERENT trait combinations for each agent to get unique voices
-- Prefer composition over built-in types (Engineer, Architect) for custom work — built-ins share one identity
+- Prefer composition over built-in types for custom work — built-ins share one identity
 - Ideal for: domain experts, adversarial reviewers, creative brainstormers, parallel analysis
 
 ### 5. Agent Teams (via TeamCreate)
@@ -104,7 +103,7 @@ Task(subagent_type="general-purpose", prompt=<ComposeAgent JSON .prompt field>)
 ```
 1. TeamCreate(team_name="my-project")           # Creates team + task list
 2. TaskCreate(subject="Implement auth module")   # Create team tasks
-3. Task(subagent_type="Engineer", team_name="my-project", name="auth-engineer")  # Spawn teammate
+3. Task(subagent_type="general-purpose", team_name="my-project", name="auth-engineer")  # Spawn teammate
 4. TaskUpdate(taskId="1", owner="auth-engineer") # Assign task
 5. SendMessage(type="message", recipient="auth-engineer", content="...")  # Coordinate
 ```

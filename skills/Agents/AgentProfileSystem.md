@@ -9,7 +9,7 @@
 
 ## Core Concept
 
-When spawning specialized agents (Architect, Engineer, Designer, etc.), each agent needs to know:
+When spawning specialized agents (Cato, the researchers, etc.), each agent needs to know:
 1. What their role is
 2. Which parts of the PAI Skills system are relevant to their work
 3. What output format to use
@@ -102,8 +102,8 @@ When you need to spawn an agent, use the Task tool with the agent's context:
 // Load the context
 const loader = new AgentContextLoader();
 const { prompt, model } = loader.generateEnrichedPrompt(
-  "Architect",
-  "Design a new skill system for handling user preferences"
+  "Cato",
+  "Audit the new skill system for permission drift"
 );
 
 // Spawn the agent with enriched prompt
@@ -154,10 +154,12 @@ That's it. Simple. No elaborate profile system. Just a reading list.
 
 | Agent Type | Context File | Role |
 |------------|--------------|------|
-| **Architect** | ArchitectContext.md | Software architecture specialist |
-| **Engineer** | EngineerContext.md | Implementation specialist with TDD focus |
-| **Designer** | DesignerContext.md | UX/UI design specialist |
-| **Artist** | ArtistContext.md | Visual content creator for UL |
+| **Cato** | CatoContext.md | Cross-vendor audit specialist (read-only) |
+| **ClaudeResearcher** | ClaudeResearcherContext.md | Research arm (Claude) |
+| **CodexResearcher** | CodexResearcherContext.md | Research arm (Codex CLI) |
+| **GeminiResearcher** | GeminiResearcherContext.md | Research arm (Gemini) |
+| **GrokResearcher** | GrokResearcherContext.md | Research arm (Grok) |
+| **PerplexityResearcher** | PerplexityResearcherContext.md | Research arm (Perplexity) |
 | **QATester** | QATesterContext.md | Quality assurance validation (Gate 4) |
 
 ---
@@ -169,10 +171,10 @@ That's it. Simple. No elaborate profile system. Just a reading list.
 bun run ~/.config/opencode/skills/Agents/Tools/LoadAgentContext.ts
 
 # View context for specific agent
-bun run ~/.config/opencode/skills/Agents/Tools/LoadAgentContext.ts Architect
+bun run ~/.config/opencode/skills/Agents/Tools/LoadAgentContext.ts Cato
 
 # Generate enriched prompt for spawning
-bun run ~/.config/opencode/skills/Agents/Tools/LoadAgentContext.ts Architect "Design new skill system"
+bun run ~/.config/opencode/skills/Agents/Tools/LoadAgentContext.ts Cato "Audit new skill system"
 ```
 
 ---
