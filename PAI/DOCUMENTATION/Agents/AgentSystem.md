@@ -2,6 +2,15 @@
 
 **Authoritative reference for agent routing in PAI. Three distinct systems exist—never confuse them.**
 
+## The Roster Rule (W2.14, canonical)
+
+A named agent file (`opencode/agents/*.md`) earns its place **only** by carrying something a spawn prompt cannot:
+
+- **(a) a harness-enforced permission boundary** — frontmatter `permission:` blocks the runtime imposes (e.g. Cato's read-only + bash scoped to its audit helper). Prose-only "I am read-only" claims are not a boundary.
+- **(b) external-engine wiring** — scoped access to a CLI/API that runs a model other than the session's (e.g. CodexResearcher → codex).
+
+Personas, specialties, and "ways of thinking" belong in the prompt of a `general-purpose` spawn — they are free and need no file. Thirteen agents that carried only personas were retired across the W2.13/W2.14 experiments with zero measured regression; any future agent proposal answers this rule first, then the drift-register 3-question gate.
+
 ---
 
 ## 🚨 THREE AGENT SYSTEMS — CRITICAL DISTINCTION
