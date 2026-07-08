@@ -10,9 +10,17 @@
     "Inference.ts": {
       "status": "implemented",
       "layer": "A",
-      "required_by": ["Algorithm Advisor", "AudioEditor", "Evals"],
-      "contract": "Provider-neutral command adapter. Returns structured unavailable when PAI_INFERENCE_CMD/OPENCODE_INFERENCE_CMD is unset.",
+      "required_by": ["Algorithm Advisor", "Evals"],
+      "contract": "Provider-neutral command adapter. Resolves PAI_INFERENCE_CMD/OPENCODE_INFERENCE_CMD from process env then PAI/.env; returns structured unavailable when unset.",
       "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/Inference.ts --json --level fast system user"]
+    },
+    "InferenceAdapter.ts": {
+      "status": "implemented",
+      "layer": "A",
+      "required_by": ["Inference.ts (as the PAI_INFERENCE_CMD target)", "Evals model-based graders via skills/Lib/OpenCodeInference.ts"],
+      "contract": "Reads an InferenceRequest JSON object on stdin and prints the engine completion. Engine per-machine via USER/Config/inference.json (bin/model) or PAI_INFERENCE_BIN, defaulting to `opencode run --pure`.",
+      "external_dependencies": ["inference engine CLI (default: opencode)"],
+      "smoke": ["printf '{}' | bun PAI/TOOLS/InferenceAdapter.ts; test $? -eq 2"]
     },
     "CrossVendorAudit.ts": {
       "status": "implemented",
@@ -88,7 +96,7 @@
     "RemoveBg.ts": {
       "status": "implemented",
       "layer": "C",
-      "required_by": ["Art workflows"],
+      "required_by": ["direct CLI use (Art skill retired in W2.15; retire the tool too if no caller appears)"],
       "contract": "Local rembg wrapper (no API). Exits with a clear error when the rembg binary is absent; --help works without it.",
       "external_dependencies": ["rembg binary (REMBG_BIN or ~/.local/bin/rembg)"],
       "smoke": ["bun PAI/TOOLS/RemoveBg.ts --help"]

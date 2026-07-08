@@ -18,8 +18,23 @@ export interface InferenceResult {
 const unavailableMessage =
   "OpenCode inference adapter unavailable: set PAI_INFERENCE_CMD or OPENCODE_INFERENCE_CMD to a command that accepts an InferenceRequest JSON object on stdin.";
 
+function envFileCommand(): string | undefined {
+  // Machine config lives in PAI/.env (preserved by the installer).
+  const paiDir = process.env.PAI_DIR || `${process.env.HOME}/.config/opencode/PAI`;
+  try {
+    const text = require("fs").readFileSync(`${paiDir}/.env`, "utf-8") as string;
+    for (const line of text.split(/\r?\n/)) {
+      const match = line.trim().match(/^(PAI_INFERENCE_CMD|OPENCODE_INFERENCE_CMD)=(.+)$/);
+      if (match) return match[2].trim().replace(/^['"]|['"]$/g, "");
+    }
+  } catch {
+    // No .env — adapter stays unavailable.
+  }
+  return undefined;
+}
+
 export async function inference(request: InferenceRequest): Promise<InferenceResult> {
-  const command = process.env.PAI_INFERENCE_CMD || process.env.OPENCODE_INFERENCE_CMD;
+  const command = process.env.PAI_INFERENCE_CMD || process.env.OPENCODE_INFERENCE_CMD || envFileCommand();
 
   if (!command) {
     return {

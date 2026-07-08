@@ -373,7 +373,7 @@ ls -lt ~/.config/opencode/PAI/PAI/MEMORY/LEARNING/FAILURES/$(date +%Y-%m)/ 2>/de
 cat ~/.config/opencode/PAI/PAI/MEMORY/LEARNING/FAILURES/2026-01/*/CONTEXT.md | head -100
 
 # Migrate historical low ratings to FAILURES
-bun run ~/.config/opencode/PAI/PAI/TOOLS/FailureCapture.ts --migrate
+bun run ~/.config/opencode/PAI/TOOLS/FailureCapture.ts --migrate
 ```
 
 ### Check multi-session progress

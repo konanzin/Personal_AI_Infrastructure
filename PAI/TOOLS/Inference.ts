@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { printJson, runCommand, truncate } from "./lib/tool-runtime.ts";
+import { loadEnvFile, printJson, runCommand, truncate } from "./lib/tool-runtime.ts";
 
 export type InferenceLevel = "fast" | "standard" | "smart" | "advisor";
 
@@ -26,7 +26,13 @@ const unavailableMessage =
   "PAI inference adapter unavailable: set PAI_INFERENCE_CMD or OPENCODE_INFERENCE_CMD to a command that accepts an InferenceRequest JSON object on stdin.";
 
 export async function inference(request: InferenceRequest): Promise<InferenceResult> {
-  const command = process.env.PAI_INFERENCE_CMD || process.env.OPENCODE_INFERENCE_CMD;
+  // Machine config lives in PAI/.env (preserved by the installer); process env overrides.
+  const fileEnv = loadEnvFile();
+  const command =
+    process.env.PAI_INFERENCE_CMD ||
+    process.env.OPENCODE_INFERENCE_CMD ||
+    fileEnv.PAI_INFERENCE_CMD ||
+    fileEnv.OPENCODE_INFERENCE_CMD;
   const level = request.level || (request.mode === "advisor" ? "advisor" : "standard");
 
   if (!command) {
