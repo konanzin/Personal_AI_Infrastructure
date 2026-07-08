@@ -60,10 +60,10 @@ FOR: Multi-step, complex, or difficult work. Troubleshooting, debugging, buildin
 
 ### Operational Notes
 - Context reduction: no command-rewrite hook is active in this OpenCode port. Do not rely on command rewriting unless an installed tool explicitly provides it.
-- PAI tools: `PAI/TOOLS/manifest.json` is the runtime contract. Implemented OpenCode tools are `Inference.ts`, `AnvilProgress.ts`, `CrossVendorAudit.ts`, `Arthur.ts`, `MemoryRetriever.ts`, and `KnowledgeGraph.ts`. Deferred/optional helpers must not be called unless the file exists and the consuming agent/skill declares an explicit `unavailable`/`deferred` fallback.
+- PAI tools: `PAI/TOOLS/manifest.json` is the runtime contract. Implemented OpenCode tools are `Inference.ts`, `CrossVendorAudit.ts`, `Arthur.ts`, `MemoryRetriever.ts`, and `KnowledgeGraph.ts`. Deferred/optional helpers must not be called unless the file exists and the consuming agent/skill declares an explicit `unavailable`/`deferred` fallback.
 - Algorithm exceptions: Ratings (single number after RATE) → MINIMAL. Acknowledgments ("ok", "thanks") → MINIMAL. Greetings → respond naturally.
 - Effort shortcuts: `/e1` (Standard+fast-path), `/e2` (Extended), `/e3` (Advanced), `/e4` (Deep), `/e5` (Comprehensive). Append to any message to override auto-detection.
-- **Delegate producer (Anvil)**: No tier auto-includes a second-model code producer. Delegate to Anvil when a second engine's diversity or context breadth is worth the cost, and always when {PRINCIPAL.NAME} names "Anvil" — name-match wins at any tier. Anvil must report structured `unavailable` if no engine is configured; do not count an unavailable report as completed implementation work. See `PAI/ALGORITHM/capabilities.md` → "Anvil delegation".
+- **Delegate producer**: none ships. The session model writes code; Cato audits at E4/E5. (Forge/Anvil retired — drift register W2.13/W2.14; re-add is a revert if a real second-engine need appears.)
 
 ---
 

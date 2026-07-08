@@ -7,13 +7,12 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 | `allow` | Low risk, local, reversible | Run without asking after normal tool validation | Read repo source, grep docs, edit project tests, run scoped `bun test` |
 | `ask` | Medium risk or ambiguous leverage | Ask before proceeding; user intent can authorize it | External-directory reads outside the repo, writes to credentials-adjacent config, deploy/publish/push class commands |
 | `deny` | High risk, credential exposure, irreversible blast radius | Block and log; do not ask the model to decide | Private keys, `.env` secrets, OpenCode/Claude/GitHub token stores, installed `PAI_CONFIG.yaml`, catastrophic deletes |
-| `escalate` | High leverage but sometimes legitimate | Route to deterministic owner or human approval; no LLM-only release | Arthur credential decisions, corrupt security-policy repair, publishing/deploying, policy version drift |
+| `escalate` | High leverage but sometimes legitimate | Route to deterministic owner or human approval; no LLM-only release | Credential-policy decisions (Arthur.ts), corrupt security-policy repair, publishing/deploying, policy version drift |
 
 ## Agent boundaries
 
 - Read-only and auditor agents declare `edit: deny` or `edit: ask` in frontmatter; prose-only "read-only" claims are not a boundary.
 - Custodian agents may narrate deterministic policy engines, but they do not invent credential state or release secrets.
-- Helper-wrapper producers such as Anvil declare `edit: deny` and scope privileged bash to their progress helpers so code flows through the audited external engine they claim to use.
 - Every agent in these roles declares `task: deny` unless its job is explicitly to coordinate other agents.
 
 ## Policy boundaries
@@ -31,9 +30,8 @@ This is the compact contract for how the OpenCode harness treats tool actions at
 | Grep/glob/list docs and code | Allowed | Still allowed | Low | High | `allow` |
 | Edit project files/tests | Allowed under project roots | Still allowed; verified by tests/diff | Medium | High | `allow` |
 | Run local tests/typechecks | Bash allowed by default | Still allowed under deny floor + sandbox | Low | High | `allow` |
-| Anvil helper execution | Prose said helper-only, but permissions did not enforce it | `edit: deny`, `task: deny`, bash scoped to helper/prereq commands | Medium | High | `allow` only through helper |
 | Research agents | Prose said research-only/read-only | `edit: deny`, `task: deny`, `webfetch/websearch: allow`, bash asks | Medium | Medium | `allow` read/web, `ask` bash |
-| Cato/Arthur auditor/custodian | Prose said read-only/custodian | `edit: deny`, `task: deny`, bash scoped to deterministic helper | High | Medium | scoped `allow`, otherwise `deny` |
+| Cato auditor | Prose said read-only | `edit: deny`, `task: deny`, bash scoped to deterministic helper | High | Medium | scoped `allow`, otherwise `deny` |
 | Credential reads | Some stores were reachable by Read despite bash sandbox masking | OpenCode/Claude/GitHub auth stores and `PAI_CONFIG.yaml` are `zeroAccess`; personal-context stores readable since 3.4 | Critical | Low | `deny` (credentials only) |
 | Non-secret machine config | Broad `USER/Config/**` deny would have broken `/classifier` | `classifier.json` remains allowed; secret-bearing config denied | Medium | High | `allow` for known non-secret config |
 | Publish/deploy/push commands | Mostly normal bash allow plus audit on some destructive variants | Template asks on exact `git push`, release/publish/deploy, external-message CLIs | High | Medium | `ask` |

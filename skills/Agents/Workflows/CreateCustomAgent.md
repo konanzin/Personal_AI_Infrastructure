@@ -23,7 +23,7 @@ Running **CreateCustomAgent** in **Agents**...
 - "I need specialized agents with Z expertise"
 - "Generate N custom agents to analyze..."
 
-**KEY TRIGGER: The word "custom" means truly unique agents - NOT static types (Explore, Anvil, etc.) — always use `general-purpose` with ComposeAgent prompts.**
+**KEY TRIGGER: The word "custom" means truly unique agents - NOT static types (Explore, Cato, etc.) — always use `general-purpose` with ComposeAgent prompts.**
 
 ## The Workflow
 
@@ -80,7 +80,7 @@ ComposeAgent returns JSON with:
 
 **Use a SINGLE message with MULTIPLE Task calls for parallel execution.**
 
-**CRITICAL: Use `subagent_type: "general-purpose"` - NEVER use static types like "Explore" or "Anvil" for custom agents.**
+**CRITICAL: Use `subagent_type: "general-purpose"` - NEVER use static types like "Explore" or "Cato" for custom agents.**
 
 ```typescript
 // Send all in ONE message:

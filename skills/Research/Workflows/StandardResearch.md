@@ -20,40 +20,40 @@ See `SKILL.md` for full URL Verification Protocol.
 
 ## Workflow
 
-### Step 1: Craft One Query Per Researcher
+### Step 1: Craft One Query Per Angle
 
-Create ONE focused query optimized for each researcher's strengths:
-- **Claude**: Academic depth, detailed analysis, scholarly sources
-- **Gemini**: Multi-perspective synthesis, cross-domain connections
-- **Grok**: Contrarian, fact-based perspective; long-term truth over short-term trend; social/political nuance
-- **Perplexity**: Live-web retrieval with citations; fastest current-state snapshot
+Create ONE focused query per research angle (the angles live in the prompt, not in named personas — the old vendor-named researchers were four identical websearch agents; drift register W2.14):
+- **Depth**: academic depth, detailed analysis, scholarly sources
+- **Breadth**: multi-perspective synthesis, cross-domain connections
+- **Contrarian**: counter-consensus, fact-based; long-term truth over short-term trend
+- **Current-state**: live-web retrieval with citations; freshest snapshot
 
-### Step 2: Launch 4 Agents in Parallel (1 of each type)
+### Step 2: Launch 4 Agents in Parallel (1 per angle)
 
 **SINGLE message with 4 Task calls:**
 
 ```typescript
 Task({
-  subagent_type: "ClaudeResearcher",
-  description: "[topic] analysis",
+  subagent_type: "general-purpose",
+  description: "[topic] depth angle",
   prompt: "Do ONE search for: [query optimized for depth/analysis]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings immediately."
 })
 
 Task({
-  subagent_type: "GeminiResearcher",
-  description: "[topic] perspectives",
+  subagent_type: "general-purpose",
+  description: "[topic] breadth angle",
   prompt: "Do ONE search for: [query optimized for breadth/perspectives]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings immediately."
 })
 
 Task({
-  subagent_type: "GrokResearcher",
-  description: "[topic] contrarian take",
+  subagent_type: "general-purpose",
+  description: "[topic] contrarian angle",
   prompt: "Do ONE search for: [query optimized for contrarian/long-term-truth angle]. Prefer counter-consensus signal and durable facts over trending narrative. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings immediately."
 })
 
 Task({
-  subagent_type: "PerplexityResearcher",
-  description: "[topic] current state",
+  subagent_type: "general-purpose",
+  description: "[topic] current-state angle",
   prompt: "Do ONE search for: [query optimized for live-web current state with citations]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings immediately."
 })
 ```

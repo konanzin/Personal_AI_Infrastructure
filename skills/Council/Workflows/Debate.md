@@ -20,7 +20,7 @@ Running the **Debate** workflow in the **Council** skill to run multi-agent deba
 
 ## CRITICAL: Agent Composition
 
-**ALL council members MUST be custom-composed agents via the Agents skill's ComposeAgent tool. NEVER use built-in agent types (Explore, Anvil, PerplexityResearcher, etc.).**
+**ALL council members MUST be custom-composed agents via the Agents skill's ComposeAgent tool. NEVER use built-in agent types (Explore, Cato, general-purpose, etc.).**
 
 Built-in types are generic and topic-ignorant. Council debates require agents with domain-specific knowledge, unique voices, and distinct analytical approaches tailored to the debate topic.
 

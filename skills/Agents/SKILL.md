@@ -162,18 +162,18 @@ strategy). List that directory for the current teams and members; this file
 deliberately does not repeat them (W2.5: a second prose copy is how the
 rosters diverged before).
 
-**Prefer ComposeAgent over static agent types (Explore, Anvil, etc.) for
+**Prefer ComposeAgent over static agent types (Explore, Cato, etc.) for
 custom agents** — built-in types share one identity and voice, so a "team" of
 them collapses into the same perspective repeated. Use a built-in type when
 you genuinely want its specialist workflow, not a composed personality.
 
 ### 🚫 ANTI-PATTERN: Using Built-In Types for Custom Work
 
-Built-in agent types (Explore, Anvil, Cato, etc.) are for INTERNAL workflow routing only. They have no unique identity, voice, or personality.
+Built-in agent types (Explore, Cato, CodexResearcher, etc.) are for INTERNAL workflow routing only. They have no unique identity, voice, or personality.
 
 | Scenario | ❌ WRONG | ✅ RIGHT |
 |----------|---------|---------|
-| "Specialized agents to brainstorm UI ideas" | `Task(subagent_type="Explore")`, `Task(subagent_type="Anvil")` | ComposeAgent with traits like "ux,enthusiastic,exploratory" and "design,analytical,systematic" |
+| "Specialized agents to brainstorm UI ideas" | `Task(subagent_type="Explore")`, `Task(subagent_type="Cato")` | ComposeAgent with traits like "ux,enthusiastic,exploratory" and "design,analytical,systematic" |
 | "Custom agents to review code" | `Task(subagent_type="Cato")` | ComposeAgent with "technical,skeptical,thorough" and "technical,creative,rapid" |
 | "Agents with different perspectives" | Multiple built-in types | Multiple ComposeAgent calls with DIFFERENT trait combinations |
 

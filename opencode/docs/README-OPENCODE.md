@@ -118,7 +118,7 @@ No repo outside the allowlist is committed, and no destructive rollback command 
 
 ### Runtime Tools
 
-`PAI/TOOLS/manifest.json` is the active tools contract. The current core tool surface includes provider wrappers (`Inference`, `AnvilProgress`, `CrossVendorAudit`, `Arthur`), memory tools (`MemoryRetriever`, `KnowledgeGraph`, `SessionHarvester`, `KnowledgeHarvester`), and checkpoint inspection (`Checkpoint`). Optional skill-specific helpers remain optional and must be checked before use.
+`PAI/TOOLS/manifest.json` is the active tools contract. The current core tool surface includes provider wrappers (`Inference`, `CrossVendorAudit`, `Arthur`), memory tools (`MemoryRetriever`, `KnowledgeGraph`, `SessionHarvester`, `KnowledgeHarvester`), and checkpoint inspection (`Checkpoint`). Optional skill-specific helpers remain optional and must be checked before use.
 
 ### Observability Streams (v2.9.1)
 

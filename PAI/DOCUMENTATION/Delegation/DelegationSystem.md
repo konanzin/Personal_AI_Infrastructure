@@ -68,7 +68,6 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 
 **Agent routing by task type:**
 - **Research tasks** → Use the Research skill (has dedicated researcher agents)
-- **Delegated code production** → Anvil (`subagent_type: "Anvil"`) when a second engine is worth the cost
 - **Everything else** → Use Agents skill → ComposeAgent → `subagent_type: "general-purpose"`
 
 ### 🚨 AGENT ROUTING (Always Active)
@@ -91,7 +90,6 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 | User Says | What to Use | Why |
 |-------------|-------------|-----|
 | "research X", "investigate Y" | **Research skill** | Dedicated researcher agents |
-| Delegated code production | **Anvil** agent | Second-engine diversity / long-context breadth |
 
 **For Agent Teams (default):**
 1. `TeamCreate` with descriptive team name
@@ -104,7 +102,7 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 2. Launch with composed prompt as `subagent_type: "general-purpose"`
 3. Each agent gets a personality-matched ElevenLabs voice
 
-**For research specifically:** Use the Research skill, which has dedicated researcher agents (ClaudeResearcher, GeminiResearcher, etc.)
+**For research specifically:** Use the Research skill, which fans out general-purpose websearch agents by angle (plus CodexResearcher for second-engine verification)
 
 **Reference:** Agents skill (`~/.config/opencode/PAI/skills/Agents/SKILL.md`) | Managed Agents: https://www.anthropic.com/engineering/managed-agents
 

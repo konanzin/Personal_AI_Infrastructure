@@ -4,7 +4,7 @@ Council members are ALWAYS custom-composed agents created via the Agents skill's
 
 ## CRITICAL: No Built-In Agent Types
 
-**NEVER use built-in agent types (Explore, Anvil, PerplexityResearcher, etc.) for council members.** Built-in types are generic — they have no knowledge of the debate topic and produce shallow, generic perspectives.
+**NEVER use built-in agent types (Explore, Cato, general-purpose, etc.) for council members.** Built-in types are generic — they have no knowledge of the debate topic and produce shallow, generic perspectives.
 
 Council members MUST be composed using ComposeAgent with topic-specific traits so they have:
 - Unique personalities and voices matched to the debate
@@ -70,7 +70,7 @@ The specific traits should be tailored to the topic, not generic.
 
 | Scenario | WRONG | RIGHT |
 |----------|-------|-------|
-| Any council debate | `Agent(subagent_type="Anvil")` | ComposeAgent → `Agent(subagent_type="general-purpose")` |
+| Any council debate | `Agent(subagent_type="Explore")` | ComposeAgent → `Agent(subagent_type="general-purpose")` |
 | Security topic | `Agent(subagent_type="Cato")` | ComposeAgent with `security,adversarial,bold` traits |
 | Design question | `Agent(subagent_type="Explore")` | ComposeAgent with `ux,enthusiastic,exploratory` traits |
-| Research needed | `Agent(subagent_type="PerplexityResearcher")` | ComposeAgent with `research,thorough,comparative` traits |
+| Research needed | `Agent(subagent_type="general-purpose")` | ComposeAgent with `research,thorough,comparative` traits |

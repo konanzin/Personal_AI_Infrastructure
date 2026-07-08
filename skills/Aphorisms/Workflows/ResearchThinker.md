@@ -80,7 +80,7 @@ Use Research Skill with multiple researchers for comprehensive coverage:
 # Each focuses on different sources/angles
 research_skill.parallel_research(
   query="[Thinker Name] most impactful quotes on [theme/general]",
-  agents=["ClaudeResearcher", "GeminiResearcher"],
+  agents=["general-purpose", "general-purpose"],
   depth="standard"
 )
 ```

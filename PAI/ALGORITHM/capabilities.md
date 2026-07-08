@@ -36,7 +36,6 @@ Use after code changes or before PR creation.
 
 | Capability | When | Invoke |
 |------------|------|--------|
-| **Anvil (delegate code producer)** | **Engine per-machine, never mandatory.** Runs whatever OpenAI-compatible engine `USER/Config/anvil.json` names (ideally long-context, from a family different from the session) via `PAI/TOOLS/AnvilProgress.ts`. Pick Anvil when a second engine's perspective or whole-project context breadth is worth the delegation cost — cross-file refactors, architecture-fitting changes, long-range reasoning, cross-family diversity on the hardest work. Always invoke when {{PRINCIPAL_NAME}} names "Anvil" (name-match wins at any tier). Otherwise the model decides per-task; there is no tier that forces delegation. | `Agent(subagent_type="Anvil", prompt="...")` |
 | /simplify | After code changes | `Skill("simplify")` |
 | /batch | 3+ files with similar changes | `Skill("batch", "instruction")` |
 | /code-review | After code changes, before PR | `Skill("code-review")` |
@@ -44,12 +43,9 @@ Use after code changes or before PR creation.
 | /codex:review | Complex code review needing second-model perspective | `Skill("codex:review")` |
 | /codex:adversarial-review | Challenge design decisions, question approach and tradeoffs | `Skill("codex:adversarial-review")` |
 
-### Anvil delegation (never mandatory)
+### Delegate code production (retired)
 
-There is no auto-include: no tier forces code through a second model. (The old Forge/Anvil E3-E5 bindings were retired in the lean roster experiment — the mandatory cross-vendor producer predated evidence, and on an OpenAI-primary harness the "different family" rationale had already collapsed.) Two rules survive:
-
-- **Explicit-name override:** If {{PRINCIPAL_NAME}} mentions "Anvil" in the request, invoke regardless of tier (even E1/E2). Name-match always wins.
-- **Model's judgment:** Delegate to Anvil when a second engine's blind-spot diversity or long-context breadth is genuinely worth the cost — and say so in `🏹 CAPABILITIES SELECTED`. Skipping it needs no justification.
+No second-model code producer ships. The Forge/Anvil producer line was retired across the two roster experiments (drift register W2.13/W2.14): the mandatory bindings predated evidence, the cross-family rationale collapsed on an OpenAI-primary harness, and Anvil ended the observation window with zero invocations and no engine configured on any machine. The session model writes the code; Cato audits it at E4/E5. If a real long-context engine need appears, re-adding the producer is a one-commit revert.
 
 ## Delegation & Infrastructure Capabilities
 
@@ -86,7 +82,7 @@ Use when external information is needed.
 | **1. DEFAULT** | "parallel work", "agents", "team", "swarm", or Algorithm selects delegation | **Agent Teams** — persistent teammates, shared task list, peer messaging | `TeamCreate` + `Agent` with `team_name` |
 | **2. EXPLICIT** | "custom agents", "spin up custom agents" | **Custom Agents** — unique personalities, voices, trait composition | `Skill("Agents")` → ComposeAgent |
 | **3. UNATTENDED** | "run overnight", "long-running", "CI", or task exceeds session lifetime | **Managed Agents** — durable cloud sessions, sandboxed, vault credentials | `Skill("claude-api")` to build |
-| **4. INTERNAL** | (Algorithm internal routing, user names a type) | **Built-in types** (Explore, Anvil, Cato, researchers, etc.) | `Agent(subagent_type="...")` |
+| **4. INTERNAL** | (Algorithm internal routing, user names a type) | **Built-in types** (Explore, Cato, CodexResearcher, general-purpose, etc.) | `Agent(subagent_type="...")` |
 
 ## Binding Commitment
 

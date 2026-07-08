@@ -14,26 +14,18 @@
       "contract": "Provider-neutral command adapter. Returns structured unavailable when PAI_INFERENCE_CMD/OPENCODE_INFERENCE_CMD is unset.",
       "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/Inference.ts --json --level fast system user"]
     },
-    "AnvilProgress.ts": {
-      "status": "implemented",
-      "layer": "A",
-      "required_by": ["Anvil"],
-      "contract": "Model-agnostic delegate engine (any OpenAI-compatible API; per-machine USER/Config/anvil.json or PAI_ANVIL_* env). Returns structured unavailable when no engine is configured.",
-      "external_dependencies": ["USER/Config/anvil.json (baseUrl/model/apiKeyEnv)"],
-      "smoke": ["PAI_DIR=$(mktemp -d) env -u PAI_ANVIL_BASE_URL -u PAI_ANVIL_MODEL -u PAI_ANVIL_API_KEY bash -lc 'echo prompt | bun PAI/TOOLS/AnvilProgress.ts --slug smoke'"]
-    },
     "CrossVendorAudit.ts": {
       "status": "implemented",
       "layer": "A",
       "required_by": ["Cato", "Algorithm Rule 2a"],
-      "contract": "Read-only Codex audit orchestrator. Returns skipped when codex is unavailable or audit infrastructure fails.",
-      "external_dependencies": ["codex CLI"],
+      "contract": "Read-only second-engine audit orchestrator. Engine per-machine via USER/Config/cato.json (bin/model), defaulting to codex CLI. Returns skipped when the engine is unavailable or audit infrastructure fails.",
+      "external_dependencies": ["audit engine CLI (default: codex)"],
       "smoke": ["PAI_DIR=$(mktemp -d) PAI_DISABLE_CODEX=1 bun PAI/TOOLS/CrossVendorAudit.ts --slug smoke --advisor-verdict '{}'"]
     },
     "Arthur.ts": {
       "status": "implemented",
       "layer": "A",
-      "required_by": ["Arthur"],
+      "required_by": ["direct CLI use (persona retired in W2.14; retire the tool too if no caller appears)"],
       "contract": "Deterministic credential-policy narrator. Never emits raw credentials; denies/requires confirmation without explicit policy.",
       "smoke": ["PAI_DIR=$(mktemp -d) bun PAI/TOOLS/Arthur.ts status"]
     },

@@ -168,7 +168,7 @@ notification_types:
 
   research_complete:
     preset: explanation
-    default_voice: ClaudeResearcher
+    default_voice: kai
 
   design_feedback:
     preset: critique

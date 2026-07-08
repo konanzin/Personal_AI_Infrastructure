@@ -68,7 +68,7 @@ This is the main investigation step. Deploy 9+ agents across 3 categories simult
 
 #### CATEGORY 1: People Search Aggregators (3 agents minimum)
 
-**Agent 1: ClaudeResearcher - Primary Name Search**
+**Agent 1: general-purpose - Primary Name Search**
 ```
 Prompt: Search for [FULL NAME] with these exact spelling variations: [list all].
 Location: [CITY, STATE]. Age approximately [AGE].
@@ -76,7 +76,7 @@ Search TruePeopleSearch, FastPeopleSearch, Spokeo concepts.
 Return: current address, phone, relatives, associates, email.
 ```
 
-**Agent 2: ClaudeResearcher - Comprehensive Search**
+**Agent 2: general-purpose - Comprehensive Search**
 ```
 Prompt: Comprehensive people search for [NAME] from [LOCATION].
 Try phonetic and ethnic spelling variations of the surname.
@@ -84,7 +84,7 @@ Focus on: address history, family tree, employment history.
 Return all possible matches with confidence assessment.
 ```
 
-**Agent 3: GeminiResearcher - Alternative Spellings**
+**Agent 3: general-purpose - Alternative Spellings**
 ```
 Prompt: Find person whose name sounds like [NAME] from [LOCATION].
 The surname is likely Eastern European - try: [variations].
@@ -96,7 +96,7 @@ Return any matches with spelling variations that worked.
 
 #### CATEGORY 2: Social Media Search (3 agents minimum)
 
-**Agent 4: ClaudeResearcher - LinkedIn/Facebook**
+**Agent 4: general-purpose - LinkedIn/Facebook**
 ```
 Prompt: Search LinkedIn and Facebook for [NAME] from [LOCATION].
 Use Google x-ray: site:linkedin.com/in "[NAME]" "[LOCATION]"
@@ -104,7 +104,7 @@ Also search: site:facebook.com "[NAME]" "[SCHOOL/CONTEXT]"
 Return profile URLs and any contact information visible.
 ```
 
-**Agent 5: GrokResearcher - Twitter/X Deep Search**
+**Agent 5: general-purpose - Twitter/X Deep Search**
 ```
 Prompt: Search Twitter/X for [NAME] or username variations.
 Try handles like: [firstname][lastname], [first]_[last], etc.
@@ -124,7 +124,7 @@ Cross-reference any found usernames across platforms.
 
 #### CATEGORY 3: Public Records & News (3 agents minimum)
 
-**Agent 7: ClaudeResearcher - Property/Voter Records**
+**Agent 7: general-purpose - Property/Voter Records**
 ```
 Prompt: Search California public records for [NAME].
 Focus on: Alameda County property records, CA voter registration.
@@ -132,14 +132,14 @@ Also check neighboring counties: Santa Clara, Contra Costa.
 Return any official records with addresses or DOB.
 ```
 
-**Agent 8: GeminiResearcher - Court/Business Records**
+**Agent 8: general-purpose - Court/Business Records**
 ```
 Prompt: Search for [NAME] in California court records and business filings.
 Check: CA Secretary of State business search, court records.
 Look for any legal filings, business registrations, professional licenses.
 ```
 
-**Agent 9: ClaudeResearcher - News & Mentions**
+**Agent 9: general-purpose - News & Mentions**
 ```
 Prompt: Search for news articles, obituaries, or public mentions of [NAME].
 Check: local Newark/Fremont news archives, alumni mentions.

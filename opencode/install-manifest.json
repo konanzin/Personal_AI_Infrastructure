@@ -1,22 +1,22 @@
 {
   "agents": [
-    "Anvil.md",
-    "Arthur.md",
     "Cato.md",
-    "ClaudeResearcher.md",
-    "CodexResearcher.md",
-    "GeminiResearcher.md",
-    "GrokResearcher.md",
-    "PerplexityResearcher.md"
+    "CodexResearcher.md"
   ],
   "retired_agents": [
     "Algorithm.md",
+    "Anvil.md",
     "Architect.md",
+    "Arthur.md",
     "Artist.md",
     "BrowserAgent.md",
+    "ClaudeResearcher.md",
     "Designer.md",
     "Engineer.md",
     "Forge.md",
+    "GeminiResearcher.md",
+    "GrokResearcher.md",
+    "PerplexityResearcher.md",
     "QATester.md",
     "Silas.md",
     "UIReviewer.md",

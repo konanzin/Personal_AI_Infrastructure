@@ -14,11 +14,29 @@ import {
 import { mkdirSync } from "fs";
 import { join } from "path";
 
-function parseArgs(args: string[]) {
+interface CatoEngineConfig {
+  bin?: string;
+  model?: string;
+}
+
+// Engine is per-machine config, not identity: USER/Config/cato.json may name the
+// audit CLI and model; defaults preserve the historical codex/gpt-5.4 behavior.
+function readEngineConfig(): CatoEngineConfig {
+  const raw = readTextIfExists(join(getPaiDir(), "USER", "Config", "cato.json"));
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? (parsed as CatoEngineConfig) : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseArgs(args: string[], engineConfig: CatoEngineConfig) {
   const options = {
     slug: "",
     advisorVerdict: "",
-    model: "gpt-5.4",
+    model: engineConfig.model || "gpt-5.4",
     timeoutMs: 120_000,
     cwd: process.cwd(),
   };
@@ -47,10 +65,13 @@ function findingsPath() {
   return join(dir, "cato-findings.jsonl");
 }
 
-const options = parseArgs(process.argv.slice(2));
+const engineConfig = readEngineConfig();
+const options = parseArgs(process.argv.slice(2), engineConfig);
 const started = Date.now();
 const finalFile = workFile("cato", options.slug || "adhoc", "final.json");
 const codex = await resolveExecutable([
+  process.env.CATO_BIN,
+  engineConfig.bin,
   process.env.CODEX_BIN,
   `${process.env.HOME}/.bun/bin/codex`,
   `${process.env.HOME}/.local/bin/codex`,
@@ -73,7 +94,7 @@ if (!options.slug) {
 }
 
 if (!codex) {
-  const payload = { verdict: "skipped", reason: "codex CLI not found" };
+  const payload = { verdict: "skipped", reason: "audit engine CLI not found (default codex; configure USER/Config/cato.json)" };
   log(payload);
   printJson(payload);
   process.exit(0);

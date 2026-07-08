@@ -701,7 +701,7 @@ check_tools() {
     fi
     checks=$((checks + 1))
 
-    for tool in Inference.ts AnvilProgress.ts CrossVendorAudit.ts Arthur.ts MemoryRetriever.ts KnowledgeGraph.ts Checkpoint.ts SessionHarvester.ts KnowledgeHarvester.ts; do
+    for tool in Inference.ts CrossVendorAudit.ts Arthur.ts MemoryRetriever.ts KnowledgeGraph.ts Checkpoint.ts SessionHarvester.ts KnowledgeHarvester.ts; do
         if [ -f "$PAI_DIR/TOOLS/$tool" ]; then
             pass "$tool exists"
             passed=$((passed + 1))

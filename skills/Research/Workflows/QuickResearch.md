@@ -1,6 +1,6 @@
 # Quick Research Workflow
 
-**Mode:** Single Perplexity researcher, 1 query | **Timeout:** 30 seconds
+**Mode:** Single research agent (websearch), 1 query | **Timeout:** 30 seconds
 
 ## When to Use
 
@@ -11,13 +11,13 @@
 
 ## Workflow
 
-### Step 1: Launch Single Perplexity Agent
+### Step 1: Launch Single Research Agent
 
-**ONE Task call - Perplexity researcher with a single focused query:**
+**ONE Task call — general-purpose research agent with a single focused query:**
 
 ```typescript
 Task({
-  subagent_type: "PerplexityResearcher",
+  subagent_type: "general-purpose",
   description: "[topic] quick lookup",
   prompt: "Do ONE web search for: [query]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return the key findings immediately. Keep it brief and factual."
 })
@@ -28,7 +28,7 @@ Task({
 - Instruct to return immediately after first search
 - No multi-query exploration
 
-**Why Perplexity:** Fastest live-web retrieval with built-in citations; best single-agent default for "just tell me what's current."
+**Why one agent:** a single websearch pass with citations is the right cost for "just tell me what's current."
 
 ### Step 2: Return Results
 
@@ -36,8 +36,8 @@ Report findings using standard format:
 
 ```markdown
 📋 SUMMARY: Quick research on [topic]
-🔍 ANALYSIS: [Key findings from Perplexity]
-⚡ ACTIONS: 1 Perplexity query
+🔍 ANALYSIS: [Key findings]
+⚡ ACTIONS: 1 research query
 ✅ RESULTS: [Answer]
 📊 STATUS: Quick mode - 1 agent, 1 query
 📁 CAPTURE: [Key facts]

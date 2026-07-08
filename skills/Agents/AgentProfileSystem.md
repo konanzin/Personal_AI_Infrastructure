@@ -155,11 +155,7 @@ That's it. Simple. No elaborate profile system. Just a reading list.
 | Agent Type | Context File | Role |
 |------------|--------------|------|
 | **Cato** | CatoContext.md | Cross-vendor audit specialist (read-only) |
-| **ClaudeResearcher** | ClaudeResearcherContext.md | Research arm (Claude) |
 | **CodexResearcher** | CodexResearcherContext.md | Research arm (Codex CLI) |
-| **GeminiResearcher** | GeminiResearcherContext.md | Research arm (Gemini) |
-| **GrokResearcher** | GrokResearcherContext.md | Research arm (Grok) |
-| **PerplexityResearcher** | PerplexityResearcherContext.md | Research arm (Perplexity) |
 | **QATester** | QATesterContext.md | Quality assurance validation (Gate 4) |
 
 ---

@@ -10,7 +10,7 @@ PAI has three agent systems that serve different purposes. Confusing them causes
 
 | System | What It Is | When to Use | Has Unique Voice? |
 |--------|-----------|-------------|-------------------|
-| **Task Tool Subagent Types** | Pre-built agents in Claude Code (Explore, Anvil, Cato, researchers, etc.) | Internal workflow use ONLY | No |
+| **Task Tool Subagent Types** | Pre-built agents in Claude Code (Explore, Cato, CodexResearcher, general-purpose, etc.) | Internal workflow use ONLY | No |
 | **Named Agents** | Persistent identities with backstories and voices (your own personas) | Recurring work, voice output, relationships | Yes |
 | **Custom Agents** | Dynamic agents composed via ComposeAgent from traits | When user says "custom agents" | Yes (trait-mapped) |
 
@@ -23,7 +23,7 @@ PAI has three agent systems that serve different purposes. Confusing them causes
 ```typescript
 // ❌ WRONG - These are Task tool subagent_types, NOT custom agents
 Task({ subagent_type: "Explore", prompt: "..." })
-Task({ subagent_type: "Anvil", prompt: "..." })
+Task({ subagent_type: "Cato", prompt: "..." })
 Task({ subagent_type: "Cato", prompt: "..." })
 
 // ✅ RIGHT - Invoke the Agents skill for custom agents
@@ -55,7 +55,6 @@ Skill("Agents")  // → CreateCustomAgent workflow with unique traits per agent
 | "agents", "**specialized agents**", "launch agents", "parallel agents" | Custom agents via Agents skill | `Skill("Agents")` → ComposeAgent → `Task({ subagent_type: "general-purpose" })` |
 | "research X", "investigate Y" | Research skill | `Skill("Research")` → appropriate researcher agents |
 | "use Remy", "get Ava to" | Named agent | Use appropriate researcher subagent_type |
-| (Delegated code production — second-engine diversity or long-context breadth worth the cost, OR named "Anvil") | Anvil (cross-vendor; engine from USER/Config/anvil.json) | `Agent({ subagent_type: "Anvil" })` |
 | (Cross-vendor audit, MANDATORY at E4/E5 in VERIFY) | Cato (read-only auditor, OpenAI-family GPT-5.x) | `Agent({ subagent_type: "Cato" })` |
 | (Claude Code hooks, settings, commands, MCP, agents, API) | Claude Code Guide | `Task({ subagent_type: "claude-code-guide" })` — verify latest features before implementing |
 
@@ -95,14 +94,11 @@ filesystem cannot express:
 |------|--------|
 | `general-purpose` | Not an installed file — the generic Task type used for ComposeAgent custom agents |
 | `Cato` | MANDATORY at E4/E5 in VERIFY (doctrine binding, not a preference) |
-| Cross-vendor producer | `Anvil` (per-machine engine, ideally long-context and family-diverse) exists to break same-family blind spots — delegation is the model's call, never tier-forced |
+| Cross-vendor audit | `Cato` (second-engine auditor) breaks same-family blind spots on the review side; no delegate producer ships (W2.13/W2.14) |
 | ~~`BrowserAgent`~~ | **DEPRECATED** | Replaced by **Interceptor** skill (real Chrome, no CDP fingerprint) |
 | ~~`UIReviewer`~~ | **DEPRECATED** | Replaced by **Interceptor** skill |
 | ~~`QATester`~~ | **DEPRECATED** | Replaced by **Interceptor** skill — Gate 4 browser-based QA validation |
 | `claude-code-guide` | Claude Code knowledge (hooks, settings, slash commands, MCP, agent types, keybindings, IDE, Agent SDK, Claude API) | Any task involving Claude Code internals — freshness check before implementing |
-| `ClaudeResearcher` | Claude-based research | Research skill workflows |
-| `GeminiResearcher` | Gemini-based research | Research skill workflows |
-| `GrokResearcher` | Grok-based research | Research skill workflows |
 
 **These do NOT have unique voices or ComposeAgent composition.**
 
@@ -266,7 +262,7 @@ When the Algorithm needs to delegate work, use this priority:
 | **1. DEFAULT** | Agent Teams | Any parallel work, task dependencies, coordination needed | Persistent, peer messaging, shared task list |
 | **2. EXPLICIT** | Custom Agents | {{PRINCIPAL_NAME}} says "custom agents" | Unique personalities, voices, one-shot |
 | **3. UNATTENDED** | Managed Agents | Overnight, CI, survives disconnects | Durable, sandboxed, cloud |
-| **4. INTERNAL** | Built-in types | Algorithm routing, specific subagent type needed | Explore, Anvil, Cato, researchers, etc. |
+| **4. INTERNAL** | Built-in types | Algorithm routing, specific subagent type needed | Explore, Cato, CodexResearcher, general-purpose, etc. |
 
 ---
 

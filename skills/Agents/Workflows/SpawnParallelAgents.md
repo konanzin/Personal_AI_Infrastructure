@@ -329,7 +329,7 @@ Task({
   model: "haiku"
 })
 // For specialized parallel work, compose a custom agent first via ComposeAgent
-// or use a specialized type like "Explore", "Anvil", etc.
+// or use a specialized type like "Explore", "Cato", etc.
 ```
 
 **❌ WRONG: Skipping spotcheck**

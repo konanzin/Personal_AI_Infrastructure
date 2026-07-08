@@ -91,7 +91,7 @@ The following upstream subsystems are deliberately not part of this product toda
 |-----------|---------------|--------------|-------------|
 | Upstream Pulse daemon runtime | Always-on dashboard/notify server on `localhost:31337` | Heavy, desktop-centric; OpenCode product ships a lean optional Pulse Broker instead | Broker + mobile/desktop renderers carry the notify/observer role |
 | Voice (ElevenLabs) | Speaks agent updates on the desktop | Depends on Pulse + paid API | Voice rendering on mobile via TTS, fed by plugin events |
-| `PAI/TOOLS/` helpers (AnvilProgress, CrossVendorAudit, Arthur engine) | Wrap external vendor CLIs and credential policy | Never published upstream; depend on external engine accounts (OpenAI for Cato; Anvil engine is per-machine config) | Agents return structured `unavailable`; helpers can be ported if multi-vendor work is adopted |
+| `PAI/TOOLS/` helpers (CrossVendorAudit, Arthur engine) | Wrap external vendor CLIs and credential policy | Never published upstream; Cato engine is per-machine config (default codex) | Agents return structured `unavailable`; helpers can be ported if multi-vendor work is adopted |
 | Arbol (cloud execution) | Parallel cloud runs | Docs-only upstream | Re-evaluate if needed |
 | Feed / Fabric systems | Content pipelines | Docs-only upstream | Re-evaluate if needed |
 | Memory consolidation jobs | Pulse-scheduled learning capture | Requires daemon | Candidate for plugin-side or mobile-triggered jobs |

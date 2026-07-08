@@ -619,7 +619,7 @@ echo "${BLUE}PAI Runtime Tools${RESET}"
 run_test "Tools manifest installed" \
     "test -f ${PAI_DIR}/TOOLS/manifest.json"
 
-for tool in Inference.ts AnvilProgress.ts CrossVendorAudit.ts Arthur.ts MemoryRetriever.ts KnowledgeGraph.ts Checkpoint.ts SessionHarvester.ts KnowledgeHarvester.ts; do
+for tool in Inference.ts CrossVendorAudit.ts Arthur.ts MemoryRetriever.ts KnowledgeGraph.ts Checkpoint.ts SessionHarvester.ts KnowledgeHarvester.ts; do
     run_test "${tool} installed" \
         "test -f ${PAI_DIR}/TOOLS/${tool}"
 done
@@ -631,14 +631,6 @@ if PAI_DIR="$TOOLS_TMP" bun "${PAI_DIR}/TOOLS/Inference.ts" --json --level fast 
     PASSED=$((PASSED + 1))
 else
     fail "Inference unavailable behavior"
-fi
-TOTAL=$((TOTAL + 1))
-
-if env -u PAI_ANVIL_BASE_URL -u PAI_ANVIL_MODEL -u PAI_ANVIL_API_KEY PAI_DIR="$TOOLS_TMP" bash -lc "echo prompt | bun '${PAI_DIR}/TOOLS/AnvilProgress.ts' --slug smoke" 2>/dev/null | grep -q '"verdict": "unavailable"'; then
-    pass "AnvilProgress unavailable behavior"
-    PASSED=$((PASSED + 1))
-else
-    fail "AnvilProgress unavailable behavior"
 fi
 TOTAL=$((TOTAL + 1))
 

@@ -10,7 +10,6 @@ const toolsDir = join(repoRoot, "PAI", "TOOLS");
 
 const toolPath = {
   Inference: join(toolsDir, "Inference.ts"),
-  AnvilProgress: join(toolsDir, "AnvilProgress.ts"),
   CrossVendorAudit: join(toolsDir, "CrossVendorAudit.ts"),
   Arthur: join(toolsDir, "Arthur.ts"),
 };
@@ -94,27 +93,6 @@ describe("PAI runtime tool fallbacks", () => {
     expect(json.provider).toBe("command-adapter");
   });
 
-  test("AnvilProgress returns unavailable when no engine is configured (model-agnostic)", () => {
-    const env = { ...process.env, PAI_DIR: tempPaiDir() };
-    // Anvil has no baked-in provider: with no anvil.json and no PAI_ANVIL_*
-    // env, it must report unconfigured — never fall back to any vendor.
-    delete env.PAI_ANVIL_BASE_URL;
-    delete env.PAI_ANVIL_MODEL;
-    delete env.PAI_ANVIL_API_KEY;
-    delete env.PAI_ANVIL_API_KEY_ENV;
-    const result = Bun.spawnSync({
-      cmd: ["bash", "-lc", `echo prompt | bun '${toolPath.AnvilProgress}' --slug smoke`],
-      env,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    expect(result.exitCode).toBe(0);
-    const json = jsonFrom(result);
-    expect(json.verdict).toBe("unavailable");
-    expect(json.reason).toContain("not configured");
-  });
-
   test("CrossVendorAudit returns skipped when codex is disabled", () => {
     const result = runBun(toolPath.CrossVendorAudit, ["--slug", "smoke", "--advisor-verdict", "{}"], {
       PAI_DIR: tempPaiDir(),
@@ -124,7 +102,7 @@ describe("PAI runtime tool fallbacks", () => {
     expect(result.exitCode).toBe(0);
     const json = jsonFrom(result);
     expect(json.verdict).toBe("skipped");
-    expect(json.reason).toContain("codex CLI not found");
+    expect(json.reason).toContain("audit engine CLI not found");
   });
 
   test("Arthur exposes credential policy status without raw secrets", () => {

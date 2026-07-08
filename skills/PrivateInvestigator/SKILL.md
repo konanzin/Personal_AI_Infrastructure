@@ -57,9 +57,9 @@ Running the **WorkflowName** workflow in the **PrivateInvestigator** skill to AC
 Every investigation uses **15 parallel research agents** (5 types × 3 each):
 
 **Agent Types:**
-1. **ClaudeResearcher** (3 agents) - People search aggregators, professional records, location intelligence, comprehensive identity, public records, education/alumni
-2. **GeminiResearcher** (3 agents) - Alternative identities, multi-perspective synthesis, historical context
-3. **GrokResearcher** (3 agents) - Social media deep search, contrarian analysis, real-time intelligence
+1. **Records lane** (3 general-purpose agents) - People search aggregators, professional records, location intelligence, comprehensive identity, public records, education/alumni
+2. **Identity lane** (3 general-purpose agents) - Alternative identities, multi-perspective synthesis, historical context
+3. **Social lane** (3 general-purpose agents) - Social media deep search, contrarian analysis, real-time intelligence
 4. **CodexResearcher** (3 agents) - Username enumeration, Google dorking, technical profiles
 
 **Each agent executes 3 sub-searches** = **45 parallel search threads** per investigation
