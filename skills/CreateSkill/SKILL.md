@@ -1,6 +1,6 @@
 ---
 name: CreateSkill
-description: "Complete PAI skill development lifecycle across two tracks. Structure track: scaffold new skills (TitleCase dirs, flat 2-level max, Workflows/ + Tools/ + References/ only), validate against canonical format, canonicalize existing skills. Effectiveness track (Anthropic methodology): TestSkill spawns with-skill vs baseline agents in parallel and compares outputs, ImproveSkill diagnoses root causes and rewrites instructions with reasoning over rigid constraints, OptimizeDescription generates 20 should/shouldn't-trigger test queries and rewrites for accuracy. Guides from Thariq Shihipar (Mar 2026): Gotchas section mandatory, BPE check before finalizing, progressive disclosure (frontmatter → SKILL.md body → reference files), on-demand hooks. USE WHEN create skill, new skill, validate skill, test skill, improve skill, optimize description, skill not triggering, skill overtriggering, canonicalize, scaffold skill, skill quality. NOT FOR TypeScript CLI generation (use CreateCLI)."
+description: "Complete PAI skill development lifecycle across two tracks. Structure track: scaffold new skills (TitleCase dirs, flat 2-level max, Workflows/ + Tools/ + References/ only), validate against canonical format, canonicalize existing skills. Effectiveness track (Anthropic methodology): TestSkill spawns with-skill vs baseline agents in parallel and compares outputs, ImproveSkill diagnoses root causes and rewrites instructions with reasoning over rigid constraints, OptimizeDescription generates 20 should/shouldn't-trigger test queries and rewrites for accuracy. Guides from Thariq Shihipar (Mar 2026): Gotchas section mandatory, BPE check before finalizing, progressive disclosure (frontmatter → SKILL.md body → reference files), on-demand hooks. USE WHEN create skill, new skill, validate skill, test skill, improve skill, optimize description, skill not triggering, skill overtriggering, canonicalize, scaffold skill, skill quality. NOT FOR one-off TypeScript CLI generation (the model writes CLIs directly)."
 effort: medium
 ---
 
@@ -210,19 +210,18 @@ Additional .md files ARE the context files. They live **directly in skill root**
 
 **WRONG:**
 ```
-skills/Art/
+skills/Research/
 ├── SKILL.md
 └── Context/              ❌ NEVER CREATE THIS
-    └── Aesthetic.md
+    └── QuickReference.md
 ```
 
 **CORRECT:**
 ```
-skills/Art/
+skills/Research/
 ├── SKILL.md
-├── Aesthetic.md          ✅ Context file in skill root
-├── Examples.md           ✅ Context file in skill root
-└── Tools.md              ✅ Context file in skill root
+├── QuickReference.md     ✅ Context file in skill root
+└── UrlVerificationProtocol.md  ✅ Context file in skill root
 ```
 
 **The skill directory IS the context.**
@@ -230,15 +229,14 @@ skills/Art/
 ### Example Structure
 
 ```
-skills/Art/
-├── SKILL.md              # 40 lines - minimal routing
-├── Aesthetic.md          # Context file - SOP for aesthetic
-├── Examples.md           # Context file - SOP for examples
-├── Tools.md              # Context file - SOP for tools
+skills/Research/
+├── SKILL.md              # minimal routing
+├── QuickReference.md     # Context file - mode comparison
+├── UrlVerificationProtocol.md  # Context file - verification SOP
 ├── Workflows/            # Workflows
-│   └── Essay.md
+│   └── StandardResearch.md
 └── Tools/                # CLI tools
-    └── Generate.ts
+    └── Search.ts
 ```
 
 ### Minimal SKILL.md Template
@@ -317,10 +315,10 @@ Before creating any skill, identify which of the 9 types it is (from Anthropic's
 | Type | Focus | Key Structure | Example |
 |------|-------|---------------|---------|
 | 1. Library/API Reference | Gotchas, edge cases Claude gets wrong | Lightweight, gotchas-heavy, reference snippets | HonoReference, D1Reference |
-| 2. Product Validation | Test/verify code works | State assertions, browser automation, output recording | Browser |
-| 3. Data Fetching | Connect to data systems | Credential refs, query patterns, dashboard pointers | USMetrics, _METRICS |
+| 2. Product Validation | Test/verify code works | State assertions, browser automation, output recording | Interceptor |
+| 3. Data Fetching | Connect to data systems | Credential refs, query patterns, dashboard pointers | ArXiv, _METRICS |
 | 4. Business Process | Automate repetitive workflows | Execution logs, consistency tracking | _CLICKUP, _BROADCAST |
-| 5. Code Scaffolding | Generate framework boilerplate | Template files, project-aware scripts | CreateCLI, CreateSkill |
+| 5. Code Scaffolding | Generate framework boilerplate | Template files, project-aware scripts | CreateSkill |
 | 6. Code Quality | Enforce standards, review | Deterministic scripts, hook integration | /simplify, /code-review |
 | 7. CI/CD & Deployment | Deploy with safety patterns | Pre-deploy checks, smoke tests, rollback | (gap — needs Deploy skill) |
 | 8. Operations Runbooks | Map phenomena to diagnostics | Phenomenon → tool → query → report | _HEALTHCHECK |

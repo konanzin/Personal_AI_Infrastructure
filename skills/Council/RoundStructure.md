@@ -4,7 +4,7 @@ How council debates progress through rounds.
 
 ## CRITICAL: Custom Agents Only
 
-All council members are custom-composed via the Agents skill's ComposeAgent. NEVER use built-in agent types. See `CouncilMembers.md`.
+All council members are personas written inline into `general-purpose` spawn prompts. NEVER use static agent types for seats. See `CouncilMembers.md`.
 
 ## Three-Round Debate Structure
 
@@ -39,7 +39,7 @@ Not just collecting opinions - genuine challenges where custom agents with domai
 
 | Phase | Duration | Parallelism |
 |-------|----------|-------------|
-| Composition | 5-10 sec | ComposeAgent calls |
+| Persona design | 5-10 sec | written inline, no tool calls |
 | Round 1 | 10-20 sec | All agents parallel |
 | Round 2 | 10-20 sec | All agents parallel |
 | Round 3 | 10-20 sec | All agents parallel |

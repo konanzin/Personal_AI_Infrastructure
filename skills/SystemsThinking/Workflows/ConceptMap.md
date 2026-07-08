@@ -14,7 +14,7 @@ Concept maps come from Joseph Novak's work on meaningful learning (Cornell, 1972
 - "Novak-style mapping"
 - Early-stage domain exploration, onboarding docs, architecture overviews, knowledge capture
 
-**Not for:** dynamic behavior (use CausalLoop), incident causation (use RootCauseAnalysis), hierarchical decomposition (use an outline or tree).
+**Not for:** dynamic behavior (use CausalLoop), incident causation (use Science's structured investigation), hierarchical decomposition (use an outline or tree).
 
 ## The Structure
 

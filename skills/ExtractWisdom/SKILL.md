@@ -1,6 +1,6 @@
 ---
 name: ExtractWisdom
-description: "Content-adaptive wisdom extraction that reads the content first, detects what wisdom domains are actually present, then builds custom sections around what it finds — instead of forcing static headers every time. A security talk gets 'Threat Model Insights' and 'Defense Strategies'; a business podcast gets 'Contrarian Business Takes' and 'Money Philosophy'. Five depth levels: Instant (1 section), Fast (3 sections), Basic (3+takeaway), Full (5-12 sections, default), Comprehensive (10-15+themes). Voice follows the user's conversational style — bullets read like telling a friend what you just watched, not a press release. Output always includes dynamic sections, One-Sentence Takeaway, 'If You Only Have 2 Minutes', and References. Spicy/contrarian takes are mandatory inclusions, never softened. YouTube content extracted via `fabric -y URL` before extraction; article content fetched via WebFetch. Output: markdown with dynamic section headers, closing sections vary by depth level, References & Rabbit Holes, optional Themes & Connections (Comprehensive). Workflow: Extract. USE WHEN extract wisdom, analyze video, analyze podcast, extract insights, extract from YouTube, key takeaways, what's interesting in this, process this content, summarize interview, analyze article, extract from blog post, what are the main takeaways, distill this content. NOT FOR static Fabric extract_wisdom pattern (use Fabric), general content retrieval (use Research), or knowledge archiving (use Knowledge ingest)."
+description: "Content-adaptive wisdom extraction that reads the content first, detects what wisdom domains are actually present, then builds custom sections around what it finds — instead of forcing static headers every time. A security talk gets 'Threat Model Insights' and 'Defense Strategies'; a business podcast gets 'Contrarian Business Takes' and 'Money Philosophy'. Five depth levels: Instant (1 section), Fast (3 sections), Basic (3+takeaway), Full (5-12 sections, default), Comprehensive (10-15+themes). Voice follows the user's conversational style — bullets read like telling a friend what you just watched, not a press release. Output always includes dynamic sections, One-Sentence Takeaway, 'If You Only Have 2 Minutes', and References. Spicy/contrarian takes are mandatory inclusions, never softened. YouTube content extracted via WebFetch on the watch page/captions before extraction; article content fetched via WebFetch. Output: markdown with dynamic section headers, closing sections vary by depth level, References & Rabbit Holes, optional Themes & Connections (Comprehensive). Workflow: Extract. USE WHEN extract wisdom, analyze video, analyze podcast, extract insights, extract from YouTube, key takeaways, what's interesting in this, process this content, summarize interview, analyze article, extract from blog post, what are the main takeaways, distill this content. NOT FOR general content retrieval (use Research) or knowledge archiving (use Knowledge ingest)."
 effort: medium
 ---
 
@@ -232,7 +232,7 @@ Before delivering output, verify:
 ## Gotchas
 
 - **Content-adaptive sections means output structure varies by input type.** Don't expect identical output format for a podcast vs an article.
-- **YouTube extraction should use `fabric -y URL` first** to get the transcript before extracting wisdom.
+- **YouTube extraction: WebFetch the watch page/captions first** to get the transcript before extracting wisdom.
 - **Long content may need chunking.** Don't try to extract wisdom from a 3-hour podcast transcript in one pass.
 
 ## Examples
@@ -240,7 +240,7 @@ Before delivering output, verify:
 **Example 1: YouTube interview extraction**
 ```
 User: "extract wisdom from this Marcus Hutchins interview"
-→ Uses `fabric -y URL` to get transcript
+→ WebFetches the watch page to get the transcript
 → Content-adaptive extraction (interview format)
 → Returns: key insights, surprising claims, actionable takeaways
 → ~45 seconds

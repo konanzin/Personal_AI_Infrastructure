@@ -18,65 +18,36 @@ Running the **Debate** workflow in the **Council** skill to run multi-agent deba
 - Topic or question to debate
 - Optional: Custom council member descriptions (otherwise auto-composed)
 
-## CRITICAL: Agent Composition
+## CRITICAL: Persona Design
 
-**ALL council members MUST be custom-composed agents via the Agents skill's ComposeAgent tool. NEVER use built-in agent types (Explore, Cato, general-purpose, etc.).**
+**ALL council members are personas written inline into the spawn prompt of `general-purpose` agents. NEVER use static agent types (Explore, Cato, etc.) for seats.**
 
-Built-in types are generic and topic-ignorant. Council debates require agents with domain-specific knowledge, unique voices, and distinct analytical approaches tailored to the debate topic.
+Unprompted spawns are generic and topic-ignorant. Council debates require personas with domain-specific knowledge, a name, and distinct analytical approaches tailored to the debate topic.
 
-See `CouncilMembers.md` for full instructions on composing agents.
+See `CouncilMembers.md` for full persona design instructions.
 
 ## Execution
 
-### Step 0: Compose Council Members
+### Step 0: Design Council Members
 
-Before any debate rounds, compose 4 custom agents tailored to the topic using ComposeAgent:
-
-```bash
-# Analyze the topic and determine what perspectives create productive friction
-# Then compose each agent with topic-specific traits:
-
-bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
-  --traits "[domain],enthusiastic,systematic" \
-  --task "[debate topic]" \
-  --output json
-
-bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
-  --traits "[domain],skeptical,meticulous" \
-  --task "[debate topic]" \
-  --output json
-
-bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
-  --traits "[domain],pragmatic,analytical" \
-  --task "[debate topic]" \
-  --output json
-
-bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts \
-  --traits "research,analytical,comparative" \
-  --task "[debate topic]" \
-  --output json
-```
-
-Each agent gets a unique name, voice, voice_id, color, and personality prompt.
+Before any debate rounds, analyze the topic, decide which 4 perspectives create productive friction, and write one persona per seat — name, expertise, disposition, stake. These persona blocks go verbatim at the top of each spawn prompt (see `CouncilMembers.md` for the shape). Default slots when the user doesn't specify: Builder, Skeptic, Pragmatist, Analyst — each grounded in the topic, not generic.
 
 ### Step 1: Announce the Council
 
-Output the debate header with the composed agent names:
+Output the debate header with the persona names:
 
 ```markdown
 ## Council Debate: [Topic]
 
-**Council Members:** [List composed agent names with their trait descriptions]
+**Council Members:** [List persona names with one-line expertise descriptions]
 **Rounds:** 3 (Positions -> Responses -> Synthesis)
 ```
 
 ### Step 2: Round 1 - Initial Positions
 
-Launch 4 parallel Agent calls (one per composed council member).
+Launch 4 parallel Agent calls (one per council member), each with `subagent_type: "general-purpose"`.
 
-**CRITICAL: Use `subagent_type: "general-purpose"` for ALL agents. NEVER use built-in types.**
-
-**Each agent prompt includes the composed agent's full prompt PLUS:**
+**Each agent prompt includes the member's persona block PLUS:**
 ```
 COUNCIL DEBATE - ROUND 1: INITIAL POSITIONS
 
@@ -112,7 +83,7 @@ Give your initial position on this topic from your specialized perspective.
 
 Launch 4 parallel Agent calls with Round 1 transcript included.
 
-**Each agent prompt includes the composed agent's full prompt PLUS:**
+**Each agent prompt includes the member's persona block PLUS:**
 ```
 COUNCIL DEBATE - ROUND 2: RESPONSES & CHALLENGES
 
@@ -135,7 +106,7 @@ The value is in genuine intellectual friction -- engage with their actual argume
 
 Launch 4 parallel Agent calls with Round 1 + Round 2 transcripts.
 
-**Each agent prompt includes the composed agent's full prompt PLUS:**
+**Each agent prompt includes the member's persona block PLUS:**
 ```
 COUNCIL DEBATE - ROUND 3: SYNTHESIS
 
@@ -174,7 +145,7 @@ After all rounds complete, synthesize the debate:
 
 ## Timing
 
-- Agent Composition: ~5-10 seconds (4 ComposeAgent calls)
+- Persona design: ~5-10 seconds (written inline, no tool calls)
 - Round 1: ~10-20 seconds (parallel)
 - Round 2: ~10-20 seconds (parallel)
 - Round 3: ~10-20 seconds (parallel)

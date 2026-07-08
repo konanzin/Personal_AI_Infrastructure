@@ -51,7 +51,7 @@ Extract standardized insights from interviews and notes into categorized output 
 
 ### Phase 2: Deep Analysis (Ultrathink)
 
-**MANDATORY: Activate Ultrathink (be-creative skill) for extraction quality**
+**MANDATORY: Use maximum extended thinking for extraction quality**
 
 For each file:
 

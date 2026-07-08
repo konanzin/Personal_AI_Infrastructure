@@ -24,17 +24,12 @@ When this command is invoked:
 ### Step 1: Detect Source Type and Fetch Content
 
 **YouTube Videos** (youtube.com, youtu.be):
-```bash
-fabric --youtube "<url>"
-```
+Fetch the watch page with WebFetch and pull the transcript/captions; if the
+page blocks extraction, route through `Workflows/Retrieve.md`.
 
 **Web URLs** (http/https):
-```bash
-# Try fabric first
-fabric -u "<url>"
-# If that fails, use Bright Data MCP
-mcp__brightdata__scrape_as_markdown url="<url>"
-```
+Fetch with WebFetch; if blocked (CAPTCHA, bot detection), route through
+`Workflows/Retrieve.md`.
 
 **PDFs and Files**:
 ```

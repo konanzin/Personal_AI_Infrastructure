@@ -1,6 +1,6 @@
 ---
 name: Research
-description: "Comprehensive research and content extraction with 4 depth modes: Quick (1 Perplexity agent, ~10-15s), Standard (4 agents — Claude + Gemini + Grok + Perplexity, cross-checked, ~30-60s), Extensive (7 explorers + 2 independent verifiers, ~60-90s), Deep Investigation (progressive iteration with persistent MEMORY/RESEARCH/ vault, loop-compatible, ~3-60min). Every URL verified before delivery — hallucinated links are a catastrophic failure. Verification architecture: per-agent self-verification, cross-check synthesis, and independent verifier agents (Extensive/Deep). Confidence-tagged output: [HIGH] [MED] [LOW] [CONFLICT]. Additional workflows: ExtractAlpha (highest-signal insights), Retrieve (CAPTCHA/bot-blocked content), YoutubeExtraction (fabric -y), WebScraping, InterviewResearch (Tyler Cowen style), AnalyzeAiTrends, Fabric (242+ patterns), Enhance, ExtractKnowledge. USE WHEN research, do research, quick research, extensive research, deep investigation, find information, investigate, extract alpha, analyze content, retrieve content, AI trends, enhance content, extract knowledge, interview research, web scraping, YouTube extraction, map landscape, competitive analysis. NOT FOR people/company/entity deep background (use OSINT), academic paper search (use ArXiv), or structured JSON parsing (use Parser)."
+description: "Comprehensive research and content extraction with 4 depth modes: Quick (1 websearch agent, ~10-15s), Standard (4 general-purpose agents, one per research ANGLE — depth, breadth, contrarian, current-state — cross-checked, ~30-60s), Extensive (7 explorers + 2 independent verifiers, ~60-90s), Deep Investigation (progressive iteration with persistent MEMORY/RESEARCH/ vault, loop-compatible, ~3-60min). Every URL verified before delivery — hallucinated links are a catastrophic failure. Verification architecture: per-agent self-verification, cross-check synthesis, and independent verifier agents (Extensive/Deep). Confidence-tagged output: [HIGH] [MED] [LOW] [CONFLICT]. Additional workflows: ExtractAlpha (highest-signal insights), Retrieve (CAPTCHA/bot-blocked content), WebScraping, InterviewResearch (Tyler Cowen style), AnalyzeAiTrends, Enhance, ExtractKnowledge. USE WHEN research, do research, quick research, extensive research, deep investigation, find information, investigate, extract alpha, analyze content, retrieve content, AI trends, enhance content, extract knowledge, interview research, web scraping, map landscape, competitive analysis. NOT FOR academic paper search (use ArXiv)."
 effort: high
 context: fork
 ---
@@ -13,8 +13,8 @@ research; a passing mention of "research" is not an order to run this skill):
 
 | Intent | Mode |
 |--------|------|
-| A normal research request with no depth qualifier | Standard (4 agents: Claude + Gemini + Grok + Perplexity + cross-check) — the default |
-| A fast lookup where a single sourced answer suffices | Quick (1 Perplexity agent) |
+| A normal research request with no depth qualifier | Standard (4 agents, one per angle + cross-check) — the default |
+| A fast lookup where a single sourced answer suffices | Quick (1 websearch agent) |
 | Breadth/rigor explicitly wanted (thorough, exhaustive, extensive) | Extensive (7 explorers + 2 verifiers) |
 | Open-ended investigation or landscape mapping that benefits from iteration | Deep Investigation (iterative + verification, persistent vault) |
 
@@ -44,11 +44,9 @@ Research agents hallucinate URLs. A single broken link is a catastrophic failure
 
 Route to the appropriate workflow based on the request.
 
-**CRITICAL:** For due diligence, company/person background checks, or vetting -> **INVOKE OSINT SKILL INSTEAD**
-
 ### Research Modes (Primary Workflows)
-- Quick/minor research (1 Perplexity, 1 query) -> `Workflows/QuickResearch.md`
-- Standard research - DEFAULT (4 agents: Claude + Gemini + Grok + Perplexity, cross-checked) -> `Workflows/StandardResearch.md`
+- Quick/minor research (1 websearch agent, 1 query) -> `Workflows/QuickResearch.md`
+- Standard research - DEFAULT (4 agents, one per angle, cross-checked) -> `Workflows/StandardResearch.md`
 - Extensive research (7 explorers + 2 verifiers = 9 agents) -> `Workflows/ExtensiveResearch.md`
 - Deep investigation / iterative research (progressive deepening + verification, loop-compatible) -> `Workflows/DeepInvestigation.md`
 
@@ -60,17 +58,11 @@ Route to the appropriate workflow based on the request.
 
 ### Content Retrieval
 - Difficulty accessing content (CAPTCHA, bot detection, blocking) -> `Workflows/Retrieve.md`
-- YouTube URL extraction (use `fabric -y URL` immediately) -> `Workflows/YoutubeExtraction.md`
 - Web scraping -> `Workflows/WebScraping.md`
 
 ### Specific Research Types
-- Claude WebSearch only (free, no API keys) -> `Workflows/ClaudeResearch.md`
-- Perplexity API research (use Quick for single-agent) -> `Workflows/QuickResearch.md`
 - Interview preparation (Tyler Cowen style) -> `Workflows/InterviewResearch.md`
 - AI trends analysis -> `Workflows/AnalyzeAiTrends.md`
-
-### Fabric Pattern Processing
-- Use Fabric patterns (242+ specialized prompts) -> `Workflows/Fabric.md`
 
 ### Content Enhancement
 - Enhance/improve content -> `Workflows/Enhance.md`
@@ -84,7 +76,7 @@ Route to the appropriate workflow based on the request.
 
 | Mode | Shape | Speed |
 |------|-------|-------|
-| Quick | 1 Perplexity agent | ~10-15s |
+| Quick | 1 websearch agent | ~10-15s |
 | Standard | 4 agents + cross-check | ~30-60s |
 | Extensive | 7 explorers + 2 verifiers | ~60-90s |
 | Deep Investigation | Progressive iteration + verification | ~3-60min |
@@ -115,10 +107,8 @@ See `Workflows/Verify.md` for full verification protocol.
 - **xpost** - Create posts from research
 
 ### Uses
-- **be-creative** - deep thinking for extract alpha
-- **OSINT** - MANDATORY for company/people comprehensive research
-- **BrightData MCP** - CAPTCHA solving, advanced scraping
-- **Apify MCP** - RAG browser, specialized site scrapers
+- **CodexResearcher** - external-engine verifier seat (Extensive/Deep)
+- **WebSearch / WebFetch** - primary retrieval; `Workflows/Retrieve.md` for blocked content
 
 ---
 
@@ -161,17 +151,15 @@ See `Workflows/DeepInvestigation.md` for full workflow details.
 
 - **Research agents hallucinate URLs.** EVERY URL must be verified before delivery. A single broken link is a catastrophic failure.
 - **"research" alone = Standard mode (4 agents + cross-check). Never default to Quick.** Users saying "research this" expect thorough results.
-- **Due diligence, background checks, people lookup → OSINT skill, NOT Research.** Research handles general investigation; OSINT handles entity-specific deep investigation.
 - **Don't spawn redundant research agents when you already have the answer in context.** If prior work in the session already covers the topic, skip agent spawning.
 - **"extract alpha" routes to ExtractAlpha workflow — not the ExtractWisdom skill.** Different things.
-- **YouTube extraction uses `fabric -y URL` directly** — don't try to scrape YouTube pages with WebFetch.
 
 ## Examples
 
 **Example 1: Quick lookup**
 ```
 User: "quick research on Hono SSR middleware patterns"
-→ Invokes QuickResearch workflow (1 Perplexity agent)
+→ Invokes QuickResearch workflow (1 websearch agent)
 → Returns summary with key patterns and links
 → ~10-15 seconds
 ```
@@ -179,7 +167,7 @@ User: "quick research on Hono SSR middleware patterns"
 **Example 2: Standard multi-source research**
 ```
 User: "research the current state of AI agent frameworks"
-→ Invokes StandardResearch workflow (4 agents: Claude + Gemini + Grok + Perplexity, cross-checked)
+→ Invokes StandardResearch workflow (4 agents, one per angle, cross-checked)
 → Cross-references findings, confidence-tags, verifies URLs
 → Returns synthesized report with citations
 → ~15-30 seconds

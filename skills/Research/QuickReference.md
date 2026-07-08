@@ -4,8 +4,8 @@
 
 | Trigger | Mode | Config | Speed |
 |---------|------|--------|-------|
-| "quick research", "minor research" | Quick | 1 Perplexity agent | ~10-15s |
-| "do research", "research this" | Standard | 4 agents (Claude + Gemini + Grok + Perplexity) + cross-check | ~30-60s |
+| "quick research", "minor research" | Quick | 1 websearch agent | ~10-15s |
+| "do research", "research this" | Standard | 4 agents (one per angle) + cross-check | ~30-60s |
 | "extensive research" | Extensive | 7 explorers + 2 verifiers (9 agents) | ~60-90s |
 | "deep investigation", "investigate [topic]" | Deep | Progressive iteration + verification | ~3-60min |
 
@@ -34,8 +34,8 @@ Output: 24-30 insights, Paul Graham style, 8-12 word bullets
 ## Three-Layer Retrieval
 
 1. **Layer 1:** WebFetch/WebSearch (try first)
-2. **Layer 2:** BrightData MCP (CAPTCHA, bot detection)
-3. **Layer 3:** Apify MCP (specialized scrapers)
+2. **Layer 2:** Alternate routes (archives, caches, mirrors, APIs)
+3. **Layer 3:** Interceptor (real browser, real sessions)
 
 Only escalate when previous layer fails.
 
@@ -44,7 +44,7 @@ Only escalate when previous layer fails.
 **Example 1: Quick research on a topic**
 ```
 User: "quick research on Texas hot sauce brands"
--> Spawns 1 Perplexity agent with single query
+-> Spawns 1 websearch agent with single query
 -> Returns confidence-tagged findings
 -> Completes in ~10-15 seconds
 ```
@@ -52,7 +52,7 @@ User: "quick research on Texas hot sauce brands"
 **Example 2: Standard research (default)**
 ```
 User: "do research on AI agent frameworks"
--> Spawns 4 agents in parallel (Claude + Gemini + Grok + Perplexity)
+-> Spawns 4 agents in parallel (depth, breadth, contrarian, current-state)
 -> Cross-checks findings, tags confidence, flags conflicts
 -> Returns synthesized findings with [HIGH]/[MED]/[LOW] tags (~15-30s)
 ```
@@ -69,7 +69,7 @@ User: "extensive research on the MCP ecosystem"
 **Example 4: Extract alpha from content**
 ```
 User: "extract alpha from this YouTube video" [URL]
--> Extracts transcript via fabric -y
+-> Extracts transcript from the page/captions via WebFetch
 -> Runs deep thinking deep analysis
 -> Returns 24-30 high-alpha insights in Paul Graham style bullets
 ```

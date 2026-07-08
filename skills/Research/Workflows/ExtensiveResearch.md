@@ -52,7 +52,7 @@ Task({ subagent_type: "general-purpose", description: "[topic] angle 3", prompt:
 Task({ subagent_type: "general-purpose", description: "[topic] angle 4", prompt: "Search for: [angle 4]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings." })
 Task({ subagent_type: "general-purpose", description: "[topic] angle 5", prompt: "Search for: [angle 5]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings." })
 
-// Grok - 2 threads (contrarian, fact-based)
+// Contrarian lens - 2 threads (contrarian, fact-based)
 Task({ subagent_type: "general-purpose", description: "[topic] angle 6", prompt: "Search for: [angle 6]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings." })
 Task({ subagent_type: "general-purpose", description: "[topic] angle 7", prompt: "Search for: [angle 7]. Tag each finding with confidence: [HIGH], [MED], or [LOW]. Return findings." })
 
@@ -107,7 +107,7 @@ Task({ subagent_type: "general-purpose", description: "find contradictions about
 ## Unique Insights by Source
 - **Claude**: [analytical depth]
 - **Breadth**: [cross-domain connections]
-- **Grok**: [contrarian perspectives]
+- **Contrarian lens**: [contrarian perspectives]
 - **Verifiers**: [what was confirmed/refuted]
 
 ## Conflicts & Low-Confidence Items

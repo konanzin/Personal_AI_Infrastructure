@@ -18,22 +18,22 @@ Running the **Quick** workflow in the **Council** skill to get fast perspectives
 - Topic or question to evaluate
 - Optional: Custom council members
 
-## CRITICAL: Agent Composition
+## CRITICAL: Persona Design
 
-**ALL council members MUST be custom-composed agents via the Agents skill's ComposeAgent tool. NEVER use built-in agent types (Explore, Cato, general-purpose, etc.).**
+**ALL council members are personas written inline into the spawn prompt of `general-purpose` agents. NEVER use static agent types (Explore, Cato, etc.) for seats.**
 
 See `CouncilMembers.md` for full instructions.
 
 ## Execution
 
-### Step 1: Compose & Announce Quick Council
+### Step 1: Design & Announce Quick Council
 
-Compose 4 agents with topic-specific traits via ComposeAgent, then announce:
+Write 4 topic-specific personas (name, expertise, disposition), then announce:
 
 ```markdown
 ## Quick Council: [Topic]
 
-**Council Members:** [List composed agent names]
+**Council Members:** [List persona names]
 **Mode:** Single round (fast perspectives)
 ```
 

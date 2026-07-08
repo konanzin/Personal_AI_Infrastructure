@@ -1,6 +1,6 @@
 ---
 name: Delegation
-description: "Parallelize work via six patterns: built-in agents (installed subagents via Task — roster in ~/.config/opencode/agents/), worktree-isolated agents (conflict-free parallel file edits), background agents (run_in_background: true, non-blocking), custom agents (ComposeAgent via Agents skill → Task general-purpose), agent teams (TeamCreate + TaskCreate + SendMessage for multi-turn peer coordination), and parallel task dispatch (N identical operations). Two-tier delegation: lightweight (haiku, max_turns=3, one-shot extraction/classification) vs full (multi-step, tool use, iteration). Decision rule — agents need to talk to each other or share state → Teams; independent one-shot work → Subagents. Auto-invoked by Algorithm when 3+ independent workstreams exist at Extended+ effort. USE WHEN 3+ workstreams, parallel execution, agent specialization, agent team, swarm, spawn agents, create team, fan out, divide and conquer, multi-agent, coordinate agents. NOT FOR single-agent custom personality composition (use Agents skill)."
+description: "Parallelize work via six patterns: built-in agents (installed subagents via Task — roster in ~/.config/opencode/agents/), worktree-isolated agents (conflict-free parallel file edits), background agents (run_in_background: true, non-blocking), custom-persona agents (persona written inline into a Task general-purpose prompt — W2.14 roster rule), agent teams (TeamCreate + TaskCreate + SendMessage for multi-turn peer coordination), and parallel task dispatch (N identical operations). Two-tier delegation: lightweight (haiku, max_turns=3, one-shot extraction/classification) vs full (multi-step, tool use, iteration). Decision rule — agents need to talk to each other or share state → Teams; independent one-shot work → Subagents. Auto-invoked by Algorithm when 3+ independent workstreams exist at Extended+ effort. USE WHEN 3+ workstreams, parallel execution, agent specialization, agent team, swarm, spawn agents, create team, fan out, divide and conquer, multi-agent, coordinate agents."
 effort: medium
 ---
 
@@ -12,11 +12,11 @@ effort: medium
 
 | the user Says | System | Tool | What Happens |
 |-------------|--------|------|-------------|
-| "**custom agents**", "**specialized agents**", "spin up agents", "launch agents" | **Agents Skill** (ComposeAgent) | `Task(subagent_type="general-purpose", prompt=<ComposeAgent output>)` | Unique personalities, voices, colors via trait composition |
+| "**custom agents**", "**specialized agents**", "spin up agents", "launch agents" | **Inline personas** | `Task(subagent_type="general-purpose", prompt=<persona + task>)` | Unique expertise and disposition written directly into each spawn prompt |
 | "**create an agent team**", "**agent team**", "**swarm**" | **Claude Code Teams** | `TeamCreate` → `TaskCreate` → `SendMessage` | Persistent team with shared task list, message coordination, multi-turn collaboration |
 
 **These are NOT the same thing:**
-- **Custom agents** = one-shot parallel workers with unique identities, launched via `Task()`, no shared state
+- **Custom-persona agents** = one-shot parallel workers with unique identities, launched via `Task()`, no shared state
 - **Agent teams** = persistent coordinated teams with shared task lists, messaging, and multi-turn collaboration via `TeamCreate`
 
 ## When the Algorithm Should Use This Skill
@@ -27,13 +27,13 @@ effort: medium
 - **Large codebase changes** spanning 5+ files benefit from parallel workers
 - **Research + execution** can proceed simultaneously
 - **"Create an agent team"** — use TeamCreate for persistent coordinated teams
-- **Unattended autonomous work where auditability matters more than speed** — spawn an Observer team (Agents skill → SPAWNOBSERVERS) alongside the primary agent, reading the tool-activity audit log, voting continue/halt/escalate. ONLY use when BOTH (a) time is not a constraint and (b) auditability is the primary requirement. Never for interactive or time-sensitive work. See Agents/SKILL.md "Observer Team Archetype" for shape and guardrails.
+- **Unattended autonomous work where auditability matters more than speed** — spawn 2-3 observer agents (inline personas: log auditor, safety skeptic) alongside the primary agent, reading the tool-activity audit log, voting continue/halt/escalate. ONLY use when BOTH (a) time is not a constraint and (b) auditability is the primary requirement. Never for interactive or time-sensitive work.
 
 ## Delegation Patterns
 
 ### 1. Built-In Agents
 
-**⚠️ Built-in agents are for internal workflow routing ONLY.** When the user asks for custom, specialized, or uniquely-voiced agents, use the Agents skill (section 4 below) instead.
+**⚠️ Built-in agents are for internal workflow routing ONLY.** When the user asks for custom, specialized, or uniquely-voiced agents, write the persona inline (section 4 below) instead.
 
 Use `Task(subagent_type="AgentType")` with the installed specialized agents.
 The roster lives in ONE place: `~/.config/opencode/agents/*.md` — each file's
@@ -77,22 +77,18 @@ Standard `Task()` calls that block until complete:
 - Use for sequential dependencies
 - Default mode — most common
 
-### 4. Custom Agents (via Agents Skill)
+### 4. Custom-Persona Agents (Inline)
 
 **Trigger:** "custom agents", "spin up agents", "launch agents", "specialized agents"
-**Action:** Invoke the **Agents skill** → run `ComposeAgent.ts` → launch with `Task(subagent_type="general-purpose")`
+**Action:** Write the persona directly into the spawn prompt of a `general-purpose` agent (W2.14 roster rule — no composition tool, no persona files)
 
-```bash
-# Step 1: Compose agent identity
-bun run ~/.config/opencode/skills/Agents/Tools/ComposeAgent.ts --traits "security,skeptical,thorough" --task "Review auth" --output json
-
-# Step 2: Launch with composed prompt
-Task(subagent_type="general-purpose", prompt=<ComposeAgent JSON .prompt field>)
+```
+Task(subagent_type="general-purpose", prompt="You are <name>, a <domain expert>
+with <concrete experience> who is <disposition>. <Task + context + output format>")
 ```
 
-- Each agent gets unique personality, voice, and color via ComposeAgent
-- Use DIFFERENT trait combinations for each agent to get unique voices
-- Prefer composition over built-in types for custom work — built-ins share one identity
+- Give each agent a distinct name, expertise, and disposition written into the prompt
+- Use DIFFERENT personas for each agent — that is where the diversity comes from
 - Ideal for: domain experts, adversarial reviewers, creative brainstormers, parallel analysis
 
 ### 5. Agent Teams (via TeamCreate)
@@ -109,7 +105,7 @@ Task(subagent_type="general-purpose", prompt=<ComposeAgent JSON .prompt field>)
 ```
 
 **This is a COMPLETELY DIFFERENT system from custom agents:**
-- **Custom agents** (Agents skill) = fire-and-forget parallel workers, no shared state
+- **Custom-persona agents** (inline) = fire-and-forget parallel workers, no shared state
 - **Agent teams** (TeamCreate) = persistent coordinated teams with shared task lists, messaging, multi-turn
 
 **Team Guidelines:**
@@ -205,12 +201,12 @@ Task(subagent_type="general-purpose", prompt="...")  # or specialized agent type
 - Don't create teams for fewer than 3 independent workstreams
 - Don't send agents work without full context — they start fresh
 - Don't use built-in agent names for custom agents
-- When the user asks for specialized/custom agents, prefer ComposeAgent via the Agents skill over built-in types — built-ins share one identity, so a "diverse panel" of them isn't one
+- When the user asks for specialized/custom agents, write distinct personas into each spawn prompt instead of reusing built-in types — built-ins share one identity, so a "diverse panel" of them isn't one
 - Don't use full delegation for one-shot extraction/classification — use lightweight tier
 
 ## Gotchas
 
-- **Delegation uses Claude Code's built-in TeamCreate** — NOT the Agents skill's ComposeAgent. These are different systems.
+- **Agent teams use the built-in TeamCreate** — a different system from one-shot custom-persona spawns.
 - **3+ independent workstreams warrant delegation.** For 1-2 tasks, direct work is faster than team coordination overhead.
 - **Agent teams share a task list.** Use TaskCreate/TaskUpdate for coordination, not ad-hoc messages.
 - **Teams overkill for single-file tasks.** (Mar 2026 reflection: "one agent that can both read code and write JSX is better than three specialists who can't coordinate")

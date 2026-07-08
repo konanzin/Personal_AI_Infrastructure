@@ -44,9 +44,8 @@ This skill finds:
 ### Step 1: Content Extraction
 
 **For YouTube videos:**
-```bash
-fabric -y "YOUTUBE_URL"
-```
+Fetch the watch page with WebFetch and pull the transcript/captions; if
+blocked, route through `Workflows/Retrieve.md`.
 
 **For other content:**
 - Paste text directly
@@ -130,7 +129,7 @@ Capture the subtle genius buried in the content.
 3. Use `~/.config/opencode/PAI/MEMORY/WORK/{work_dir}/` for temporary artifacts
 
 **What goes in the work item directory:**
-- Raw transcripts from fabric -y
+- Raw transcripts from content extraction
 - Intermediate analysis notes
 - deep thinking working thoughts
 - Draft versions of insights
@@ -242,7 +241,7 @@ WORK_DIR=$(jq -r '.work_dir' ~/.config/opencode/PAI/MEMORY/STATE/current-work.js
 cd ~/.config/opencode/PAI/MEMORY/WORK/${WORK_DIR}/
 
 # 3. Extract content to work item directory
-fabric -y "YOUTUBE_URL" > raw-transcript.txt
+# (WebFetch the watch page / captions) > raw-transcript.txt
 
 # 4. Perform deep thinking analysis (working notes in work item directory)
 # [Deep thinking happens here, notes saved to work item directory]
@@ -346,8 +345,7 @@ Simple markdown list with blank lines between items for readability:
 ### Example 1: YouTube Video Analysis
 
 ```bash
-# Step 1: Extract transcript
-fabric -y "https://youtu.be/VIDEO_ID"
+# Step 1: Extract transcript (WebFetch the watch page / captions)
 
 # Step 2 & 3: Apply this skill (PAI does this automatically)
 # - Deep deep thinking analysis
@@ -370,7 +368,7 @@ fabric -y "https://youtu.be/VIDEO_ID"
 
 When this skill activates, PAI should:
 
-1. **Load content** via appropriate method (fabric -y, WebFetch, Read, or paste)
+1. **Load content** via appropriate method (WebFetch, Read, or paste)
 2. **Get current work directory** - Read `~/.config/opencode/` for `work_dir`
 3. **Use work item directory** - Work in `~/.config/opencode/PAI/MEMORY/WORK/{work_dir}/`
 4. **Engage deep thinking mode** - Deep extended thinking through all 10 dimensions
@@ -493,7 +491,7 @@ You've succeeded with this skill when:
 ## Quick Reference
 
 **Four-step process:**
-1. Extract content (fabric -y, WebFetch, Read, paste)
+1. Extract content (WebFetch, Read, paste)
 2. Deep deep thinking (10-dimension analysis) - work in work item directory
 3. Extract insights (24-30 highest-alpha ideas, 8-12 words)
 4. Save to history (verify hooks captured output) - working artifacts stay with work item

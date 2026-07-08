@@ -117,7 +117,7 @@ find ~/.config/opencode/skills/[SkillName]/ -type d -mindepth 2 -maxdepth 3
 **Nested Templates:**
 ```
 ✗ WRONG: Templates/Primitives/Extract.md
-✓ FIX: Move to skills/Prompting/Extract.md (templates belong in Prompting)
+✓ FIX: Templates/Extract.md (flatten into the skill's own Templates/, one level max)
 ```
 
 **Nested Tools:**

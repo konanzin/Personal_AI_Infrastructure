@@ -7,7 +7,7 @@
 
 **Use DURING RedTeam:**
 - `storyexplanation` - Decomposition methodology
-- Custom Agents (via Agents skill) - Parallel assault
+- Custom-persona agents (inline in spawn prompts) - Parallel assault
 
 **Use AFTER RedTeam:**
 - `extractalpha` - Highest-signal critiques

@@ -4,7 +4,7 @@ Standard format for council debate transcripts.
 
 ## CRITICAL: Custom Agents Only
 
-All council members are custom-composed via ComposeAgent. Agent names and trait descriptions come from the ComposeAgent output. NEVER use generic labels like "Analyst" or "Reviewer" — use the actual composed agent names.
+All council members are inline personas. Names and one-line expertise descriptions come from the persona blocks you wrote for each seat. NEVER use generic labels like "Analyst" or "Reviewer" — use the actual persona names.
 
 ## Full Debate Transcript
 
@@ -84,4 +84,4 @@ All council members are custom-composed via ComposeAgent. Agent names and trait 
 - **Tone:** Professional but direct; genuine challenges
 - **Must Include:** Specific references to other agents' points in Round 2+
 - **Must Avoid:** Generic opinions, restating initial position without engagement
-- **Agent Names:** Use actual ComposeAgent names, never generic built-in type labels
+- **Agent Names:** Use the actual persona names, never generic type labels

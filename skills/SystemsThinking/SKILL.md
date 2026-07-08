@@ -85,7 +85,7 @@ Route to the appropriate workflow based on the request.
 - **RootCauseAnalysis** — RCA is event-layer and pattern-layer; SystemsThinking continues down to structure and mental models. Pair them for deep incident analysis.
 - **FirstPrinciples** — decompose to axioms, then use SystemsThinking to see how axioms interconnect.
 - **IterativeDepth** — rotates lenses; SystemsThinking is the structural lens.
-- **BeCreative / Ideate** — generate intervention candidates after identifying the leverage point.
+- **Divergent ideation (inline)** — after identifying the leverage point, generate 5+ deliberately diverse intervention candidates before converging.
 - **Art** — render causal loop diagrams, iceberg diagrams, concept maps.
 
 ## Examples
@@ -130,7 +130,7 @@ User: "we're about to add a rate limit to stop abuse"
 
 ## Gotchas
 
-- **Systems thinking is descriptive, not prescriptive.** It reveals structure; it does not tell you what to build. Use it with `BeCreative` or `FirstPrinciples` to generate interventions.
+- **Systems thinking is descriptive, not prescriptive.** It reveals structure; it does not tell you what to build. Pair it with divergent ideation or `FirstPrinciples` to generate interventions.
 - **Don't mistake a list for a system.** A system has feedback. If you can't draw at least one loop, you have a list of components, not a system.
 - **Blaming the model is the mistake.** When a loop says something uncomfortable ("incentives are the cause"), the reaction is often to reject the model. Sit with it.
 - **Delay is underrated.** Many systemic failures come from delays (between action and feedback). Capture delays explicitly on your diagram.
