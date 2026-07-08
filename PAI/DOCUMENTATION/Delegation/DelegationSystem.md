@@ -77,7 +77,7 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 | Priority | User Says | System | Tool | What Happens |
 |----------|-----------|--------|------|-------------|
 | **1. DEFAULT** | "parallel work", "agents", "team", "swarm", or Algorithm selects delegation | **Agent Teams** | `TeamCreate` → `Agent` with `team_name` → `TaskCreate` → `SendMessage` | Persistent teammates, shared task list, peer messaging, task dependencies |
-| **2. EXPLICIT** | "**custom agents**", "spin up **custom** agents" | **Custom Agents** (ComposeAgent) | `Skill("Agents")` → `Agent(subagent_type="general-purpose", prompt=<composed>)` | Unique personalities, voices, one-shot parallel work |
+| **2. EXPLICIT** | "**custom agents**", "spin up **custom** agents" | **Custom Agents** (inline personas) | `Agent(subagent_type="general-purpose", prompt=<persona + task>)` | Unique persona per spawn, one-shot parallel work |
 | **3. UNATTENDED** | "run overnight", "long-running", "CI trigger", or task exceeds session lifetime | **Managed Agents** (Anthropic cloud API) | `Skill("claude-api")` to build workflows | Durable sessions, sandboxed containers, vault credentials, $0.08/session-hour |
 
 **These are three distinct systems:**
@@ -98,13 +98,13 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 4. Teammates self-claim tasks, message each other, go idle between rounds
 
 **For Custom Agents (only when explicitly requested):**
-1. Invoke Agents skill → ComposeAgent for EACH agent with different trait combinations
-2. Launch with composed prompt as `subagent_type: "general-purpose"`
-3. Each agent gets a personality-matched ElevenLabs voice
+1. Write a DIFFERENT persona (name, expertise, disposition) into each spawn prompt
+2. Launch each as `subagent_type: "general-purpose"` with the persona at the top
+3. (W2.15: the Agents skill / ComposeAgent retired — personas live in prompts)
 
 **For research specifically:** Use the Research skill, which fans out general-purpose websearch agents by angle (plus CodexResearcher for second-engine verification)
 
-**Reference:** Agents skill (`~/.config/opencode/PAI/skills/Agents/SKILL.md`) | Managed Agents: https://www.anthropic.com/engineering/managed-agents
+**Reference:** Delegation skill (`~/.config/opencode/skills/Delegation/SKILL.md`)
 
 **Full Context Requirements:**
 When delegating, ALWAYS include:
@@ -205,4 +205,4 @@ Delegated agents can query the **Knowledge Archive** (`~/.config/opencode/PAI/PA
 - SKILL.md > Delegation (Quick Reference) - Condensed trigger table
 - Workflows/Delegation.md - Operational delegation procedures
 - Workflows/BackgroundDelegation.md - Background agent patterns
-- skills/Agents/SKILL.md - Custom agent creation system
+- skills/Delegation/SKILL.md §4 - Custom-persona agents (inline)

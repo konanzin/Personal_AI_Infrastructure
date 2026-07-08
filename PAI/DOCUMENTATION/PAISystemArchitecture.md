@@ -182,7 +182,7 @@ Transitions from CURRENT STATE to IDEAL STATE via verifiable Ideal State Criteri
 - **Location:** `PAI/ALGORITHM/` (canonical pointer: `LATEST` → `v6.3.0.md`)
 - **CLI:** `bun PAI/TOOLS/algorithm.ts`
 - **Full doc:** `PAI/DOCUMENTATION/Algorithm/AlgorithmSystem.md`
-- **Doctrine highlights (v6.3.0):** twelve-section ISA in fixed order; closed enumeration of thinking capabilities (IterativeDepth, ApertureOscillation, FeedbackMemoryConsult, Advisor, ReReadCheck, FirstPrinciples, SystemsThinking, RootCauseAnalysis, Council, RedTeam, Science, BeCreative, Ideate, BitterPillEngineering, Evals, WorldThreatModel, Fabric patterns, ContextSearch, ISA); Capability-Name Audit Gate (phantom names = CRITICAL FAILURE); ID-stability rule (ISC IDs never re-number on edit); Cato cross-vendor audit MANDATORY at E4/E5 in VERIFY (Rule 2a)
+- **Doctrine highlights (v6.3.0):** twelve-section ISA in fixed order; closed enumeration of thinking capabilities (W2.15: IterativeDepth, FeedbackMemoryConsult, Advisor, ReReadCheck, FirstPrinciples, SystemsThinking, Council, RedTeam, Science, BitterPillEngineering, Evals, ContextSearch, ISA); Capability-Name Audit Gate (phantom names = CRITICAL FAILURE); ID-stability rule (ISC IDs never re-number on edit); Cato cross-vendor audit MANDATORY at E4/E5 in VERIFY (Rule 2a)
 
 ### Skill System
 
@@ -328,12 +328,12 @@ Formalizes how Pulse instantiates, manages, and evolves a Digital Assistant. Rep
 
 ### Browser Automation
 
-**agent-browser: Rust CLI daemon with persistent auth profiles per site.**
+**Interceptor: real-Chrome automation via extension — the only browser surface that ships.**
 
-Headless by default. Handles screenshots, multi-step sessions, authenticated browsing, scraping, and data extraction. Auth via persistent profiles (`--profile ~/.agent-browser/profiles/<site>`). Legacy built-in agents BrowserAgent / UIReviewer / QATester are DEPRECATED — do not invoke for new work. All web-based output must be verified through the **Interceptor skill** before showing to the user. Playwright is banned across PAI.
+Controls the user's actual browser from inside (zero automation fingerprint, real sessions). Legacy built-in agents BrowserAgent / UIReviewer / QATester are DEPRECATED, and the headless agent-browser skill (Browser) retired in W2.15 — its binary never existed on this machine. All web-based output must be verified through the **Interceptor skill** before showing to the user.
 
 - **Status:** Active
-- **Location:** `~/.config/opencode/PAI/skills/Browser/` (batch/headless) + `~/.config/opencode/PAI/skills/Interceptor/` (stealth Chrome, mandatory for verification)
+- **Location:** `~/.config/opencode/PAI/skills/Interceptor/` (real Chrome, mandatory for verification)
 
 ### Cloud Execution (Arbol)
 
@@ -355,16 +355,6 @@ Monitors content sources, processes everything through an AI pipeline (ingest, s
 - **Status:** Active
 - **Location:** `~/Projects/feed/`
 - **Full doc:** `PAI/DOCUMENTATION/Feed/FeedSystem.md`
-
-### Fabric Integration
-
-**240+ specialized prompt patterns for content analysis and transformation.**
-
-PAI executes Fabric patterns natively by reading `Patterns/{name}/system.md` and applying instructions directly. Use `fabric` CLI only for YouTube transcript extraction (`-y URL`). Patterns cover summarization, wisdom extraction, threat modeling, and dozens of other content operations.
-
-- **Status:** Active (240+ patterns)
-- **Location:** `~/.config/opencode/PAI/skills/Fabric/`
-- **Full doc:** `PAI/DOCUMENTATION/Fabric/FabricSystem.md`
 
 ### Terminal Tab System
 

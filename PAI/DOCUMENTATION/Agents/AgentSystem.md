@@ -21,7 +21,7 @@ PAI has three agent systems that serve different purposes. Confusing them causes
 |--------|-----------|-------------|-------------------|
 | **Task Tool Subagent Types** | Pre-built agents in Claude Code (Explore, Cato, CodexResearcher, general-purpose, etc.) | Internal workflow use ONLY | No |
 | **Named Agents** | Persistent identities with backstories and voices (your own personas) | Recurring work, voice output, relationships | Yes |
-| **Custom Agents** | Dynamic agents composed via ComposeAgent from traits | When user says "custom agents" | Yes (trait-mapped) |
+| **Custom Agents** | Personas written inline into general-purpose spawn prompts (W2.15) | When user says "custom agents" | No |
 
 ---
 
@@ -35,21 +35,20 @@ Task({ subagent_type: "Explore", prompt: "..." })
 Task({ subagent_type: "Cato", prompt: "..." })
 Task({ subagent_type: "Cato", prompt: "..." })
 
-// ✅ RIGHT - Invoke the Agents skill for custom agents
-Skill("Agents")  // → CreateCustomAgent workflow
-// OR follow the workflow directly:
-// 1. Run ComposeAgent with different trait combinations
-// 2. Launch agents with the generated prompts
-// 3. Each gets unique personality + voice
+// ✅ RIGHT - Write one persona per spawn, inline in the prompt
+Task({ subagent_type: "general-purpose", prompt: "You are <name>, a <expertise> who is <disposition>. <task>" })
+// 1. Design a DIFFERENT persona per agent (name, expertise, disposition)
+// 2. Launch each with the persona block at the top of its prompt
 
 // ❌ WRONG - User says "specialized agents to brainstorm"
 Task({ subagent_type: "Explore", prompt: "Brainstorm UI ideas..." })
 Task({ subagent_type: "Explore", prompt: "Brainstorm layout ideas..." })
 Task({ subagent_type: "Explore", prompt: "Brainstorm state ideas..." })
 
-// ✅ RIGHT - Use Agents skill for ANY user-requested specialized agents
-Skill("Agents")  // → CreateCustomAgent workflow with unique traits per agent
-// Each agent gets: unique name, unique voice, unique personality via ComposeAgent
+// ✅ RIGHT - Distinct inline personas for ANY user-requested specialized agents
+Task({ subagent_type: "general-purpose", prompt: "You are Maya, a UI designer obsessed with information density... Brainstorm UI ideas..." })
+Task({ subagent_type: "general-purpose", prompt: "You are Theo, a layout minimalist who hates chrome... Brainstorm layout ideas..." })
+// Each agent gets a unique name, expertise and disposition — in the prompt
 ```
 
 ---
@@ -60,35 +59,34 @@ Skill("Agents")  // → CreateCustomAgent workflow with unique traits per agent
 
 | User Says | Action | Implementation |
 |-----------|--------|----------------|
-| "**custom agents**", "spin up **custom** agents" | Invoke Agents skill | `Skill("Agents")` → CreateCustomAgent workflow |
-| "agents", "**specialized agents**", "launch agents", "parallel agents" | Custom agents via Agents skill | `Skill("Agents")` → ComposeAgent → `Task({ subagent_type: "general-purpose" })` |
-| "research X", "investigate Y" | Research skill | `Skill("Research")` → appropriate researcher agents |
-| "use Remy", "get Ava to" | Named agent | Use appropriate researcher subagent_type |
+| "**custom agents**", "spin up **custom** agents" | Inline personas | Persona written into each `Task({ subagent_type: "general-purpose" })` prompt (W2.14 roster rule) |
+| "agents", "**specialized agents**", "launch agents", "parallel agents" | Inline personas | One persona per spawn — name, expertise, disposition in the prompt |
+| "research X", "investigate Y" | Research skill | `Skill("Research")` → angle-based general-purpose agents |
 | (Cross-vendor audit, MANDATORY at E4/E5 in VERIFY) | Cato (read-only auditor, OpenAI-family GPT-5.x) | `Agent({ subagent_type: "Cato" })` |
 | (Claude Code hooks, settings, commands, MCP, agents, API) | Claude Code Guide | `Task({ subagent_type: "claude-code-guide" })` — verify latest features before implementing |
 
 ### Custom Agent Creation Flow
 
-When user requests custom agents:
+When user requests custom agents (W2.15: the Agents skill and its ComposeAgent
+tool retired — personas are written inline, per the Roster Rule above):
 
-1. **Invoke Agents skill** via `Skill("Agents")` or follow CreateCustomAgent workflow
-2. **Run ComposeAgent** for EACH agent with DIFFERENT trait combinations
-3. **Extract prompt and voice_id** from ComposeAgent output
-4. **Launch agents** with Task tool using the composed prompts
-5. **Voice results** using each agent's unique voice_id
+1. **Design one persona per agent** — name, concrete expertise, disposition,
+   stake — each DIFFERENT, tailored to the task
+2. **Launch agents** with the Task tool, persona block at the top of each prompt
+3. **Report results** under each persona's name
 
-```bash
-# Example: 3 custom research agents
-bun run ~/.config/opencode/PAI/skills/Agents/Tools/ComposeAgent.ts --traits "research,enthusiastic,exploratory"
-bun run ~/.config/opencode/PAI/skills/Agents/Tools/ComposeAgent.ts --traits "research,skeptical,systematic"
-bun run ~/.config/opencode/PAI/skills/Agents/Tools/ComposeAgent.ts --traits "research,analytical,synthesizing"
+```
+# Example: 3 custom research agents (one spawn each)
+Task(subagent_type="general-purpose", prompt="You are <name>, an enthusiastic exploratory researcher... <task>")
+Task(subagent_type="general-purpose", prompt="You are <name>, a skeptical systematic researcher... <task>")
+Task(subagent_type="general-purpose", prompt="You are <name>, an analytical synthesizing researcher... <task>")
 ```
 
 ---
 
 ## ⚠️ Task Tool Subagent Types — INTERNAL WORKFLOW USE ONLY
 
-**These are NOT for user-requested custom/specialized agents.** When the user asks for specialized agents, custom agents, or agents with unique perspectives, ALWAYS use the Agents skill (ComposeAgent) instead. See Routing Rules above.
+**These are NOT for user-requested custom/specialized agents.** When the user asks for specialized agents, custom agents, or agents with unique perspectives, write distinct personas into `general-purpose` spawn prompts instead. See Routing Rules above.
 
 These are pre-built subagents for **internal workflow use**, not for user-requested "custom agents."
 
@@ -101,7 +99,7 @@ filesystem cannot express:
 
 | Note | Detail |
 |------|--------|
-| `general-purpose` | Not an installed file — the generic Task type used for ComposeAgent custom agents |
+| `general-purpose` | Not an installed file — the generic Task type that carries inline-persona custom agents |
 | `Cato` | MANDATORY at E4/E5 in VERIFY (doctrine binding, not a preference) |
 | Cross-vendor audit | `Cato` (second-engine auditor) breaks same-family blind spots on the review side; no delegate producer ships (W2.13/W2.14) |
 | ~~`BrowserAgent`~~ | **DEPRECATED** | Replaced by **Interceptor** skill (real Chrome, no CDP fingerprint) |
@@ -109,7 +107,7 @@ filesystem cannot express:
 | ~~`QATester`~~ | **DEPRECATED** | Replaced by **Interceptor** skill — Gate 4 browser-based QA validation |
 | `claude-code-guide` | Claude Code knowledge (hooks, settings, slash commands, MCP, agent types, keybindings, IDE, Agent SDK, Claude API) | Any task involving Claude Code internals — freshness check before implementing |
 
-**These do NOT have unique voices or ComposeAgent composition.**
+**These do NOT have unique voices.**
 
 ---
 
@@ -127,9 +125,12 @@ Named agents have rich backstories, personality traits, and mapped voices. They 
 
 ---
 
-## Custom Agents (Dynamic Composition)
+## Custom Agents (Inline Personas)
 
-Custom agents are composed on-the-fly from traits using ComposeAgent. Each unique trait combination maps to a different ElevenLabs voice.
+Custom agents are personas written on-the-fly into each spawn prompt (W2.15:
+ComposeAgent and its trait/voice tables retired with the Agents skill). The
+trait vocabulary below survives as a design aid for writing personas — pick
+an expertise, a personality, an approach, and ground them in the task:
 
 ### Trait Categories
 
@@ -142,18 +143,6 @@ Custom agents are composed on-the-fly from traits using ComposeAgent. Each uniqu
 **Approach** (work style):
 `thorough`, `rapid`, `systematic`, `exploratory`, `comparative`, `synthesizing`, `adversarial`, `consultative`
 
-### Voice Mapping Examples
-
-| Trait Combo | Voice | Why |
-|-------------|-------|-----|
-| contrarian + skeptical | Clyde (gravelly) | Challenging intensity |
-| enthusiastic + creative | Jeremy (energetic) | High-energy creativity |
-| security + adversarial | Callum (edgy) | Hacker character |
-| analytical + meticulous | Charlotte (sophisticated) | Precision analysis |
-
-**Full trait definitions and voice mappings:** `skills/Agents/Data/Traits.yaml`
-
----
 
 ## Model Selection
 
@@ -299,18 +288,14 @@ Distinct from functional teams (engineering, design, security, etc.). An Observe
 
 **Do NOT use for:** any time-sensitive work, interactive sessions where {{PRINCIPAL_NAME}} is watching, short reactive tasks (<5 tool calls), read-only analysis, or anything where preflight gates A/B/C/D already give sufficient guarantees.
 
-**Invocation:** `Skill("Agents")` → `SPAWNOBSERVERS` workflow (`skills/Agents/Workflows/SpawnObservers.md`). Three observer instances spawn with specializations: policy-compliance, intent-drift, blast-radius.
+**Invocation:** spawn 3 read-only `general-purpose` observers with inline personas covering the three specializations: policy-compliance, intent-drift, blast-radius (W2.15: the SPAWNOBSERVERS workflow retired with the Agents skill — the personas live in the spawn prompts).
 
 ---
 
 ## References
 
 - **Master Architecture:** `~/.config/opencode/PAI/PAI/DOCUMENTATION/PAISystemArchitecture.md` — authoritative system-of-systems reference
-- **Agents Skill:** `skills/Agents/SKILL.md` — Custom agent creation, workflows
-- **ComposeAgent:** `skills/Agents/Tools/ComposeAgent.ts` — Dynamic composition tool
-- **Traits:** `skills/Agents/Data/Traits.yaml` — Trait definitions and voice mappings
-- **Agent Personalities:** Individual `agents/*.md` files — Named agent backstories and voice settings
-- **Managed Agents:** https://www.anthropic.com/engineering/managed-agents — Anthropic cloud agent API
+- **Installed roster:** `~/.config/opencode/agents/*.md` — the only static agent files (Cato, CodexResearcher); everything else is an inline persona
 
 ---
 

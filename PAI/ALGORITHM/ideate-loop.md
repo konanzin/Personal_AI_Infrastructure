@@ -39,7 +39,7 @@ Parameters control ideation behavior along a spectrum from pure free-form dreami
 
 ### Integration with Algorithm Phases
 
-**BUILD phase:** Load the Ideate skill (`Skill("Ideate")`) which contains the full 9-phase cognitive cycle engine. Extract the problem statement, determine time scale from effort level mapping:
+**BUILD phase:** Run the 9-phase cognitive cycle inline (W2.15: the Ideate skill wrapper retired; this protocol file is the engine). Extract the problem statement, determine time scale from effort level mapping:
 
 | Algorithm Effort | Ideate Time Scale | Budget |
 |-----------------|---------------|--------|

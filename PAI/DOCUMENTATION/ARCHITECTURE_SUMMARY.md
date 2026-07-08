@@ -36,7 +36,6 @@ accomplishing any task: Current State to Ideal State via verifiable iteration (I
 | Containment policy | PAI/DOCUMENTATION/Tools/Containment.md |
 | Arbol (cloud execution) | PAI/DOCUMENTATION/Arbol/ArbolSystem.md |
 | Feed | PAI/DOCUMENTATION/Feed/FeedSystem.md |
-| Fabric | PAI/DOCUMENTATION/Fabric/FabricSystem.md |
 | Terminal tabs | PAI/DOCUMENTATION/Pulse/TerminalTabs.md |
 | Tools reference | PAI/DOCUMENTATION/Tools/Tools.md |
 | ISA | PAI/DOCUMENTATION/Isa/IsaSystem.md |

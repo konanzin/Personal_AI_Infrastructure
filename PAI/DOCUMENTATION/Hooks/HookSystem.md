@@ -1421,7 +1421,7 @@ Hooks in same event execute **sequentially** in order defined in settings.json:
 ## Related Documentation
 
 - **Voice System:** `~/.config/opencode/PAI/`
-- **Agent System:** `~/.config/opencode/PAI/skills/Agents/SKILL.md`
+- **Agent System:** `~/.config/opencode/PAI/PAI/DOCUMENTATION/Agents/AgentSystem.md`
 - **History/Memory:** `~/.config/opencode/PAI/PAI/DOCUMENTATION/Memory/MemorySystem.md`
 
 ---

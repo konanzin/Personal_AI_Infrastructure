@@ -87,7 +87,7 @@ Startup context is `@`-imported above (PRINCIPAL_IDENTITY, DA_IDENTITY, PROJECTS
 | **Runtime constitution** | `~/.config/opencode/PAI/RUNTIME_CONSTITUTION.md` — provider-neutral invariants loaded by the OpenCode plugin |
 | **OpenCode runtime plugin** | `~/.config/opencode/plugins/pai-hooks.js` — system context, classifier, guards, notifications |
 | User credentials | `~/.config/opencode/PAI/USER/Config/PAI_CONFIG.yaml` |
-| Browser automation | `Skill("Browser")` for batch scraping; `Skill("Interceptor")` for verification (mandatory) |
+| Browser automation | `Skill("Interceptor")` — real Chrome; mandatory for web verification (W2.15: headless Browser skill retired) |
 | OpenCode runtime docs | `~/.config/opencode/docs/README-OPENCODE.md` (lives outside PAI/) |
 | Legacy (read as history, not runtime) | `DOCUMENTATION/Hooks/HookSystem.md` unless marked OpenCode-native; `DOCUMENTATION/Pulse/PulseSystem.md` and `DOCUMENTATION/Pulse/TerminalTabs.md` — desktop Pulse surfaces; current runtime is broker/notifications |
 

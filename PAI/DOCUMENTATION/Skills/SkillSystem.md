@@ -401,32 +401,30 @@ Move these to separate context files in skill root:
 
 ```markdown
 ---
-name: Art
-description: Visual content system. USE WHEN art, header images, visualizations, diagrams.
+name: Research
+description: Comprehensive research system. USE WHEN research, investigate, find information.
 ---
 
-# Art Skill
+# Research Skill
 
-Complete visual content system using **charcoal architectural sketch** aesthetic.
+Comprehensive research, analysis, and content extraction system.
 
 ## Workflow Routing
 
 | Trigger | Workflow |
 |---------|----------|
-| Blog header/editorial | `Workflows/Essay.md` |
-| Technical diagram | `Workflows/TechnicalDiagrams.md` |
-| Mermaid flowchart | `Workflows/Mermaid.md` |
+| Quick lookup | `Workflows/QuickResearch.md` |
+| Standard research (default) | `Workflows/StandardResearch.md` |
+| Thorough/exhaustive | `Workflows/ExtensiveResearch.md` |
 
 ## Quick Reference
 
-**Aesthetic:** Charcoal architectural sketch
-**Model:** nano-banana-pro
-**Output:** Always ~/Downloads/ first
+**Default:** Standard mode (4 agents, one per angle)
+**Verification:** Every URL verified before delivery
 
 **Full Documentation:**
-- Aesthetic guide: `SkillSearch('art aesthetic')` → loads Aesthetic.md
-- Examples: `SkillSearch('art examples')` → loads Examples.md
-- Tools: `SkillSearch('art tools')` → loads Tools.md
+- Mode comparison: `SkillSearch('research quick reference')` → loads QuickReference.md
+- URL protocol: `SkillSearch('research url verification')` → loads UrlVerificationProtocol.md
 ```
 
 ### Loading Additional Context Files
@@ -435,15 +433,14 @@ Workflows call SkillSearch to load context files as needed:
 
 ```bash
 # In workflow files or SKILL.md
-SkillSearch('art aesthetic')    # Loads Aesthetic.md from skill root
-SkillSearch('art examples')     # Loads Examples.md from skill root
-SkillSearch('art tools')        # Loads Tools.md from skill root
+SkillSearch('research quick reference')     # Loads QuickReference.md from skill root
+SkillSearch('research url verification')    # Loads UrlVerificationProtocol.md from skill root
 ```
 
 Or reference them directly:
 ```bash
 # Read specific context file
-Read ~/.config/opencode/PAI/skills/Art/Aesthetic.md
+Read ~/.config/opencode/PAI/skills/Research/QuickReference.md
 ```
 
 Context files can reference workflows and tools:
@@ -733,8 +730,6 @@ skills/OSINT/Workflows/CompanyDueDiligence.md                 # Workflow - one l
 skills/OSINT/Tools/Analyze.ts                                 # Tool - one level deep
 skills/OSINT/Methodology.md                                   # Context file - in root
 skills/OSINT/EthicalFramework.md                              # Context file - in root
-skills/Prompting/BeCreative.md                                # Templates in Prompting root
-skills/Prompting/StoryExplanation.md                          # Templates in Prompting root
 skills/PromptInjection/DefenseMechanisms.md                   # Context file - in root
 skills/PromptInjection/QuickStartGuide.md                     # Context file - in root
 ```
@@ -746,7 +741,6 @@ skills/OSINT/Resources/Examples.md                            # Context files go
 skills/OSINT/Docs/Methodology.md                              # Context files go in root, NOT Docs/
 skills/OSINT/Templates/Primitives/Extract.md                  # THREE levels - NO
 skills/OSINT/Workflows/Company/DueDiligence.md                # THREE levels - NO (use CompanyDueDiligence.md instead)
-skills/Prompting/Templates/BeCreative.md                      # Templates in root, NOT Templates/ subdirectory
 skills/Research/Workflows/Analysis/Deep.md                    # THREE levels - NO
 ```
 
@@ -767,9 +761,6 @@ skills/Research/Workflows/Analysis/Deep.md                    # THREE levels - N
 
 2. **Tools/** - Executable scripts/tools ONLY
    - CLI tools, automation scripts
-
-**Templates (Prompting skill only):**
-- Templates live in `skills/Prompting/` root, NOT nested
 
 ### Context/Resource Files Go in Skill Root
 
