@@ -16,7 +16,6 @@ function filesUnder(dir: string): string[] {
     for (const entry of readdirSync(path)) {
       const full = join(path, entry);
       const rel = relative(repoRoot, full);
-      if (rel.startsWith("skills/Fabric/")) continue;
       if (statSync(full).isDirectory()) {
         walk(full);
       } else if (/\.(md|ts)$/.test(entry)) {
